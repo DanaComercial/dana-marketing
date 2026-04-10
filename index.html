@@ -3321,67 +3321,85 @@ function fetchNews() {
 const NEWS_DATA = [
   {
     cat:'mercado', impact:'alto', featured:true,
-    emoji:'📈', source:'IEMI', time:'Abr 2026',
+    img:'https://iemi.com.br/wp-content/uploads/2025/12/Varejo-de-vestuario-crescer-2025-Eleni-Kronka.jpg',
+    source:'IEMI', time:'Abr 2026',
     title:'Varejo de vestuário brasileiro movimenta R$314,9 bi em 2025 — crescimento de 6,8%',
-    desc:'Segundo o IEMI (Instituto de Estudos e Marketing Industrial), o varejo de vestuário atingiu R$314,9 bilhões em 2025. E-commerce superou R$200 bi, e para 2026 a ABComm projeta R$258 bi (+10%). Segmento de uniformes profissionais acompanha a tendência.',
+    desc:'Segundo o IEMI, o varejo de vestuário atingiu R$314,9 bilhões em 2025. E-commerce superou R$200 bi, e para 2026 a ABComm projeta R$258 bi (+10%). Segmento de uniformes profissionais acompanha a tendência.',
+    url:'https://iemi.com.br/varejo-de-vestuario-deve-crescer-apesar-dos-desafios-de-2025/',
   },
   {
     cat:'tendencia', impact:'alto',
-    emoji:'👗', source:'Mercado Real', time:'Abr 2026',
-    title:'Gola Padre e tons terrosos dominam a moda profissional de saúde em 2026',
-    desc:'A gola padre (mandarin) se consolidou como tendência absoluta em jalecos femininos, oferecendo visual minimalista e proteção no pescoço. Tons terrosos e neutros ganham espaço como alternativa sofisticada ao branco.',
+    img:'https://iemi.com.br/wp-content/uploads/2026/04/Dinamicas-do-consumo-de-vestuario-Eleni-Kronka.jpg',
+    source:'IEMI', time:'Abr 2026',
+    title:'Novas dinâmicas do consumo de vestuário para 2026 — pesquisa IEMI',
+    desc:'Estudo revela crescimento consistente da demanda e mudanças nos canais de distribuição no setor de vestuário brasileiro. Dados exclusivos de 2020 a 2025 com projeções de curto e médio prazo.',
+    url:'https://iemi.com.br/pesquisa-aponta-novas-dinamicas-do-consumo-de-vestuario-para-2026/',
   },
   {
     cat:'mercado', impact:'alto',
-    emoji:'🏪', source:'ABComm', time:'Abr 2026',
-    title:'E-commerce de moda profissional cresce acima da média do varejo',
-    desc:'Com o e-commerce brasileiro projetado para R$258 bi em 2026, o segmento de uniformes profissionais de saúde se destaca pelo alto ticket médio e recorrência. Marcas regionais do Sul ganham mercado nacional via marketplaces.',
+    img:'https://wp.edrone.me/wp-content/uploads/2022/10/dados-ecommerce-brasil-blog-capa.png',
+    source:'edrone', time:'Abr 2026',
+    title:'E-commerce no Brasil 2026: dados de um mercado em expansão — R$258 bi projetados',
+    desc:'Com o e-commerce brasileiro projetado para R$258 bi em 2026, o segmento de uniformes profissionais de saúde se destaca pelo alto ticket médio e recorrência. Marcas regionais do Sul ganham mercado via marketplaces.',
+    url:'https://edrone.me/pt/blog/dados-ecommerce-brasil',
   },
   {
     cat:'saude', impact:'medio',
-    emoji:'🩺', source:'Sebrae SC', time:'Abr 2026',
-    title:'Mercado de uniformes faturou R$194 bi em 2021 — crescimento de 20% ao ano',
+    img:'https://www.sebrae-sc.com.br/storage/imagem-principal/_1920x600_crop_center-center_100_none/6745792/SebraeSC-Mercado-de-uniformes.webp',
+    source:'Sebrae SC', time:'Abr 2026',
+    title:'Mercado de uniformes faturou R$194 bi — crescimento de 20% ao ano',
     desc:'Relatório do Sebrae SC aponta que o mercado de uniformes profissionais atingiu R$194 bilhões com crescimento anual de 20%. Setor de saúde puxa demanda com exigências de biossegurança e identidade visual.',
+    url:'https://www.sebrae-sc.com.br/observatorio/relatorio-de-inteligencia/mercado-de-uniformes',
   },
   {
     cat:'tendencia', impact:'alto',
-    emoji:'🌿', source:'Uzan Uniformes', time:'Abr 2026',
+    img:'https://uzanuniformes.com.br/wp-content/uploads/2025/02/ecology-volunteer-recycle-t-shirt-1024x683.jpg',
+    source:'Uzan Uniformes', time:'Abr 2026',
     title:'Sustentabilidade deixa de ser diferencial e vira obrigação no mercado de uniformes',
     desc:'Em 2026 práticas sustentáveis são obrigatórias. Embalagens recicláveis, tecidos com menor impacto ambiental e produção consciente agora são critérios de decisão de compra no segmento premium.',
-  },
-  {
-    cat:'social', impact:'alto',
-    emoji:'📱', source:'Tendência Digital', time:'Abr 2026',
-    title:'TikTok e Reels de rotina médica impulsionam vendas de scrubs premium',
-    desc:'Conteúdo de "dia na rotina" com profissionais de saúde usando scrubs estilosos viraliza nas redes. Formatos de transformação (antes/depois com jaleco) geram até 5x mais engajamento que posts tradicionais.',
-  },
-  {
-    cat:'mercado', impact:'medio',
-    emoji:'🤖', source:'BRP Uniformes', time:'Abr 2026',
-    title:'Tecidos inteligentes com sensores chegam ao mercado de uniformes profissionais',
-    desc:'Inovação tecnológica em uniformes: tecidos com sensores embutidos monitoram saúde e bem-estar de colaboradores em tempo real. Tendência forte para setores de saúde e segurança em 2026.',
-  },
-  {
-    cat:'moda', impact:'medio',
-    emoji:'✂️', source:'Mercado Têxtil', time:'Abr 2026',
-    title:'Gabardine com elastano e crepe tecnológico dominam confecções de jalecos em 2026',
-    desc:'Fabricantes apostam em blends técnicos que unem estética, conforto e durabilidade. Gabardine 100% poliéster se mantém como referência por resistência a lavagens industriais e rápida secagem.',
+    url:'https://uzanuniformes.com.br/uniformes-corporativos-em-2025-como-sustentabilidade-e-personalizacao-transformam-o-mercado/',
   },
   {
     cat:'mercado', impact:'alto',
-    emoji:'🏥', source:'IEMI 2026', time:'Abr 2026',
+    img:'https://iemi.com.br/wp-content/uploads/2025/08/Producao-de-Vestuario-Aponta-Retomada-Eleni-Kronka.jpg',
+    source:'IEMI', time:'Abr 2026',
+    title:'Produção de vestuário aponta tendência de retomada — 5,5 bi de peças em 2025',
+    desc:'Setor gerou R$170,7 bi em 2024 com expectativa de R$181,6 bi em 2025. Produção em volume cresceu 4% para 5,4 bi de peças, com projeção de 5,5 bi. Recuperação consistente pós-pandemia.',
+    url:'https://iemi.com.br/producao-de-vestuario-aponta-tendencia-de-retomada/',
+  },
+  {
+    cat:'mercado', impact:'medio',
+    img:'https://brpuniformes.com.br/wp-content/uploads/2023/11/BRP-Uniformes.png',
+    source:'BRP Uniformes', time:'Abr 2026',
+    title:'Tendências em uniformes corporativos para 2025-2026: tecidos inteligentes e personalização',
+    desc:'Inovação tecnológica em uniformes: tecidos com sensores embutidos monitoram saúde e bem-estar. Personalização sofisticada reflete identidade visual e cultura corporativa de forma profunda.',
+    url:'https://brpuniformes.com.br/tendencias-em-uniformes-corporativos-para-2025-prepare-sua-empresa-para-o-futuro/',
+  },
+  {
+    cat:'moda', impact:'medio',
+    img:'https://iemi.com.br/wp-content/uploads/2026/03/Estudo-do-Mercado-Potencial-Vestuario-Meias-e-Acessorios-2026.jpg',
+    source:'IEMI', time:'Abr 2026',
+    title:'Estudo do Mercado Potencial de Vestuário 2026 — análise completa IEMI',
+    desc:'Estudo abrangente com dados exclusivos sobre produção, consumo, demografia e estrutura de mercado nos 27 estados brasileiros. Ferramenta estratégica para posicionamento competitivo.',
+    url:'https://iemi.com.br/estudo-do-mercado-potencial-de-vestuario-meias-e-acessorios/',
+  },
+  {
+    cat:'mercado', impact:'alto',
+    img:'https://iemi.com.br/wp-content/uploads/2026/04/Dinamicas-do-consumo-de-vestuario-Eleni-Kronka.jpg',
+    source:'IEMI 2026', time:'Abr 2026',
     title:'Personalização sofisticada redefine uniformes corporativos em 2026',
-    desc:'Empresas buscam uniformes que reflitam identidade visual e cultura corporativa de forma profunda. Bordados personalizados, modelagens inclusivas e paletas de cor exclusivas são os novos padrões do mercado.',
+    desc:'Empresas buscam uniformes que reflitam identidade visual e cultura corporativa. Bordados personalizados, modelagens inclusivas PPP ao G3 e paletas de cor exclusivas são os novos padrões do mercado.',
+    url:'https://iemi.com.br/pesquisa-aponta-novas-dinamicas-do-consumo-de-vestuario-para-2026/',
   },
 ];
 
 function renderNews() {
   const container = document.getElementById('news-container');
   const featured = NEWS_DATA[0];
-  let html = `<div class="news-card featured" data-cat="${featured.cat}" onclick="openNewsModal(${0})" style="margin-bottom:14px">
-    <div class="news-img" style="min-height:200px"><div style="font-size:52px">${featured.emoji}</div><div class="news-source-badge">${featured.source}</div><div class="news-time-badge">${featured.time}</div></div>
+  let html = `<div class="news-card featured" data-cat="${featured.cat}" onclick="openNewsLink(0)" style="margin-bottom:14px;cursor:pointer">
+    <div class="news-img" style="min-height:200px"><img src="${featured.img}" alt="${featured.title}" style="width:100%;height:100%;object-fit:cover"><div class="news-source-badge">${featured.source}</div><div class="news-time-badge">${featured.time}</div></div>
     <div class="news-body" style="padding:20px 22px;display:flex;flex-direction:column;justify-content:center">
-      <div class="news-cat ${featured.cat}">🔥 Destaque · ${featured.cat}</div>
+      <div class="news-cat ${featured.cat}">Destaque · ${featured.cat}</div>
       <div class="news-title">${featured.title}</div>
       <div class="news-desc">${featured.desc}</div>
       <div class="news-meta"><span class="news-src">${featured.source}</span><span class="news-impact alto">Alto impacto</span></div>
@@ -3390,13 +3408,13 @@ function renderNews() {
 
   html += '<div class="news-grid">';
   NEWS_DATA.slice(1).forEach((n, i) => {
-    html += `<div class="news-card" data-cat="${n.cat}" onclick="openNewsModal(${i+1})">
-      <div class="news-img"><div style="font-size:36px">${n.emoji}</div><div class="news-source-badge">${n.source}</div><div class="news-time-badge">${n.time}</div></div>
+    html += `<div class="news-card" data-cat="${n.cat}" onclick="openNewsLink(${i+1})" style="cursor:pointer">
+      <div class="news-img"><img src="${n.img}" alt="${n.title}" style="width:100%;height:100%;object-fit:cover"><div class="news-source-badge">${n.source}</div><div class="news-time-badge">${n.time}</div></div>
       <div class="news-body">
         <div class="news-cat ${n.cat}">${n.cat}</div>
         <div class="news-title">${n.title}</div>
         <div class="news-desc">${n.desc}</div>
-        <div class="news-meta"><span class="news-src">${n.source}</span><span class="news-impact ${n.impact}">${n.impact === 'alto' ? '↑ Alto' : n.impact === 'medio' ? '→ Médio' : '↓ Baixo'} impacto</span></div>
+        <div class="news-meta"><span class="news-src">${n.source}</span><span class="news-impact ${n.impact}">${n.impact === 'alto' ? 'Alto' : n.impact === 'medio' ? 'Medio' : 'Baixo'} impacto</span></div>
       </div>
     </div>`;
   });
@@ -3405,10 +3423,10 @@ function renderNews() {
   document.getElementById('news-count').textContent = NEWS_DATA.length + ' resultados';
 }
 
-function openNewsModal(idx) {
+function openNewsLink(idx) {
   const n = NEWS_DATA[idx];
-  if(!n) return;
-  alert(`📰 ${n.title}\n\n${n.desc}\n\nFonte: ${n.source} · ${n.time}`);
+  if(!n || !n.url) return;
+  window.open(n.url, '_blank');
 }
 
 function addConcorrente() {
