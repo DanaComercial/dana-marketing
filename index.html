@@ -5581,18 +5581,8 @@ function updateKanbanCounts() {
 
 let taskCount = 100;
 function addCard(col) {
-  const title = prompt('Título da tarefa:');
-  if(!title?.trim()) return;
-  taskCount++;
-  const card = document.createElement('div');
-  card.className = 'k-card';
-  card.draggable = true;
-  card.id = 't'+taskCount;
-  card.ondragstart = drag;
-  card.innerHTML = `<div class="k-card-title">${title}</div><div class="k-meta"><div class="k-prio media">Média</div><div class="k-person">M</div></div>`;
-  document.getElementById('col-'+col).appendChild(card);
-  updateKanbanCounts();
-  saveData();
+  document.getElementById('new-task-col').value = col;
+  openModal('nova-tarefa');
 }
 
 function createTask() {
