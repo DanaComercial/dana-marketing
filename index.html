@@ -5446,6 +5446,7 @@ function go(el, viewId) {
   document.getElementById('topbar-sub').textContent = meta.sub || '';
   const btn = document.getElementById('topbar-action');
   if(meta.action) { btn.textContent = meta.action; btn.style.display=''; } else btn.style.display='none';
+  try { localStorage.setItem('dms-active-view', viewId); } catch(e) {}
 }
 
 function topbarAction() {
@@ -5809,6 +5810,14 @@ window.addEventListener('load', () => {
   calcMetrics();
   loadData();
   updateNotifDot();
+  // Restaurar última view ativa
+  try {
+    const lastView = localStorage.getItem('dms-active-view');
+    if(lastView) {
+      const navEl = document.querySelector('[onclick*="\''+lastView+'\'"]');
+      go(navEl, lastView);
+    }
+  } catch(e) {}
   // animate KPI bars
   setTimeout(() => {
     document.querySelectorAll('.meta-fill').forEach(el => {
