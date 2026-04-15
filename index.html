@@ -3645,8 +3645,8 @@ function updateNewsCount() {
 }
 
 let _newsCache = [];
-// GNews free = 100 requests/dia, cada clique usa 2 requests = 50 atualizacoes/dia
-const NEWS_DAILY_LIMIT = 50;
+// GNews free = 100 requests/dia, cada clique usa 5 requests (1 por categoria) = 20 atualizacoes/dia
+const NEWS_DAILY_LIMIT = 20;
 function getNewsUsage() {
   try {
     const stored = JSON.parse(localStorage.getItem('dms-news-usage') || '{}');
