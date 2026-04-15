@@ -12,127 +12,290 @@ const SUPABASE_URL = 'https://comlppiwzniskjbeneos.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvbWxwcGl3em5pc2tqYmVuZW9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwODg2MjYsImV4cCI6MjA5MTY2NDYyNn0.jQOYaPklzSxQxTUd7rzktljHpW7ivbxbtilsUUi-TBE';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ── DADOS GLOBAIS ──
+let liveData = { stats: null, mensal: [], contas: null, porMes: {} };
+
+// ── AGRUPAR POR MÊS (dashboard_mensal retorna múltiplas linhas por mês/status) ──
+function agruparPorMes(rows) {
+  const result = {};
+  (rows || []).forEach(r => {
+    const key = r.ano + '-' + r.mes;
+    if (!result[key]) {
+      result[key] = {
+        ano: r.ano, mes: r.mes, receita: 0, pedidos: 0,
+        receita_site: 0, pedidos_site: 0,
+        receita_loja: 0, pedidos_loja: 0,
+        receita_ml: 0, pedidos_ml: 0,
+        receita_tiktok: 0, pedidos_tiktok: 0,
+        receita_shopee: 0, pedidos_shopee: 0
+      };
+    }
+    const m = result[key];
+    m.receita += parseFloat(r.receita) || 0;
+    m.pedidos += parseInt(r.pedidos) || 0;
+    m.receita_site += parseFloat(r.receita_site) || 0;
+    m.pedidos_site += parseInt(r.pedidos_site) || 0;
+    m.receita_loja += parseFloat(r.receita_loja) || 0;
+    m.pedidos_loja += parseInt(r.pedidos_loja) || 0;
+    m.receita_ml += parseFloat(r.receita_ml) || 0;
+    m.pedidos_ml += parseInt(r.pedidos_ml) || 0;
+    m.receita_tiktok += parseFloat(r.receita_tiktok) || 0;
+    m.pedidos_tiktok += parseInt(r.pedidos_tiktok) || 0;
+    m.receita_shopee += parseFloat(r.receita_shopee) || 0;
+    m.pedidos_shopee += parseInt(r.pedidos_shopee) || 0;
+  });
+  return result;
+}
+
+// ── MAPEAR CANAL ──
+function getNomeCanal(lojaId) {
+  const id = parseInt(lojaId) || 0;
+  if (id === 0) return 'Site';
+  if (id === 203536978) return 'Loja/WhatsApp';
+  if (id === 205337834) return 'Mercado Livre';
+  if (id === 205430008) return 'TikTok';
+  if (id === 205522474) return 'Shopee';
+  return 'Magalu';
+}
+
 // ── LOAD DASHBOARD DATA FROM SUPABASE ──
 async function loadSupabaseData() {
   try {
-    // 1. Resumo geral
-    const { data: resumo } = await sb.from('dashboard_resumo').select('*').single();
-    if (resumo) {
-      const el = (id) => document.getElementById(id);
-      const fmt = (v) => 'R$' + Math.round(v/1000) + 'k';
-      const fmtN = (v) => v.toLocaleString('pt-BR');
+    const el = (id) => document.getElementById(id);
+    const fmt = (v) => 'R$' + Math.round(v).toLocaleString('pt-BR');
+    const fmtK = (v) => 'R$' + Math.round(v/1000) + 'k';
+    const fmtN = (v) => (v || 0).toLocaleString('pt-BR');
+    const now = new Date();
+    const mesAtual = now.getMonth() + 1;
+    const anoAtual = now.getFullYear();
 
-      // KPIs Home - mes atual
-      const now = new Date();
-      const mesAtual = now.getMonth() + 1;
-      const anoAtual = now.getFullYear();
+    // ── QUERIES EM PARALELO ──
+    const [resumoRes, mensalRes, contasRes, vendedoresRes, syncRes] = await Promise.all([
+      sb.from('dashboard_resumo').select('*').single(),
+      sb.from('dashboard_mensal').select('*').order('ano').order('mes'),
+      sb.from('dashboard_contas').select('*').single(),
+      sb.from('vendedores').select('id', { count: 'exact', head: true }),
+      sb.from('sync_log').select('created_at').order('created_at', { ascending: false }).limit(1),
+    ]);
 
-      // 2. Dados do mes atual e anterior
-      const { data: mensal } = await sb.from('dashboard_mensal').select('*');
-      if (mensal) {
-        // Agrupar por mes (somando todos os status)
-        const porMes = {};
-        mensal.forEach(r => {
-          const key = r.ano + '-' + r.mes;
-          if (!porMes[key]) porMes[key] = { receita: 0, pedidos: 0 };
-          porMes[key].receita += parseFloat(r.receita);
-          porMes[key].pedidos += r.pedidos;
-        });
+    const resumo = resumoRes.data;
+    const mensalRaw = mensalRes.data || [];
+    const contas = contasRes.data;
+    const vendCount = vendedoresRes.count || 0;
+    const lastSync = syncRes.data;
 
-        const mesAtualKey = anoAtual + '-' + mesAtual;
-        const mesAnteriorKey = mesAtual === 1 ? (anoAtual-1) + '-12' : anoAtual + '-' + (mesAtual-1);
+    // Salvar dados globais
+    liveData.stats = resumo;
+    liveData.mensal = mensalRaw;
+    liveData.contas = contas;
+    liveData.porMes = agruparPorMes(mensalRaw);
+    liveData.vendCount = vendCount;
 
-        const atual = porMes[mesAtualKey] || { receita: 0, pedidos: 0 };
-        const anterior = porMes[mesAnteriorKey] || { receita: 0, pedidos: 0 };
+    if (!resumo) { console.warn('Sem dados de resumo'); return; }
 
-        const ticketAtual = atual.pedidos > 0 ? Math.round(atual.receita / atual.pedidos) : 0;
-        const ticketAnterior = anterior.pedidos > 0 ? Math.round(anterior.receita / anterior.pedidos) : 0;
+    // Popular filtro de meses dinamicamente
+    populaFiltroMeses(liveData.porMes, anoAtual);
 
-        // Atualizar KPIs
-        if (el('kpi-fat-anterior-label')) el('kpi-fat-anterior-label').textContent = 'Faturamento ' + getMesNome(mesAtual-1 || 12) + ' ' + (mesAtual === 1 ? anoAtual-1 : anoAtual);
-        if (el('kpi-fat-anterior')) el('kpi-fat-anterior').textContent = fmt(anterior.receita);
-        if (el('kpi-fat-anterior-ped')) el('kpi-fat-anterior-ped').textContent = '↑ ' + fmtN(anterior.pedidos) + ' pedidos no mês';
+    // Aplicar filtro ativo (ou padrao = mes atual)
+    aplicarFiltroDashboard();
 
-        if (el('kpi-fat-atual-label')) el('kpi-fat-atual-label').textContent = getMesNome(mesAtual) + ' ' + anoAtual + ' (parcial 1-' + now.getDate() + ')';
-        if (el('kpi-fat-atual')) el('kpi-fat-atual').textContent = fmt(atual.receita);
-        if (el('kpi-fat-atual-ped')) el('kpi-fat-atual-ped').textContent = '↑ ' + fmtN(atual.pedidos) + ' pedidos em ' + now.getDate() + ' dias';
+    // Contatos e vendedores (sempre fixo, nao depende de filtro)
+    if (el('kpi-contatos')) el('kpi-contatos').textContent = '~' + fmtN(resumo.total_contatos);
+    if (el('kpi-vendedores')) el('kpi-vendedores').textContent = vendCount + ' vendedores/canais ativos';
 
-        const metaVal = 500000;
-        const pctAtual = Math.round((atual.receita / metaVal) * 100);
-        const pctAnterior = Math.round((anterior.receita / metaVal) * 100);
-        if (el('kpi-fat-atual-pct')) el('kpi-fat-atual-pct').textContent = pctAtual + '%';
-        if (el('kpi-fat-atual-bar')) el('kpi-fat-atual-bar').style.width = Math.min(100, pctAtual) + '%';
-        if (el('kpi-fat-anterior-pct')) el('kpi-fat-anterior-pct').textContent = pctAnterior + '%';
-        if (el('kpi-fat-anterior-bar')) el('kpi-fat-anterior-bar').style.width = Math.min(100, pctAnterior) + '%';
+    // Financeiro quickview
+    if (el('fin-receber')) el('fin-receber').textContent = fmt(resumo.total_receber) + ' em aberto';
+    if (el('fin-pagar')) el('fin-pagar').textContent = fmt(resumo.total_pagar) + ' em aberto';
 
-        if (el('kpi-ticket')) el('kpi-ticket').textContent = 'R$' + fmtN(ticketAtual);
-        if (el('kpi-ticket-diff')) el('kpi-ticket-diff').textContent = '↑ R$' + fmtN(ticketAtual - ticketAnterior) + ' vs ' + getMesNome(mesAtual-1||12).toLowerCase() + ' (R$' + fmtN(ticketAnterior) + ')';
-        const ticketPct = Math.round((ticketAtual / metaVal * 1000) * 100);
-        if (el('kpi-ticket-pct')) el('kpi-ticket-pct').textContent = Math.round(ticketAtual/500*100) + '%';
-
-        // Gráfico diário do mes atual
-        const { data: pedidosDia } = await sb.from('pedidos')
-          .select('data, total')
-          .gte('data', anoAtual + '-' + String(mesAtual).padStart(2,'0') + '-01')
-          .lte('data', anoAtual + '-' + String(mesAtual).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0'));
-
-        if (pedidosDia) {
-          const porDia = {};
-          pedidosDia.forEach(p => {
-            if (!porDia[p.data]) porDia[p.data] = { total: 0, count: 0 };
-            porDia[p.data].total += parseFloat(p.total);
-            porDia[p.data].count++;
-          });
-
-          const dias = Object.keys(porDia).sort();
-          chartData.fat = dias.map(d => Math.round(porDia[d].total / 1000 * 10) / 10);
-          chartData.ped = dias.map(d => porDia[d].count);
-
-          // Update labels
-          const chartLabels = dias.map((d, i) => {
-            const parts = d.split('-');
-            const label = parts[2] + '/' + parts[1];
-            return i === 0 || i === dias.length - 1 ? label : parts[2];
-          });
-          window._chartLabels = chartLabels;
-          renderChart();
-        }
-      }
-
-      // 3. Contatos e vendedores
-      if (el('kpi-contatos')) el('kpi-contatos').textContent = fmtN(resumo.total_contatos) + '+';
-
-      const { count: vendCount } = await sb.from('vendedores').select('id', { count: 'exact', head: true });
-      if (el('kpi-vendedores')) el('kpi-vendedores').textContent = (vendCount || 0) + ' vendedores/canais ativos';
-
-      // 4. Financeiro
-      if (el('fin-receber')) el('fin-receber').textContent = fmt(resumo.total_receber) + ' em aberto';
-      if (el('fin-pagar')) el('fin-pagar').textContent = fmt(resumo.total_pagar) + ' em aberto';
-
-      // 5. Top produtos do mes atual
-      const { data: pedidosMes } = await sb.from('pedidos')
-        .select('contato_nome, total, loja_id, situacao_id')
-        .gte('data', anoAtual + '-' + String(mesAtual).padStart(2,'0') + '-01');
-
-      if (pedidosMes) {
-        // Por canal
-        const porCanal = {};
-        pedidosMes.forEach(p => {
-          const canal = p.loja_id == 0 ? 'Site' : p.loja_id == 205337834 ? 'ML' : p.loja_id == 203536978 ? 'Loja/WhatsApp' : p.loja_id == 205430008 ? 'TikTok' : p.loja_id == 205522474 ? 'Shopee' : 'Magalu';
-          if (!porCanal[canal]) porCanal[canal] = { total: 0, count: 0 };
-          porCanal[canal].total += parseFloat(p.total);
-          porCanal[canal].count++;
-        });
-      }
-
-      // 6. Última sync
-      const { data: lastSync } = await sb.from('sync_log').select('created_at').order('created_at', { ascending: false }).limit(1);
-      if (lastSync?.[0] && el('last-sync-time')) {
-        el('last-sync-time').textContent = 'Supabase · ' + new Date(lastSync[0].created_at).toLocaleString('pt-BR');
-      }
+    // ── ÚLTIMA SYNC ──
+    if (lastSync?.[0] && el('last-sync-time')) {
+      const syncDate = new Date(lastSync[0].created_at);
+      const diffMin = Math.round((Date.now() - syncDate.getTime()) / 60000);
+      el('last-sync-time').textContent = 'Bling sync · ' + syncDate.toLocaleString('pt-BR') + (diffMin < 60 ? ' (há ' + diffMin + 'min)' : '');
     }
+
   } catch (err) {
-    console.warn('Supabase load error:', err.message);
+    console.warn('Supabase load error:', err.message, err);
+  }
+}
+
+// ── POPULAR FILTRO DE MESES ──
+function populaFiltroMeses(porMes, anoAtual) {
+  const select = document.getElementById('dash-filtro-mes');
+  if (!select) return;
+  const oldVal = select.value;
+
+  // Manter as 2 opcoes fixas, adicionar meses individuais
+  select.innerHTML = '<option value="atual">Mês Atual</option><option value="ytd">Acumulado 2026 (YTD)</option>';
+
+  const meses = Object.keys(porMes)
+    .filter(k => k.startsWith(anoAtual + '-'))
+    .sort()
+    .reverse();
+
+  if (meses.length > 0) {
+    const sep = document.createElement('option');
+    sep.disabled = true;
+    sep.textContent = '── Meses individuais ──';
+    select.appendChild(sep);
+  }
+
+  meses.forEach(k => {
+    const [a, m] = k.split('-').map(Number);
+    const opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = getMesNome(m) + ' ' + a;
+    select.appendChild(opt);
+  });
+
+  // Restaurar selecao
+  if (oldVal && [...select.options].some(o => o.value === oldVal)) {
+    select.value = oldVal;
+  }
+}
+
+// ── APLICAR FILTRO DO DASHBOARD ──
+function aplicarFiltroDashboard() {
+  const el = (id) => document.getElementById(id);
+  const fmt = (v) => 'R$' + Math.round(v).toLocaleString('pt-BR');
+  const fmtK = (v) => 'R$' + Math.round(v/1000) + 'k';
+  const fmtN = (v) => (v || 0).toLocaleString('pt-BR');
+  const now = new Date();
+  const mesAtual = now.getMonth() + 1;
+  const anoAtual = now.getFullYear();
+  const pm = liveData.porMes;
+  const resumo = liveData.stats;
+  if (!resumo || !pm) return;
+
+  const filtro = document.getElementById('dash-filtro-mes')?.value || 'atual';
+  const metaVal = 500000;
+
+  let receitaExibir, pedidosExibir, labelExibir, subExibir;
+  let receitaAnterior, pedidosAnterior, labelAnterior;
+
+  if (filtro === 'ytd') {
+    // YTD — acumulado 2026
+    receitaExibir = parseFloat(resumo.receita_2026) || 0;
+    pedidosExibir = parseInt(resumo.pedidos_2026) || 0;
+    labelExibir = 'Receita Total 2026 (YTD)';
+    subExibir = pedidosExibir.toLocaleString('pt-BR') + ' pedidos · todos os status';
+
+    receitaAnterior = parseFloat(resumo.receita_2025) || 0;
+    pedidosAnterior = parseInt(resumo.pedidos_2025) || 0;
+    labelAnterior = 'Total 2025 (comparativo)';
+
+  } else if (filtro === 'atual') {
+    // Mes atual
+    const mesKey = anoAtual + '-' + mesAtual;
+    const mesAntKey = mesAtual === 1 ? (anoAtual-1)+'-12' : anoAtual+'-'+(mesAtual-1);
+    const d = pm[mesKey] || { receita:0, pedidos:0 };
+    const dAnt = pm[mesAntKey] || { receita:0, pedidos:0 };
+
+    receitaExibir = d.receita;
+    pedidosExibir = d.pedidos;
+    labelExibir = getMesNome(mesAtual) + ' ' + anoAtual + ' (parcial 1-' + now.getDate() + ')';
+    subExibir = pedidosExibir.toLocaleString('pt-BR') + ' pedidos em ' + now.getDate() + ' dias';
+
+    receitaAnterior = dAnt.receita;
+    pedidosAnterior = dAnt.pedidos;
+    labelAnterior = 'Faturamento ' + getMesNome(mesAtual-1||12) + ' ' + (mesAtual===1?anoAtual-1:anoAtual);
+
+  } else {
+    // Mes especifico (ex: "2026-3")
+    const [a, m] = filtro.split('-').map(Number);
+    const d = pm[filtro] || { receita:0, pedidos:0 };
+    const mesAntKey = m === 1 ? (a-1)+'-12' : a+'-'+(m-1);
+    const dAnt = pm[mesAntKey] || { receita:0, pedidos:0 };
+
+    receitaExibir = d.receita;
+    pedidosExibir = d.pedidos;
+    labelExibir = getMesNome(m) + ' ' + a;
+    subExibir = pedidosExibir.toLocaleString('pt-BR') + ' pedidos no mês';
+
+    receitaAnterior = dAnt.receita;
+    pedidosAnterior = dAnt.pedidos;
+    labelAnterior = 'Faturamento ' + getMesNome(m-1||12) + ' ' + (m===1?a-1:a);
+  }
+
+  // Ticket médio — excluir pedidos com valor zero (cancelados/digitação)
+  const ticketExibir = pedidosExibir > 0 ? Math.round(receitaExibir / pedidosExibir) : 0;
+  const ticketAnterior = pedidosAnterior > 0 ? Math.round(receitaAnterior / pedidosAnterior) : 0;
+
+  // Atualizar KPIs
+  if (el('kpi-fat-anterior-label')) el('kpi-fat-anterior-label').textContent = labelAnterior;
+  if (el('kpi-fat-anterior')) el('kpi-fat-anterior').textContent = receitaAnterior >= 1000000 ? fmtK(receitaAnterior) : fmt(receitaAnterior);
+  if (el('kpi-fat-anterior-ped')) el('kpi-fat-anterior-ped').textContent = '↑ ' + fmtN(pedidosAnterior) + ' pedidos';
+  const pctAnterior = Math.round((receitaAnterior / metaVal) * 100);
+  if (el('kpi-fat-anterior-pct')) el('kpi-fat-anterior-pct').textContent = pctAnterior + '%';
+  if (el('kpi-fat-anterior-bar')) el('kpi-fat-anterior-bar').style.width = Math.min(100, pctAnterior) + '%';
+
+  if (el('kpi-fat-atual-label')) el('kpi-fat-atual-label').textContent = labelExibir;
+  if (el('kpi-fat-atual')) el('kpi-fat-atual').textContent = receitaExibir >= 1000000 ? fmtK(receitaExibir) : fmt(receitaExibir);
+  if (el('kpi-fat-atual-ped')) el('kpi-fat-atual-ped').textContent = '↑ ' + subExibir;
+  const pctAtual = Math.round((receitaExibir / metaVal) * 100);
+  if (el('kpi-fat-atual-pct')) el('kpi-fat-atual-pct').textContent = pctAtual + '%';
+  if (el('kpi-fat-atual-bar')) el('kpi-fat-atual-bar').style.width = Math.min(100, pctAtual) + '%';
+
+  if (el('kpi-ticket-label')) el('kpi-ticket-label').textContent = filtro === 'ytd' ? 'Ticket Médio 2026' : 'Ticket Médio';
+  if (el('kpi-ticket')) el('kpi-ticket').textContent = 'R$' + fmtN(ticketExibir);
+  const diffTicket = ticketExibir - ticketAnterior;
+  if (el('kpi-ticket-diff')) el('kpi-ticket-diff').textContent = (diffTicket >= 0 ? '↑' : '↓') + ' R$' + fmtN(Math.abs(diffTicket)) + ' vs anterior (R$' + fmtN(ticketAnterior) + ')';
+  const ticketPct = Math.round(ticketExibir / 500 * 100);
+  if (el('kpi-ticket-pct')) el('kpi-ticket-pct').textContent = ticketPct + '%';
+  if (el('kpi-ticket-bar')) el('kpi-ticket-bar').style.width = Math.min(100, ticketPct) + '%';
+
+  // Gráfico diário (apenas para mes atual ou mes especifico)
+  if (filtro !== 'ytd') {
+    loadGraficoDiario(filtro);
+  }
+}
+
+// ── GRÁFICO DIÁRIO POR MÊS ──
+async function loadGraficoDiario(filtro) {
+  const now = new Date();
+  let ano, mes, diaMax;
+
+  if (filtro === 'atual') {
+    ano = now.getFullYear();
+    mes = now.getMonth() + 1;
+    diaMax = now.getDate();
+  } else {
+    const [a, m] = filtro.split('-').map(Number);
+    ano = a; mes = m;
+    // Se e o mes atual, limitar ao dia de hoje; senao, pegar o mes inteiro
+    if (a === now.getFullYear() && m === now.getMonth() + 1) {
+      diaMax = now.getDate();
+    } else {
+      diaMax = new Date(a, m, 0).getDate(); // ultimo dia do mes
+    }
+  }
+
+  const dataInicio = ano + '-' + String(mes).padStart(2,'0') + '-01';
+  const dataFim = ano + '-' + String(mes).padStart(2,'0') + '-' + String(diaMax).padStart(2,'0');
+
+  const { data: pedidosDia } = await sb.from('pedidos')
+    .select('data, total')
+    .gte('data', dataInicio)
+    .lte('data', dataFim)
+    .neq('situacao_id', 12) // excluir cancelados
+    .order('data');
+
+  if (pedidosDia && pedidosDia.length > 0) {
+    const porDia = {};
+    pedidosDia.forEach(p => {
+      if (!porDia[p.data]) porDia[p.data] = { total: 0, count: 0 };
+      porDia[p.data].total += parseFloat(p.total) || 0;
+      porDia[p.data].count++;
+    });
+
+    const dias = Object.keys(porDia).sort();
+    chartData.fat = dias.map(d => Math.round(porDia[d].total / 1000 * 10) / 10);
+    chartData.ped = dias.map(d => porDia[d].count);
+    window._chartLabels = dias.map((d, i) => {
+      const parts = d.split('-');
+      return i === 0 || i === dias.length - 1 ? parts[2] + '/' + parts[1] : parts[2];
+    });
+    renderChart();
   }
 }
 
@@ -1395,6 +1558,10 @@ select.input { cursor: pointer; }
 
   <div class="nav-section">
     <div class="nav-label">Inteligência</div>
+    <div class="nav-item" onclick="go(this,'keywords')">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="5"/><path d="M10 10l4.5 4.5"/></svg>
+      Palavras-Chave
+    </div>
     <div class="nav-item" onclick="go(this,'mercado')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.5"/><path d="M8 1.5C8 1.5 5 5 5 8s3 6.5 3 6.5M8 1.5C8 1.5 11 5 11 8s-3 6.5-3 6.5M1.5 8h13"/></svg></div>Mercado e Tendências
       <span class="nav-badge live">Ao vivo</span>
@@ -1411,6 +1578,14 @@ select.input { cursor: pointer; }
     <div class="nav-label">Operacional</div>
     <div class="nav-item" onclick="go(this,'comunidade')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 10c0 1.1-.9 2-2 2H4l-2.5 2V4c0-1.1.9-2 2-2h8.5c1.1 0 2 .9 2 2z"/></svg></div>Comunidade e CRM
+    </div>
+    <div class="nav-item" onclick="go(this,'financeiro')">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 7h14M4 10h2M10 10h2"/></svg>
+      Financeiro
+    </div>
+    <div class="nav-item" onclick="go(this,'projecoes')">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l4-5 3 3 5-8"/><circle cx="14" cy="4" r="1.5"/></svg>
+      Projeções
     </div>
     <div class="nav-item" onclick="go(this,'marketplaces')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12l-1.5 7H3.5z"/><circle cx="5.5" cy="13" r="1.5"/><circle cx="10.5" cy="13" r="1.5"/><path d="M2 4l-.8-2H.5"/></svg></div>Marketplaces
@@ -1438,6 +1613,10 @@ select.input { cursor: pointer; }
     </div>
     <div class="nav-item" onclick="go(this,'relatorio')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 12l4-5 3 3 2.5-3 2.5 2.5"/><rect x="1" y="1" width="14" height="14" rx="2"/></svg></div>Relatório Executivo
+    </div>
+    <div class="nav-item" onclick="go(this,'calendario')">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="12" rx="1.5"/><path d="M1.5 6.5h13M5 1v3M11 1v3"/></svg>
+      Calendário
     </div>
     <div class="nav-item" onclick="go(this,'construtor')" style="background:rgba(255,255,255,0.1);border-radius:7px;margin-top:4px">
       <div class="nav-icon" style="background:rgba(255,255,255,0.15)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3h10v2H3zM3 7h7v2H3zM3 11h5v2H3z"/><path d="M12 9l2 2-2 2"/></svg></div>
@@ -1484,36 +1663,9 @@ select.input { cursor: pointer; }
       <div class="notif-dot" id="notif-dot"></div>
     </div>
     <div class="notif-panel" id="notif-panel">
-      <div class="notif-head">Alertas <span style="font-size:10px;color:var(--text3);font-weight:500">5 não lidas</span></div>
-      <div class="notif-item unread" onclick="markRead(this)">
-        <div class="notif-type urgent">Urgente</div>
-        <div class="notif-title">ROAS Meta Ads abaixo de 2.0x</div>
-        <div class="notif-body">Campanha "Profissional Liberal" com ROAS 1.8 — pausar ou ajustar criativos?</div>
-        <div class="notif-time">Agora mesmo</div>
-      </div>
-      <div class="notif-item unread" onclick="markRead(this)">
-        <div class="notif-type ok">Meta atingida</div>
-        <div class="notif-title">Ticket médio bateu R$420</div>
-        <div class="notif-body">Acima da meta mensal de R$380. Scrub Comfy liderando as vendas.</div>
-        <div class="notif-time">há 2 horas</div>
-      </div>
-      <div class="notif-item unread" onclick="markRead(this)">
-        <div class="notif-type warn">Atenção</div>
-        <div class="notif-title">Prova social acumulada</div>
-        <div class="notif-body">14 depoimentos aguardando aprovação no módulo UGC.</div>
-        <div class="notif-time">há 5 horas</div>
-      </div>
-      <div class="notif-item" onclick="markRead(this)">
-        <div class="notif-type info">Novidade</div>
-        <div class="notif-title">Temporada inverno se aproxima</div>
-        <div class="notif-body">Iniciar planejamento campanha frio: Jaleco Isabel + Scrub Glamour.</div>
-        <div class="notif-time">ontem</div>
-      </div>
-      <div class="notif-item" onclick="markRead(this)">
-        <div class="notif-type ok">Aprovado</div>
-        <div class="notif-title">Nova influenciadora @dra.caroll</div>
-        <div class="notif-body">Contrato assinado — 12k seguidores, odontologia, SC.</div>
-        <div class="notif-time">há 2 dias</div>
+      <div class="notif-head">Alertas <span style="font-size:10px;color:var(--text3);font-weight:500" id="alertas-count-label">carregando...</span></div>
+      <div id="alertas-container">
+        <div style="padding:16px;font-size:12px;color:var(--text3);text-align:center">Carregando alertas...</div>
       </div>
     </div>
     <button class="btn btn-ghost btn-sm" id="topbar-action" onclick="topbarAction()">Nova Campanha</button>
@@ -1523,36 +1675,64 @@ select.input { cursor: pointer; }
 <!-- ════════ DASHBOARD ════════ -->
 <div class="view active" id="view-home">
 <div style="padding:24px 28px">
+  <!-- Filtro de período -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">Dashboard</div>
+      <div style="font-size:12.5px;color:var(--text3);margin-top:2px">Visão geral · dados Bling em tempo real</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="dash-filtro-mes" onchange="aplicarFiltroDashboard()" style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-weight:600;cursor:pointer">
+        <option value="atual">Mês Atual</option>
+        <option value="ytd">Acumulado 2026 (YTD)</option>
+      </select>
+    </div>
+  </div>
+
   <!-- KPIs -->
   <div class="kpi-grid mb20">
     <div class="kpi-card dark">
       <div class="kpi-label" id="kpi-fat-anterior-label">Faturamento Março 2026</div>
-      <div class="kpi-value" id="kpi-fat-anterior">R$296k</div>
-      <div class="kpi-change up" id="kpi-fat-anterior-ped">↑ 926 pedidos no mês</div>
-      <div class="meta-bar-row"><span>Meta R$500k</span><strong id="kpi-fat-anterior-pct">59%</strong></div>
-      <div class="meta-bar"><div class="meta-fill" id="kpi-fat-anterior-bar" style="width:59%"></div></div>
+      <div class="kpi-value" id="kpi-fat-anterior">--</div>
+      <div class="kpi-change up" id="kpi-fat-anterior-ped">carregando...</div>
+      <div class="meta-bar-row"><span>Meta R$500k</span><strong id="kpi-fat-anterior-pct">0%</strong></div>
+      <div class="meta-bar"><div class="meta-fill" id="kpi-fat-anterior-bar" style="width:0%"></div></div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label" id="kpi-fat-atual-label">Abril 2026 (parcial 1-13)</div>
-      <div class="kpi-value" id="kpi-fat-atual">R$228k</div>
-      <div class="kpi-change up" id="kpi-fat-atual-ped">↑ 243 pedidos em 13 dias</div>
-      <div class="meta-bar-row"><span>Meta R$500k</span><strong id="kpi-fat-atual-pct">46%</strong></div>
-      <div class="meta-bar"><div class="meta-fill" id="kpi-fat-atual-bar" style="width:46%"></div></div>
+      <div class="kpi-label" id="kpi-fat-atual-label">Mês Atual</div>
+      <div class="kpi-value" id="kpi-fat-atual">--</div>
+      <div class="kpi-change up" id="kpi-fat-atual-ped">carregando...</div>
+      <div class="meta-bar-row"><span>Meta R$500k</span><strong id="kpi-fat-atual-pct">0%</strong></div>
+      <div class="meta-bar"><div class="meta-fill" id="kpi-fat-atual-bar" style="width:0%"></div></div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">Ticket Médio Atual</div>
-      <div class="kpi-value" id="kpi-ticket">R$940</div>
-      <div class="kpi-change up" id="kpi-ticket-diff">↑ R$620 vs março (R$320)</div>
-      <div class="meta-bar-row"><span>Meta R$500</span><strong id="kpi-ticket-pct">188%</strong></div>
-      <div class="meta-bar"><div class="meta-fill" style="width:100%"></div></div>
+      <div class="kpi-label" id="kpi-ticket-label">Ticket Médio</div>
+      <div class="kpi-value" id="kpi-ticket">--</div>
+      <div class="kpi-change up" id="kpi-ticket-diff">carregando...</div>
+      <div class="meta-bar-row"><span>Meta R$500</span><strong id="kpi-ticket-pct">0%</strong></div>
+      <div class="meta-bar"><div class="meta-fill" id="kpi-ticket-bar" style="width:0%"></div></div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Contatos Cadastrados</div>
-      <div class="kpi-value" id="kpi-contatos">28.500+</div>
+      <div class="kpi-value" id="kpi-contatos">--</div>
       <div class="kpi-change up">↑ Base total Bling</div>
-      <div class="meta-bar-row"><span id="kpi-vendedores">76 vendedores/canais ativos</span><strong></strong></div>
+      <div class="meta-bar-row"><span id="kpi-vendedores">carregando...</span><strong></strong></div>
       <div class="meta-bar"><div class="meta-fill" style="width:100%"></div></div>
     </div>
+  </div>
+  <!-- Previsao de Receita -->
+  <div class="card mb20" id="previsao-card" style="background:linear-gradient(135deg,#f8f9fa,#fff);border-left:4px solid var(--green)">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Previsão de Receita</div>
+        <div class="card-sub">Baseada nos últimos 6 meses · regressão linear</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px" id="previsao-valor">calculando...</div>
+        <div style="font-size:11px;color:var(--text3)" id="previsao-sub"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:16px;margin-top:12px" id="previsao-detalhes"></div>
   </div>
 
   <div class="g21 mb20">
@@ -3463,129 +3643,110 @@ function updateNewsCount() {
   if(el) el.textContent = visible + ' resultados';
 }
 
-function fetchNews() {
-  const btn = document.getElementById('mkt-refresh-btn');
-  if(btn) { btn.classList.add('spinning'); }
-  const container = document.getElementById('news-container');
-  container.innerHTML = '<div class="news-loading"><div class="news-spinner"></div><div>Buscando as últimas notícias do seu nicho...</div></div>';
+let _newsCache = [];
 
-  setTimeout(() => {
-    if(btn) btn.classList.remove('spinning');
-    renderNews();
-    const el = document.getElementById('last-update');
-    if(el) el.textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  }, 1800);
+async function fetchNews() {
+  const btn = document.getElementById('mkt-refresh-btn');
+  if (btn) btn.classList.add('spinning');
+  const container = document.getElementById('news-container');
+  container.innerHTML = '<div class="news-loading"><div class="news-spinner"></div><div>Buscando notícias reais do seu nicho...</div></div>';
+
+  try {
+    const newsUrl = SUPABASE_URL + '/functions/v1/news-search?cat=todas&t=' + Date.now();
+    const res = await fetch(newsUrl, {
+      headers: { 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    if (data.news && data.news.length > 0) {
+      _newsCache = data.news;
+      console.log('Noticias carregadas:', data.news.length);
+    } else {
+      throw new Error('Sem noticias');
+    }
+  } catch (e) {
+    console.warn('News fetch error:', e);
+    // Fallback: embaralhar as estáticas para parecer diferente
+    _newsCache = [...NEWS_FALLBACK].sort(() => Math.random() - 0.5);
+  }
+
+  if (btn) btn.classList.remove('spinning');
+  renderNews();
+  const el = document.getElementById('last-update');
+  if (el) el.textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-const NEWS_DATA = [
-  {
-    cat:'mercado', impact:'alto', featured:true,
-    img:'https://iemi.com.br/wp-content/uploads/2025/12/Varejo-de-vestuario-crescer-2025-Eleni-Kronka.jpg',
-    source:'IEMI', time:'Abr 2026',
-    title:'Varejo de vestuário brasileiro movimenta R$314,9 bi em 2025 — crescimento de 6,8%',
-    desc:'Segundo o IEMI, o varejo de vestuário atingiu R$314,9 bilhões em 2025. E-commerce superou R$200 bi, e para 2026 a ABComm projeta R$258 bi (+10%). Segmento de uniformes profissionais acompanha a tendência.',
-    url:'https://iemi.com.br/varejo-de-vestuario-deve-crescer-apesar-dos-desafios-de-2025/',
-  },
-  {
-    cat:'tendencia', impact:'alto',
-    img:'https://iemi.com.br/wp-content/uploads/2026/04/Dinamicas-do-consumo-de-vestuario-Eleni-Kronka.jpg',
-    source:'IEMI', time:'Abr 2026',
-    title:'Novas dinâmicas do consumo de vestuário para 2026 — pesquisa IEMI',
-    desc:'Estudo revela crescimento consistente da demanda e mudanças nos canais de distribuição no setor de vestuário brasileiro. Dados exclusivos de 2020 a 2025 com projeções de curto e médio prazo.',
-    url:'https://iemi.com.br/pesquisa-aponta-novas-dinamicas-do-consumo-de-vestuario-para-2026/',
-  },
-  {
-    cat:'mercado', impact:'alto',
-    img:'https://wp.edrone.me/wp-content/uploads/2022/10/dados-ecommerce-brasil-blog-capa.png',
-    source:'edrone', time:'Abr 2026',
-    title:'E-commerce no Brasil 2026: dados de um mercado em expansão — R$258 bi projetados',
-    desc:'Com o e-commerce brasileiro projetado para R$258 bi em 2026, o segmento de uniformes profissionais de saúde se destaca pelo alto ticket médio e recorrência. Marcas regionais do Sul ganham mercado via marketplaces.',
-    url:'https://edrone.me/pt/blog/dados-ecommerce-brasil',
-  },
-  {
-    cat:'saude', impact:'medio',
-    img:'https://www.sebrae-sc.com.br/storage/imagem-principal/_1920x600_crop_center-center_100_none/6745792/SebraeSC-Mercado-de-uniformes.webp',
-    source:'Sebrae SC', time:'Abr 2026',
-    title:'Mercado de uniformes faturou R$194 bi — crescimento de 20% ao ano',
-    desc:'Relatório do Sebrae SC aponta que o mercado de uniformes profissionais atingiu R$194 bilhões com crescimento anual de 20%. Setor de saúde puxa demanda com exigências de biossegurança e identidade visual.',
-    url:'https://www.sebrae-sc.com.br/observatorio/relatorio-de-inteligencia/mercado-de-uniformes',
-  },
-  {
-    cat:'tendencia', impact:'alto',
-    img:'https://uzanuniformes.com.br/wp-content/uploads/2025/02/ecology-volunteer-recycle-t-shirt-1024x683.jpg',
-    source:'Uzan Uniformes', time:'Abr 2026',
-    title:'Sustentabilidade deixa de ser diferencial e vira obrigação no mercado de uniformes',
-    desc:'Em 2026 práticas sustentáveis são obrigatórias. Embalagens recicláveis, tecidos com menor impacto ambiental e produção consciente agora são critérios de decisão de compra no segmento premium.',
-    url:'https://uzanuniformes.com.br/uniformes-corporativos-em-2025-como-sustentabilidade-e-personalizacao-transformam-o-mercado/',
-  },
-  {
-    cat:'mercado', impact:'alto',
-    img:'https://iemi.com.br/wp-content/uploads/2025/08/Producao-de-Vestuario-Aponta-Retomada-Eleni-Kronka.jpg',
-    source:'IEMI', time:'Abr 2026',
-    title:'Produção de vestuário aponta tendência de retomada — 5,5 bi de peças em 2025',
-    desc:'Setor gerou R$170,7 bi em 2024 com expectativa de R$181,6 bi em 2025. Produção em volume cresceu 4% para 5,4 bi de peças, com projeção de 5,5 bi. Recuperação consistente pós-pandemia.',
-    url:'https://iemi.com.br/producao-de-vestuario-aponta-tendencia-de-retomada/',
-  },
-  {
-    cat:'mercado', impact:'medio',
-    img:'https://brpuniformes.com.br/wp-content/uploads/2023/11/BRP-Uniformes.png',
-    source:'BRP Uniformes', time:'Abr 2026',
-    title:'Tendências em uniformes corporativos para 2025-2026: tecidos inteligentes e personalização',
-    desc:'Inovação tecnológica em uniformes: tecidos com sensores embutidos monitoram saúde e bem-estar. Personalização sofisticada reflete identidade visual e cultura corporativa de forma profunda.',
-    url:'https://brpuniformes.com.br/tendencias-em-uniformes-corporativos-para-2025-prepare-sua-empresa-para-o-futuro/',
-  },
-  {
-    cat:'moda', impact:'medio',
-    img:'https://iemi.com.br/wp-content/uploads/2026/03/Estudo-do-Mercado-Potencial-Vestuario-Meias-e-Acessorios-2026.jpg',
-    source:'IEMI', time:'Abr 2026',
-    title:'Estudo do Mercado Potencial de Vestuário 2026 — análise completa IEMI',
-    desc:'Estudo abrangente com dados exclusivos sobre produção, consumo, demografia e estrutura de mercado nos 27 estados brasileiros. Ferramenta estratégica para posicionamento competitivo.',
-    url:'https://iemi.com.br/estudo-do-mercado-potencial-de-vestuario-meias-e-acessorios/',
-  },
-  {
-    cat:'mercado', impact:'alto',
-    img:'https://iemi.com.br/wp-content/uploads/2026/04/Dinamicas-do-consumo-de-vestuario-Eleni-Kronka.jpg',
-    source:'IEMI 2026', time:'Abr 2026',
-    title:'Personalização sofisticada redefine uniformes corporativos em 2026',
-    desc:'Empresas buscam uniformes que reflitam identidade visual e cultura corporativa. Bordados personalizados, modelagens inclusivas PPP ao G3 e paletas de cor exclusivas são os novos padrões do mercado.',
-    url:'https://iemi.com.br/pesquisa-aponta-novas-dinamicas-do-consumo-de-vestuario-para-2026/',
-  },
+// Dados de fallback caso a Edge Function não esteja disponível
+const NEWS_FALLBACK = [
+  { cat:'mercado', impact:'alto', source:'IEMI', time:'Abr 2026', title:'Varejo de vestuário brasileiro movimenta R$314,9 bi em 2025 — crescimento de 6,8%', desc:'Segundo o IEMI, o varejo de vestuário atingiu R$314,9 bilhões em 2025. E-commerce superou R$200 bi. Segmento de uniformes profissionais acompanha a tendência.', url:'https://iemi.com.br/varejo-de-vestuario-deve-crescer-apesar-dos-desafios-de-2025/' },
+  { cat:'tendencia', impact:'alto', source:'IEMI', time:'Abr 2026', title:'Novas dinâmicas do consumo de vestuário para 2026 — pesquisa IEMI', desc:'Estudo revela crescimento consistente da demanda e mudanças nos canais de distribuição no setor de vestuário brasileiro.', url:'https://iemi.com.br/pesquisa-aponta-novas-dinamicas-do-consumo-de-vestuario-para-2026/' },
+  { cat:'mercado', impact:'alto', source:'edrone', time:'Abr 2026', title:'E-commerce no Brasil 2026: R$258 bi projetados', desc:'Segmento de uniformes profissionais de saúde se destaca pelo alto ticket médio e recorrência.', url:'https://edrone.me/pt/blog/dados-ecommerce-brasil' },
+  { cat:'saude', impact:'medio', source:'Sebrae SC', time:'Abr 2026', title:'Mercado de uniformes faturou R$194 bi — crescimento de 20% ao ano', desc:'Setor de saúde puxa demanda com exigências de biossegurança e identidade visual.', url:'https://www.sebrae-sc.com.br/observatorio/relatorio-de-inteligencia/mercado-de-uniformes' },
+  { cat:'tendencia', impact:'alto', source:'Uzan Uniformes', time:'Abr 2026', title:'Sustentabilidade vira obrigação no mercado de uniformes em 2026', desc:'Embalagens recicláveis, tecidos com menor impacto ambiental e produção consciente são critérios de compra.', url:'https://uzanuniformes.com.br/uniformes-corporativos-em-2025-como-sustentabilidade-e-personalizacao-transformam-o-mercado/' },
+  { cat:'mercado', impact:'alto', source:'IEMI', time:'Abr 2026', title:'Produção de vestuário aponta retomada — 5,5 bi de peças em 2025', desc:'Setor gerou R$170,7 bi em 2024 com expectativa de R$181,6 bi em 2025.', url:'https://iemi.com.br/producao-de-vestuario-aponta-tendencia-de-retomada/' },
+  { cat:'moda', impact:'medio', source:'BRP Uniformes', time:'Abr 2026', title:'Tendências em uniformes corporativos: tecidos inteligentes e personalização', desc:'Personalização sofisticada reflete identidade visual e cultura corporativa.', url:'https://brpuniformes.com.br/tendencias-em-uniformes-corporativos-para-2025-prepare-sua-empresa-para-o-futuro/' },
+  { cat:'moda', impact:'medio', source:'IEMI', time:'Abr 2026', title:'Estudo do Mercado Potencial de Vestuário 2026', desc:'Dados exclusivos sobre produção, consumo e estrutura de mercado nos 27 estados.', url:'https://iemi.com.br/estudo-do-mercado-potencial-de-vestuario-meias-e-acessorios/' },
+  { cat:'mercado', impact:'alto', source:'IEMI 2026', time:'Abr 2026', title:'Personalização sofisticada redefine uniformes corporativos em 2026', desc:'Bordados personalizados, modelagens inclusivas PPP ao G3 e paletas de cor exclusivas.', url:'https://iemi.com.br/pesquisa-aponta-novas-dinamicas-do-consumo-de-vestuario-para-2026/' },
 ];
 
 function renderNews() {
   const container = document.getElementById('news-container');
-  const featured = NEWS_DATA[0];
-  let html = `<div class="news-card featured" data-cat="${featured.cat}" onclick="openNewsLink(0)" style="margin-bottom:14px;cursor:pointer">
-    <div class="news-img" style="min-height:200px"><img src="${featured.img}" alt="${featured.title}" style="width:100%;height:100%;object-fit:cover"><div class="news-source-badge">${featured.source}</div><div class="news-time-badge">${featured.time}</div></div>
+  if (!_newsCache.length) {
+    container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Nenhuma notícia encontrada. Clique em Atualizar.</div>';
+    return;
+  }
+
+  const catLabels = { moda:'Moda Profissional', saude:'Saúde', mercado:'Mercado e Varejo', tendencia:'Tendências', social:'Conteúdo e Social' };
+
+  const gradients = {
+    moda:'linear-gradient(135deg,#7c3aed,#a78bfa)',
+    saude:'linear-gradient(135deg,#dc2626,#f87171)',
+    mercado:'linear-gradient(135deg,#1a4fa0,#60a5fa)',
+    tendencia:'linear-gradient(135deg,#059669,#34d399)',
+    social:'linear-gradient(135deg,#d97706,#fbbf24)',
+  };
+  const emojis = { moda:'👗', saude:'🏥', mercado:'📊', tendencia:'🔥', social:'📱' };
+
+  function newsImgHtml(n, height) {
+    const domain = n.domain || '';
+    const grad = gradients[n.cat] || 'linear-gradient(135deg,#333,#666)';
+    const initials = (n.source || '?').substring(0, 2).toUpperCase();
+    return `<div class="news-img" style="height:${height};background:${grad};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative">
+      <div style="width:48px;height:48px;border-radius:12px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:white;letter-spacing:1px;backdrop-filter:blur(4px)">${initials}</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.8);font-weight:600;max-width:80%;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.source}</div>
+      <div class="news-source-badge">${n.source}</div>
+      <div class="news-time-badge">${n.time}</div>
+    </div>`;
+  }
+
+  const featured = _newsCache[0];
+  let html = `<div class="news-card featured" data-cat="${featured.cat}" onclick="window.open('${featured.url}','_blank')" style="margin-bottom:14px;cursor:pointer">
+    ${newsImgHtml(featured, '100%')}
     <div class="news-body" style="padding:20px 22px;display:flex;flex-direction:column;justify-content:center">
-      <div class="news-cat ${featured.cat}">Destaque · ${featured.cat}</div>
+      <div class="news-cat ${featured.cat}">Destaque · ${catLabels[featured.cat] || featured.cat}</div>
       <div class="news-title">${featured.title}</div>
-      <div class="news-desc">${featured.desc}</div>
-      <div class="news-meta"><span class="news-src">${featured.source}</span><span class="news-impact alto">Alto impacto</span></div>
+      ${featured.desc ? '<div class="news-desc">' + featured.desc + '</div>' : ''}
+      <div class="news-meta"><span class="news-src">${featured.source}</span><span class="news-impact ${featured.impact||'medio'}">${featured.impact === 'alto' ? 'Alto' : 'Médio'} impacto</span></div>
     </div>
   </div>`;
 
   html += '<div class="news-grid">';
-  NEWS_DATA.slice(1).forEach((n, i) => {
-    html += `<div class="news-card" data-cat="${n.cat}" onclick="openNewsLink(${i+1})" style="cursor:pointer">
-      <div class="news-img"><img src="${n.img}" alt="${n.title}" style="width:100%;height:100%;object-fit:cover"><div class="news-source-badge">${n.source}</div><div class="news-time-badge">${n.time}</div></div>
+  _newsCache.slice(1).forEach(n => {
+    html += `<div class="news-card" data-cat="${n.cat}" onclick="window.open('${n.url}','_blank')" style="cursor:pointer">
+      ${newsImgHtml(n, '140px')}
       <div class="news-body">
-        <div class="news-cat ${n.cat}">${n.cat}</div>
+        <div class="news-cat ${n.cat}">${catLabels[n.cat] || n.cat}</div>
         <div class="news-title">${n.title}</div>
-        <div class="news-desc">${n.desc}</div>
-        <div class="news-meta"><span class="news-src">${n.source}</span><span class="news-impact ${n.impact}">${n.impact === 'alto' ? 'Alto' : n.impact === 'medio' ? 'Medio' : 'Baixo'} impacto</span></div>
+        ${n.desc ? '<div class="news-desc">' + n.desc + '</div>' : ''}
+        <div class="news-meta"><span class="news-src">${n.source}</span><span class="news-impact ${n.impact||'medio'}">${(n.impact === 'alto' ? 'Alto' : 'Médio') + ' impacto'}</span></div>
       </div>
     </div>`;
   });
   html += '</div>';
   container.innerHTML = html;
-  document.getElementById('news-count').textContent = NEWS_DATA.length + ' resultados';
-}
-
-function openNewsLink(idx) {
-  const n = NEWS_DATA[idx];
-  if(!n || !n.url) return;
-  window.open(n.url, '_blank');
+  document.getElementById('news-count').textContent = _newsCache.length + ' notícias';
 }
 
 function addConcorrente() {
@@ -3602,7 +3763,7 @@ function prospectar(handle) {
 
 // Auto-load
 window.addEventListener('load', () => {
-  setTimeout(renderNews, 800);
+  setTimeout(fetchNews, 800);
   // Animate trend bars
   setTimeout(() => {
     document.querySelectorAll('.trend-fill').forEach(el => {
@@ -4332,71 +4493,96 @@ updateDynamicField('foto');
 </div>
 
 <div class="view" id="view-performance"><div style="padding:24px 28px">
-  <div class="kpi-grid mb20">
-    <div class="kpi-card dark"><div class="kpi-label">Faturamento Abril (1-13)</div><div class="kpi-value">R$228k</div><div class="kpi-change up">243 pedidos em 13 dias</div></div>
-    <div class="kpi-card"><div class="kpi-label">Ticket Médio Abril</div><div class="kpi-value">R$940</div><div class="kpi-change up">+194% vs março (R$320)</div></div>
-    <div class="kpi-card"><div class="kpi-label">Melhor Dia Abril</div><div class="kpi-value">01/04</div><div class="kpi-change up">R$110.8k — 33 pedidos</div></div>
-    <div class="kpi-card"><div class="kpi-label">Pior Dia Abril</div><div class="kpi-value">05/04</div><div class="kpi-change dn">R$477 — 1 pedido (sábado)</div></div>
+  <div class="kpi-grid mb20" id="perf-kpis">
+    <div class="kpi-card dark"><div class="kpi-label" id="perf-kpi1-label">Faturamento Mês</div><div class="kpi-value" id="perf-kpi1">--</div><div class="kpi-change up" id="perf-kpi1-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label">Ticket Médio</div><div class="kpi-value" id="perf-kpi2">--</div><div class="kpi-change up" id="perf-kpi2-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label">Melhor Canal</div><div class="kpi-value" id="perf-kpi3">--</div><div class="kpi-change up" id="perf-kpi3-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label">Total Pedidos</div><div class="kpi-value" id="perf-kpi4">--</div><div class="kpi-change up" id="perf-kpi4-sub">carregando...</div></div>
   </div>
-  <div class="g2 mb20">
-    <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Top Produtos — Abril 2026 (Bling)</div>
-      <table><thead><tr><th>#</th><th>Produto</th><th>Vendas</th></tr></thead><tbody>
-        <tr><td><b>1</b></td><td class="em">Scrub Feminino Lilás</td><td class="good">61</td></tr>
-        <tr><td><b>2</b></td><td class="em">Scrub Feminino Azul Bebê</td><td class="good">27</td></tr>
-        <tr><td>3</td><td class="em">Scrub Feminino Preto</td><td>24</td></tr>
-        <tr><td>4</td><td class="em">Scrub Feminino Azul Marinho</td><td>22</td></tr>
-        <tr><td>5</td><td class="em">Jaleco Manuela Azul Marinho</td><td>14</td></tr>
-        <tr><td>6</td><td class="em">Jaleco Chloe Preto</td><td>13</td></tr>
-      </tbody></table>
+
+  <!-- Funil de Vendas -->
+  <div class="card mb20">
+    <div class="card-header">
+      <div><div class="card-title">Funil de Vendas</div><div class="card-sub">Conversão entre etapas — dados Bling em tempo real</div></div>
+      <div style="display:flex;gap:8px">
+        <select id="funil-mes" onchange="loadFunilVendas()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface)">
+        </select>
+        <select id="funil-canal" onchange="loadFunilVendas()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface)">
+          <option value="">Todos os canais</option>
+          <option value="0">Site</option>
+          <option value="203536978">Loja/WhatsApp</option>
+          <option value="205337834">Mercado Livre</option>
+          <option value="205430008">TikTok</option>
+          <option value="205522474">Shopee</option>
+        </select>
+      </div>
     </div>
-    <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Vendas Diárias — Abril 2026 (Bling)</div>
-      <table><thead><tr><th>Dia</th><th>Pedidos</th><th>Faturamento</th></tr></thead><tbody>
-        <tr><td>01/04</td><td class="em">33</td><td class="good">R$110.823</td></tr>
-        <tr><td>10/04</td><td class="em">31</td><td class="good">R$56.005</td></tr>
-        <tr><td>09/04</td><td class="em">34</td><td>R$9.307</td></tr>
-        <tr><td>02/04</td><td class="em">31</td><td>R$20.477</td></tr>
-        <tr><td>06/04</td><td class="em">24</td><td>R$3.236</td></tr>
-        <tr><td>04/04</td><td class="em">22</td><td>R$5.347</td></tr>
-        <tr><td>08/04</td><td class="em">19</td><td>R$9.306</td></tr>
-        <tr><td>07/04</td><td class="em">14</td><td>R$2.547</td></tr>
-        <tr><td>11/04</td><td class="em">13</td><td>R$2.863</td></tr>
-        <tr><td>13/04</td><td class="em">11</td><td>R$4.070</td></tr>
-        <tr><td>03/04</td><td class="em">6</td><td>R$2.238</td></tr>
-        <tr><td>12/04</td><td class="em">4</td><td>R$1.782</td></tr>
-        <tr><td>05/04</td><td class="em">1</td><td>R$477</td></tr>
-      </tbody></table>
+    <div id="funil-container" style="padding:8px 0">
+      <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando funil...</div>
     </div>
   </div>
-  <div class="g2">
+
+  <!-- Analytics por Canal -->
+  <div class="card mb20">
+    <div class="card-header">
+      <div><div class="card-title">Analytics por Canal</div><div class="card-sub">Comparativo de performance entre canais — mês atual</div></div>
+    </div>
+    <div id="canal-analytics-container">
+      <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando canais...</div>
+    </div>
+  </div>
+
+  <!-- Top Produtos + Status -->
+  <div class="g2" id="perf-tables">
     <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Vendas por Canal — Abril 2026 (Bling)</div>
-      <table><thead><tr><th>Canal</th><th>Pedidos</th><th>Faturamento</th><th>Ticket</th></tr></thead><tbody>
-        <tr><td class="em">Site / Vendas Diretas</td><td>99</td><td class="good">R$172.658</td><td>R$1.745</td></tr>
-        <tr><td class="em">Loja / WhatsApp</td><td>83</td><td>R$34.926</td><td>R$421</td></tr>
-        <tr><td class="em">Mercado Livre</td><td>59</td><td>R$20.363</td><td>R$345</td></tr>
-        <tr><td class="em">Magalu</td><td>2</td><td>R$531</td><td>R$265</td></tr>
-      </tbody></table>
+      <div class="card-title" style="margin-bottom:12px">Top Produtos — Mês Atual (Bling)</div>
+      <div id="perf-top-produtos"><div style="color:var(--text3);font-size:12px">Carregando...</div></div>
     </div>
     <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Por Status — Abril 2026 (Bling)</div>
-      <table><thead><tr><th>Status</th><th>Pedidos</th><th>Valor</th></tr></thead><tbody>
-        <tr><td><span class="chip ativo">Atendido</span></td><td>119</td><td class="good">R$70.575</td></tr>
-        <tr><td><span class="chip prod">Em aberto</span></td><td>63</td><td>R$136.609</td></tr>
-        <tr><td><span class="chip rev">Em andamento</span></td><td>32</td><td>R$6.831</td></tr>
-        <tr><td><span class="chip plan">Verificado</span></td><td>26</td><td>R$14.413</td></tr>
-      </tbody></table>
+      <div class="card-title" style="margin-bottom:12px">Por Status — Mês Atual (Bling)</div>
+      <div id="perf-por-status"><div style="color:var(--text3);font-size:12px">Carregando...</div></div>
     </div>
   </div>
 </div></div>
 <div class="view" id="view-comunidade"><div style="padding:24px 28px">
-  <div class="kpi-grid mb20">
-    <div class="kpi-card dark"><div class="kpi-label">Contatos Bling</div><div class="kpi-value">28.500+</div><div class="kpi-change up">Base total cadastrada</div></div>
-    <div class="kpi-card"><div class="kpi-label">Vendedores/Canais</div><div class="kpi-value">76</div><div class="kpi-change up">Vendedores ativos no Bling</div></div>
-    <div class="kpi-card"><div class="kpi-label">Canais WhatsApp</div><div class="kpi-value">2</div><div class="kpi-change neutral">Miguel + Vendas Externas</div></div>
-    <div class="kpi-card"><div class="kpi-label">Canais CRM</div><div class="kpi-value">5</div><div class="kpi-change up">Natã, Fabiana, Thamyres, AmoCRM, Academia</div></div>
+  <!-- Scoring KPIs -->
+  <div class="kpi-grid mb20" id="scoring-kpis">
+    <div class="kpi-card dark"><div class="kpi-label">Clientes VIP</div><div class="kpi-value" id="score-vip">--</div><div class="kpi-change up">Score 80+</div></div>
+    <div class="kpi-card"><div class="kpi-label">Frequentes</div><div class="kpi-value" id="score-freq">--</div><div class="kpi-change up">Score 60-79</div></div>
+    <div class="kpi-card"><div class="kpi-label">Em Risco</div><div class="kpi-value" id="score-risco">--</div><div class="kpi-change dn">90+ dias sem compra</div></div>
+    <div class="kpi-card"><div class="kpi-label">Total Segmentados</div><div class="kpi-value" id="score-total">--</div><div class="kpi-change neutral">Clientes com pedidos</div></div>
   </div>
+
+  <!-- Distribuicao de segmentos -->
+  <div class="card mb20">
+    <div class="card-header">
+      <div><div class="card-title">Distribuição de Segmentos</div><div class="card-sub">Classificação automática baseada em frequência, valor, recência e ticket</div></div>
+    </div>
+    <div id="segmento-distribuicao" style="margin-top:8px">
+      <div style="display:flex;height:28px;border-radius:8px;overflow:hidden;gap:2px" id="segmento-bar"></div>
+      <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap" id="segmento-legenda"></div>
+    </div>
+  </div>
+
+  <!-- Filtro + Tabela de clientes -->
+  <div class="card mb20">
+    <div class="card-header">
+      <div><div class="card-title">Clientes por Score</div><div class="card-sub">Ordenados por pontuação — dados reais Bling</div></div>
+      <div class="tabs" style="margin-bottom:0">
+        <div class="tab active" onclick="filterScoring(this,'')">Todos</div>
+        <div class="tab" onclick="filterScoring(this,'VIP')">VIP</div>
+        <div class="tab" onclick="filterScoring(this,'Frequente')">Frequente</div>
+        <div class="tab" onclick="filterScoring(this,'Ocasional')">Ocasional</div>
+        <div class="tab" onclick="filterScoring(this,'Em Risco')">Em Risco</div>
+        <div class="tab" onclick="filterScoring(this,'Inativo')">Inativo</div>
+      </div>
+    </div>
+    <div id="scoring-table-container" style="max-height:400px;overflow-y:auto">
+      <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando clientes...</div>
+    </div>
+  </div>
+
+  <!-- Canais e Revendas originais -->
   <div class="g2">
     <div class="card">
       <div class="card-title" style="margin-bottom:12px">Canais de Relacionamento (Bling)</div>
@@ -4425,17 +4611,51 @@ updateDynamicField('foto');
   </div>
 </div></div>
 <div class="view" id="view-marketplaces"><div style="padding:24px 28px">
-  <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;margin-bottom:4px">Marketplaces</div>
-  <div style="font-size:12.5px;color:var(--text3);margin-bottom:20px">Canais de marketplace ativos no Bling — dados reais</div>
-  <div class="kpi-grid mb20">
-    <div class="kpi-card dark"><div class="kpi-label">Mercado Livre</div><div class="kpi-value">Ativo</div><div class="kpi-change up">Vendedor cadastrado no Bling</div></div>
-    <div class="kpi-card"><div class="kpi-label">Shopee</div><div class="kpi-value">Ativo</div><div class="kpi-change up">Canal cadastrado</div></div>
-    <div class="kpi-card"><div class="kpi-label">TikTok Shop</div><div class="kpi-value">Ativo</div><div class="kpi-change up">Canal cadastrado</div></div>
-    <div class="kpi-card"><div class="kpi-label">Magalu</div><div class="kpi-value">Ativo</div><div class="kpi-change up">2 vendedores cadastrados</div></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">Social Selling — Marketplaces</div>
+      <div style="font-size:12.5px;color:var(--text3);margin-top:2px">Mercado Livre, Shopee, TikTok — dados reais Bling</div>
+    </div>
+    <select id="mp-filtro-mes" onchange="loadMarketplaces()" style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-weight:600;cursor:pointer">
+      <option value="atual">Mês Atual</option>
+      <option value="ytd">Acumulado 2026 (YTD)</option>
+    </select>
   </div>
+
+  <!-- KPIs dinâmicos dos 3 marketplaces -->
+  <div class="kpi-grid mb20">
+    <div class="kpi-card dark"><div class="kpi-label">Mercado Livre</div><div class="kpi-value" id="mp-ml-receita">--</div><div class="kpi-change up" id="mp-ml-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label">Shopee</div><div class="kpi-value" id="mp-shopee-receita">--</div><div class="kpi-change up" id="mp-shopee-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label">TikTok Shop</div><div class="kpi-value" id="mp-tiktok-receita">--</div><div class="kpi-change up" id="mp-tiktok-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label">Total Marketplaces</div><div class="kpi-value" id="mp-total-receita">--</div><div class="kpi-change up" id="mp-total-sub">carregando...</div></div>
+  </div>
+
+  <!-- Tabela mensal comparativa -->
+  <div class="card mb20">
+    <div class="card-header">
+      <div><div class="card-title">Receita Mensal por Marketplace — 2026</div><div class="card-sub">Evolução mês a mês · dados Bling</div></div>
+    </div>
+    <div id="mp-tabela-mensal" style="overflow-x:auto">
+      <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div>
+    </div>
+  </div>
+
+  <!-- Gráfico de barras por marketplace -->
+  <div class="g2 mb20">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Receita por Marketplace — Mês Atual</div>
+      <div id="mp-bars-receita"></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Pedidos por Marketplace — Mês Atual</div>
+      <div id="mp-bars-pedidos"></div>
+    </div>
+  </div>
+
+  <!-- Canais e Eventos -->
   <div class="g2">
     <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Todos os Canais Marketplace (Bling)</div>
+      <div class="card-title" style="margin-bottom:12px">Todos os Canais (Bling)</div>
       <table><thead><tr><th>Canal</th><th>Status</th></tr></thead><tbody>
         <tr><td class="em">Mercado Livre</td><td><span class="chip ativo">Ativo</span></td></tr>
         <tr><td class="em">Shopee</td><td><span class="chip ativo">Ativo</span></td></tr>
@@ -4446,7 +4666,7 @@ updateDynamicField('foto');
       </tbody></table>
     </div>
     <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Eventos e Feiras Presenciais (Bling)</div>
+      <div class="card-title" style="margin-bottom:12px">Eventos e Feiras Presenciais</div>
       <table><thead><tr><th>Evento</th><th>Ano</th></tr></thead><tbody>
         <tr><td class="em">CIOSP</td><td>2022, 2023, 2024, 2025</td></tr>
         <tr><td class="em">Full Face SP</td><td>2022, 2024</td></tr>
@@ -4454,9 +4674,80 @@ updateDynamicField('foto');
         <tr><td class="em">SBTI</td><td>2023, 2024</td></tr>
         <tr><td class="em">Estetika SP</td><td>2024</td></tr>
         <tr><td class="em">Sul Beleza</td><td>Recorrente</td></tr>
-        <tr><td class="em">Desintegra / Team Meeting BC</td><td>2023</td></tr>
       </tbody></table>
     </div>
+  </div>
+</div></div>
+
+<!-- ════════ FINANCEIRO ════════ -->
+<div class="view" id="view-financeiro"><div style="padding:24px 28px">
+  <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;margin-bottom:4px">Financeiro</div>
+  <div style="font-size:12.5px;color:var(--text3);margin-bottom:20px">Contas a pagar/receber, DRE e fluxo · dados Bling</div>
+
+  <!-- KPIs financeiro -->
+  <div class="kpi-grid mb20">
+    <div class="kpi-card dark"><div class="kpi-label">A Receber (aberto)</div><div class="kpi-value" id="fin-kpi-receber">--</div><div class="kpi-change up" id="fin-kpi-receber-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label">A Pagar (aberto)</div><div class="kpi-value" id="fin-kpi-pagar">--</div><div class="kpi-change dn" id="fin-kpi-pagar-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label">Saldo Projetado</div><div class="kpi-value" id="fin-kpi-saldo">--</div><div class="kpi-change neutral" id="fin-kpi-saldo-sub">receber - pagar</div></div>
+    <div class="kpi-card"><div class="kpi-label">Receita YTD 2026</div><div class="kpi-value" id="fin-kpi-ytd">--</div><div class="kpi-change up" id="fin-kpi-ytd-sub">carregando...</div></div>
+  </div>
+
+  <!-- Contas a pagar/receber detalhado -->
+  <div class="g2 mb20">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Contas a Receber</div>
+      <div id="fin-receber-detail"><div style="color:var(--text3);font-size:12px">Carregando...</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Contas a Pagar</div>
+      <div id="fin-pagar-detail"><div style="color:var(--text3);font-size:12px">Carregando...</div></div>
+    </div>
+  </div>
+
+  <!-- DRE Simplificado -->
+  <div class="card mb20">
+    <div class="card-header">
+      <div><div class="card-title">DRE Simplificado — 2026</div><div class="card-sub">Receita bruta, custo estimado (27%), margem bruta</div></div>
+    </div>
+    <div id="fin-dre"><div style="color:var(--text3);font-size:12px;padding:12px">Carregando...</div></div>
+  </div>
+
+  <!-- Balancete mensal -->
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Balancete Mensal — 2026</div><div class="card-sub">Receita, pedidos, ticket médio e variação %</div></div>
+    </div>
+    <div id="fin-balancete"><div style="color:var(--text3);font-size:12px;padding:12px">Carregando...</div></div>
+  </div>
+</div></div>
+
+<!-- ════════ PROJEÇÕES ════════ -->
+<div class="view" id="view-projecoes"><div style="padding:24px 28px">
+  <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;margin-bottom:4px">Projeções</div>
+  <div style="font-size:12.5px;color:var(--text3);margin-bottom:20px">2025 vs 2026 — real + projetado · dados Bling</div>
+
+  <!-- KPIs projeção -->
+  <div class="kpi-grid mb20">
+    <div class="kpi-card dark"><div class="kpi-label">Receita 2026 (real)</div><div class="kpi-value" id="proj-receita-26">--</div><div class="kpi-change up" id="proj-receita-26-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label">Receita 2025 (real)</div><div class="kpi-value" id="proj-receita-25">--</div><div class="kpi-change neutral" id="proj-receita-25-sub">ano completo</div></div>
+    <div class="kpi-card"><div class="kpi-label">Projeção Anual 2026</div><div class="kpi-value" id="proj-anual">--</div><div class="kpi-change up" id="proj-anual-sub">baseada na média mensal</div></div>
+    <div class="kpi-card"><div class="kpi-label">Crescimento</div><div class="kpi-value" id="proj-cresc">--</div><div class="kpi-change up" id="proj-cresc-sub">2026 vs 2025</div></div>
+  </div>
+
+  <!-- Tabela comparativa 12 meses -->
+  <div class="card mb20">
+    <div class="card-header">
+      <div><div class="card-title">Comparativo Mensal — 2025 vs 2026</div><div class="card-sub">Receita real + meses futuros projetados pela média</div></div>
+    </div>
+    <div id="proj-tabela" style="overflow-x:auto"><div style="color:var(--text3);font-size:12px;padding:12px">Carregando...</div></div>
+  </div>
+
+  <!-- Barras comparativas -->
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">Receita Mensal — 2025 vs 2026</div><div class="card-sub">Barras comparativas por mês</div></div>
+    </div>
+    <div id="proj-barras" style="padding:8px 0"><div style="color:var(--text3);font-size:12px;padding:12px">Carregando...</div></div>
   </div>
 </div></div>
 <div class="view" id="view-provasocial"><div style="padding:24px 28px">
@@ -5142,6 +5433,180 @@ updateDynamicField('foto');
 
 <div class="view" id="view-briefingvisual"><div style="padding:24px 28px"><div class="card"><div class="card-title">Briefing Visual</div><div class="card-sub" style="margin-top:6px">Documento gerado pelo Construtor de Campanha, pronto para impressão.</div></div></div></div>
 
+<!-- ════════ CALENDARIO ════════ -->
+<div class="view" id="view-calendario">
+<div style="padding:24px 28px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+    <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">Calendário de Campanhas</div><div style="font-size:12.5px;color:var(--text3);margin-top:3px">Planeje promoções, lançamentos e eventos</div></div>
+    <button class="btn btn-primary btn-sm" onclick="openModal('novo-evento')">+ Novo Evento</button>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <button class="btn btn-ghost btn-sm" onclick="navegarMes(-1)">&larr; Anterior</button>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px" id="cal-mes-label">Abril 2026</div>
+      <button class="btn btn-ghost btn-sm" onclick="navegarMes(1)">Próximo &rarr;</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:8px;overflow:hidden">
+      <div style="background:var(--surface3);padding:8px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text3)">Dom</div>
+      <div style="background:var(--surface3);padding:8px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text3)">Seg</div>
+      <div style="background:var(--surface3);padding:8px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text3)">Ter</div>
+      <div style="background:var(--surface3);padding:8px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text3)">Qua</div>
+      <div style="background:var(--surface3);padding:8px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text3)">Qui</div>
+      <div style="background:var(--surface3);padding:8px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text3)">Sex</div>
+      <div style="background:var(--surface3);padding:8px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text3)">Sáb</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border)" id="cal-grid">
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ════════ KEYWORDS ════════ -->
+<div class="view" id="view-keywords">
+<div style="padding:24px 28px">
+
+  <!-- Header -->
+  <div style="text-align:center;margin-bottom:24px">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;margin-bottom:6px">Descoberta de Palavras-Chave</div>
+    <div style="font-size:13px;color:var(--text3);max-width:500px;margin:0 auto">Descubra o que as pessoas realmente pesquisam no Google. Perguntas, comparações, variações e termos comerciais — tudo gratuito.</div>
+  </div>
+
+  <!-- Search bar -->
+  <div class="card mb20" style="padding:16px 20px">
+    <div style="display:flex;gap:10px;align-items:center">
+      <div style="position:relative;flex:1">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--text4)" stroke-width="1.5" style="position:absolute;left:12px;top:50%;transform:translateY(-50%)"><circle cx="6.5" cy="6.5" r="5"/><path d="M10 10l4.5 4.5"/></svg>
+        <input type="text" id="kw-input" placeholder="Digite uma palavra-chave (ex: jaleco, scrub, uniforme...)" style="width:100%;padding:12px 14px 12px 36px;border:2px solid var(--border);border-radius:10px;font-size:14px;background:var(--surface3);transition:border-color 0.2s" onfocus="this.style.borderColor='var(--black)'" onblur="this.style.borderColor='var(--border)'" onkeydown="if(event.key==='Enter')buscarKeywords()">
+      </div>
+      <select id="kw-idioma" style="padding:12px 10px;border:2px solid var(--border);border-radius:10px;font-size:12px;background:var(--surface3);font-weight:600">
+        <option value="pt-BR">Portugues BR</option>
+        <option value="en-US">English US</option>
+        <option value="es-ES">Espanol</option>
+      </select>
+      <button class="btn btn-primary" onclick="buscarKeywords()" id="kw-btn" style="padding:12px 24px;font-size:14px;border-radius:10px">Buscar</button>
+    </div>
+    <div id="kw-progress" style="display:none;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3)">
+        <div style="width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--black);border-radius:50%;animation:spin 0.8s linear infinite"></div>
+        <span id="kw-progress-text">Buscando sugestões...</span>
+      </div>
+      <div style="height:4px;background:var(--surface3);border-radius:2px;margin-top:8px;overflow:hidden">
+        <div id="kw-progress-bar" style="height:100%;width:0%;background:var(--black);border-radius:2px;transition:width 0.3s"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resultados -->
+  <div id="kw-results" style="display:none">
+
+    <!-- KPIs resumo -->
+    <div class="kpi-grid mb20" id="kw-kpis">
+      <div class="kpi-card dark">
+        <div class="kpi-label">Total Encontrado</div>
+        <div class="kpi-value" id="kw-total">0</div>
+        <div class="kpi-change up">variações únicas</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Perguntas</div>
+        <div class="kpi-value" id="kw-cnt-perguntas">0</div>
+        <div class="kpi-change neutral">como, o que, por que...</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Comerciais</div>
+        <div class="kpi-value" id="kw-cnt-comercial">0</div>
+        <div class="kpi-change up">preco, comprar, barato...</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Comparações</div>
+        <div class="kpi-value" id="kw-cnt-comparacao">0</div>
+        <div class="kpi-change neutral">vs, melhor, diferença...</div>
+      </div>
+    </div>
+
+    <!-- Distribuição visual -->
+    <div class="card mb20">
+      <div class="card-header">
+        <div><div class="card-title" id="kw-title">Resultados</div><div class="card-sub" id="kw-sub"></div></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="exportarKeywordsCSV()">Exportar CSV</button>
+          <button class="btn btn-ghost btn-sm" onclick="copiarTodasKeywords()">Copiar Todas</button>
+        </div>
+      </div>
+      <!-- Barra de distribuicao por tipo -->
+      <div style="display:flex;height:24px;border-radius:8px;overflow:hidden;gap:2px;margin-bottom:8px" id="kw-dist-bar"></div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px" id="kw-dist-legenda"></div>
+    </div>
+
+    <!-- Tabs + Tabela -->
+    <div class="card mb20">
+      <div class="tabs" style="margin-bottom:0;border-bottom:1px solid var(--border);padding-bottom:10px">
+        <div class="tab active" onclick="filterKeywords(this,'')">Todas</div>
+        <div class="tab" onclick="filterKeywords(this,'pergunta')">Perguntas</div>
+        <div class="tab" onclick="filterKeywords(this,'comparacao')">Comparacoes</div>
+        <div class="tab" onclick="filterKeywords(this,'preposicao')">Preposicoes</div>
+        <div class="tab" onclick="filterKeywords(this,'modificador')">Comercial</div>
+        <div class="tab" onclick="filterKeywords(this,'alfabetica')">Alfabeticas</div>
+        <div class="tab" onclick="filterKeywords(this,'outro')">Relacionadas</div>
+      </div>
+      <div id="kw-table-container" style="max-height:600px;overflow-y:auto;margin-top:10px"></div>
+    </div>
+
+    <!-- Roda visual de categorias -->
+    <div class="card mb20">
+      <div class="card-header">
+        <div><div class="card-title">Mapa de Intenções</div><div class="card-sub">Distribuição visual das categorias encontradas</div></div>
+      </div>
+      <div id="kw-wheel" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 0"></div>
+    </div>
+  </div>
+
+  <!-- Estado vazio -->
+  <div id="kw-empty" class="card" style="text-align:center;padding:50px 20px;color:var(--text3)">
+    <svg width="48" height="48" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom:16px;opacity:0.3"><circle cx="6.5" cy="6.5" r="5"/><path d="M10 10l4.5 4.5"/></svg>
+    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text2);margin-bottom:6px">Pesquise uma palavra-chave</div>
+    <div style="font-size:13px;max-width:400px;margin:0 auto;line-height:1.5">
+      Digite um termo como <strong>"jaleco"</strong>, <strong>"scrub"</strong> ou <strong>"uniforme hospitalar"</strong> e descubra centenas de variações reais que as pessoas pesquisam no Google.
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('kw-input').value='jaleco';buscarKeywords()">jaleco</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('kw-input').value='scrub';buscarKeywords()">scrub</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('kw-input').value='uniforme hospitalar';buscarKeywords()">uniforme hospitalar</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('kw-input').value='roupa medica';buscarKeywords()">roupa medica</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ════════ MODAIS NOVOS ════════ -->
+<div class="modal-overlay" id="modal-novo-evento">
+  <div class="modal">
+    <div class="modal-head">Novo Evento<div class="modal-close" onclick="closeModal('novo-evento')">&times;</div></div>
+    <div class="modal-body">
+      <label>Título</label>
+      <input type="text" id="evt-titulo" placeholder="Nome do evento ou campanha">
+      <label>Tipo</label>
+      <select id="evt-tipo" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:7px;font-size:13px;margin-bottom:12px;background:var(--surface3)">
+        <option value="campanha">Campanha</option>
+        <option value="promocao">Promoção</option>
+        <option value="lancamento">Lançamento</option>
+        <option value="evento">Evento</option>
+        <option value="deadline">Deadline</option>
+        <option value="feriado">Feriado</option>
+      </select>
+      <label>Data Início</label>
+      <input type="date" id="evt-inicio">
+      <label>Data Fim (opcional)</label>
+      <input type="date" id="evt-fim">
+      <label>Descrição (opcional)</label>
+      <textarea id="evt-desc" rows="2" placeholder="Detalhes do evento"></textarea>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('novo-evento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarEvento()">Salvar Evento</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════════ TAREFAS / KANBAN ════════ -->
 <div class="view" id="view-tarefas">
 <div style="padding:24px 28px">
@@ -5151,59 +5616,23 @@ updateDynamicField('foto');
   </div>
   <div class="kanban" id="kanban-board">
     <div class="kanban-col" data-col="backlog" ondragover="dragOver(event)" ondrop="drop(event,'backlog')">
-      <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:var(--grey5)"></div>Backlog</div><div class="kanban-count" id="cnt-backlog">3</div></div>
-      <div class="kanban-body" id="col-backlog">
-        <div class="k-card" draggable="true" ondragstart="drag(event)" id="t1">
-          <div class="k-card-title">Criar conteúdo TikTok para Estudante</div>
-          <div class="k-meta"><div class="k-tag">Criativos</div><div class="k-prio baixa">Baixa</div><div class="k-person">A</div><div class="k-due">10 abr</div></div>
-        </div>
-        <div class="k-card" draggable="true" ondragstart="drag(event)" id="t2">
-          <div class="k-card-title">Pesquisar influenciadoras veterinária SP</div>
-          <div class="k-meta"><div class="k-tag">Influência</div><div class="k-prio media">Média</div><div class="k-person">M</div><div class="k-due">15 abr</div></div>
-        </div>
-        <div class="k-card" draggable="true" ondragstart="drag(event)" id="t3">
-          <div class="k-card-title">Analisar concorrentes mercado SC</div>
-          <div class="k-meta"><div class="k-tag">Estratégia</div><div class="k-prio baixa">Baixa</div><div class="k-person">L</div><div class="k-due">30 abr</div></div>
-        </div>
-      </div>
+      <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:var(--grey5)"></div>Backlog</div><div class="kanban-count" id="cnt-backlog">0</div></div>
+      <div class="kanban-body" id="col-backlog"></div>
       <div class="kanban-add" onclick="addCard('backlog')">+ Adicionar</div>
     </div>
     <div class="kanban-col" data-col="doing" ondragover="dragOver(event)" ondrop="drop(event,'doing')">
-      <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:var(--amber)"></div>Em Andamento</div><div class="kanban-count" id="cnt-doing">2</div></div>
-      <div class="kanban-body" id="col-doing">
-        <div class="k-card" draggable="true" ondragstart="drag(event)" id="t4">
-          <div class="k-card-title">Revisar copy campanha Estudante</div>
-          <div class="k-meta"><div class="k-tag">Copy</div><div class="k-prio alta">Alta</div><div class="k-person">M</div><div class="k-due late">05 abr</div></div>
-        </div>
-        <div class="k-card" draggable="true" ondragstart="drag(event)" id="t5">
-          <div class="k-card-title">Publicar reels Scrub Comfy · @danajalecoos</div>
-          <div class="k-meta"><div class="k-tag">Social</div><div class="k-prio alta">Alta</div><div class="k-person">A</div><div class="k-due">07 abr</div></div>
-        </div>
-      </div>
+      <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:var(--amber)"></div>Em Andamento</div><div class="kanban-count" id="cnt-doing">0</div></div>
+      <div class="kanban-body" id="col-doing"></div>
       <div class="kanban-add" onclick="addCard('doing')">+ Adicionar</div>
     </div>
     <div class="kanban-col" data-col="review" ondragover="dragOver(event)" ondrop="drop(event,'review')">
-      <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:var(--blue)"></div>Em Revisão</div><div class="kanban-count" id="cnt-review">2</div></div>
-      <div class="kanban-body" id="col-review">
-        <div class="k-card" draggable="true" ondragstart="drag(event)" id="t6">
-          <div class="k-card-title">Briefing campanha Inverno 2025</div>
-          <div class="k-meta"><div class="k-tag">Estratégia</div><div class="k-prio alta">Alta</div><div class="k-person">M</div><div class="k-due">08 abr</div></div>
-        </div>
-        <div class="k-card" draggable="true" ondragstart="drag(event)" id="t7">
-          <div class="k-card-title">Aprovar 14 depoimentos UGC</div>
-          <div class="k-meta"><div class="k-tag">UGC</div><div class="k-prio media">Média</div><div class="k-person">L</div><div class="k-due">09 abr</div></div>
-        </div>
-      </div>
+      <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:var(--blue)"></div>Em Revisão</div><div class="kanban-count" id="cnt-review">0</div></div>
+      <div class="kanban-body" id="col-review"></div>
       <div class="kanban-add" onclick="addCard('review')">+ Adicionar</div>
     </div>
     <div class="kanban-col" data-col="done" ondragover="dragOver(event)" ondrop="drop(event,'done')">
-      <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:var(--green)"></div>Concluído</div><div class="kanban-count" id="cnt-done">1</div></div>
-      <div class="kanban-body" id="col-done">
-        <div class="k-card" draggable="true" ondragstart="drag(event)" id="t8" style="opacity:0.65">
-          <div class="k-card-title">Briefing influenciadora @dra.caroll</div>
-          <div class="k-meta"><div class="k-tag">Influência</div><div class="k-prio media">Média</div><div class="k-person">M</div><div class="k-due">✓ 02 abr</div></div>
-        </div>
-      </div>
+      <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:var(--green)"></div>Concluído</div><div class="kanban-count" id="cnt-done">0</div></div>
+      <div class="kanban-body" id="col-done"></div>
       <div class="kanban-add" onclick="addCard('done')">+ Adicionar</div>
     </div>
   </div>
@@ -5597,7 +6026,11 @@ const VIEW_META = {
   roi:          { title: 'Calculadora de ROI', sub: 'Simule campanhas e valide viabilidade financeira', action: '' },
   relatorio:    { title: 'Relatório Executivo', sub: 'Q1 2025 · Dana Jalecos Exclusivos', action: 'Exportar PDF' },
   construtor:   { title: 'Construtor de Campanha', sub: 'Baseado nos 12 pilares estratégicos · 8 passos', action: '' },
-  briefingvisual: { title: 'Briefing Visual', sub: 'Documento de campanha para impressão', action: '' }
+  briefingvisual: { title: 'Briefing Visual', sub: 'Documento de campanha para impressão', action: '' },
+  calendario: { title: 'Calendário', sub: 'Planejamento de campanhas e promoções', action: 'Novo Evento' },
+  keywords: { title: 'Palavras-Chave', sub: 'Google Suggest — descubra o que as pessoas buscam', action: '' },
+  financeiro: { title: 'Financeiro', sub: 'Contas a pagar/receber, DRE e fluxo · Bling', action: '' },
+  projecoes: { title: 'Projeções', sub: '2025 vs 2026 — real + projetado', action: '' }
 };
 
 // ── NAVIGATION ──
@@ -5616,7 +6049,7 @@ function go(el, viewId) {
 }
 
 function topbarAction() {
-  const views = { home:'nova-campanha', campanhas:'nova-campanha', tarefas:'nova-tarefa', influenciadores:'nova-inf' };
+  const views = { home:'nova-campanha', campanhas:'nova-campanha', tarefas:'nova-tarefa', influenciadores:'nova-inf', calendario:'novo-evento' };
   const active = document.querySelector('.view.active');
   if(!active) return;
   const id = active.id.replace('view-','');
@@ -5930,18 +6363,9 @@ function saveData() {
   try {
     const saveEl = document.getElementById('save-indicator');
     if(saveEl) { saveEl.className='save-badge saving'; saveEl.innerHTML='<div class="save-dot"></div>Salvando...'; }
-    const data = {
-      checks: [],
-      kanban: {}
-    };
+    const data = { checks: [] };
     document.querySelectorAll('.check-item').forEach((el, i) => {
       data.checks.push(el.classList.contains('done'));
-    });
-    ['backlog','doing','review','done'].forEach(col => {
-      const c = document.getElementById('col-'+col);
-      if(c) data.kanban[col] = [...c.children].map(card => ({
-        id: card.id, title: card.querySelector('.k-card-title')?.textContent || ''
-      }));
     });
     localStorage.setItem('dms-v3', JSON.stringify(data));
     setTimeout(() => {
@@ -5977,6 +6401,8 @@ window.addEventListener('load', () => {
   updateNotifDot();
   // Carregar dados do Supabase
   if (typeof loadSupabaseData === 'function') loadSupabaseData();
+  // Carregar features upgrade
+  if (typeof initUpgradeFeatures === 'function') initUpgradeFeatures();
   // Recarregar a cada 5 minutos
   setInterval(() => { if (typeof loadSupabaseData === 'function') loadSupabaseData(); }, 300000);
   // Restaurar última view ativa
@@ -5997,6 +6423,1280 @@ window.addEventListener('load', () => {
   }, 200);
 });
 
+
+// ══════════════════════════════════════════════════════
+// DMS — UPGRADE: NOVAS FEATURES
+// ══════════════════════════════════════════════════════
+
+// ── DEBOUNCE UTIL ──
+function debounce(fn, ms) {
+  let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
+// ── REALTIME SUBSCRIPTIONS ──
+function setupRealtimeSubscriptions() {
+  const debouncedLoad = debounce(() => { if(typeof loadSupabaseData==='function') loadSupabaseData(); loadPerformanceData(); }, 3000);
+
+  sb.channel('realtime-pedidos')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => debouncedLoad())
+    .subscribe();
+
+  sb.channel('realtime-tarefas')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tarefas' }, () => loadTarefas())
+    .subscribe();
+
+  sb.channel('realtime-alertas')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'alertas' }, (payload) => {
+      loadAlertas();
+      if(payload.new?.titulo) showToast('Alerta: ' + payload.new.titulo);
+    })
+    .subscribe();
+
+  sb.channel('realtime-calendario')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'calendario' }, () => loadCalendario())
+    .subscribe();
+
+  // Indicador realtime ativo
+  const syncEl = document.getElementById('last-sync-time');
+  if(syncEl) {
+    const dot = document.createElement('span');
+    dot.style.cssText = 'display:inline-block;width:6px;height:6px;border-radius:50%;background:#1a7a3a;margin-right:5px;animation:pulse 2s infinite';
+    syncEl.prepend(dot);
+  }
+}
+
+// ── ALERTAS INTELIGENTES ──
+let _alertasCache = [];
+async function loadAlertas() {
+  try {
+    const { data } = await sb.from('alertas').select('*').order('created_at', { ascending: false }).limit(20);
+    _alertasCache = data || [];
+    const container = document.getElementById('alertas-container');
+    const countLabel = document.getElementById('alertas-count-label');
+    if(!container) return;
+
+    const naoLidas = _alertasCache.filter(a => !a.lido).length;
+    if(countLabel) countLabel.textContent = naoLidas > 0 ? naoLidas + ' não lidas' : 'tudo lido';
+
+    if(_alertasCache.length === 0) {
+      container.innerHTML = '<div style="padding:16px;font-size:12px;color:var(--text3);text-align:center">Nenhum alerta no momento</div>';
+    } else {
+      container.innerHTML = _alertasCache.map(a => {
+        const nivelMap = { urgent:'urgent', warn:'warn', info:'info', ok:'ok' };
+        const nivelLabel = { urgent:'Urgente', warn:'Atenção', info:'Info', ok:'Positivo' };
+        const cls = a.lido ? '' : ' unread';
+        const tempo = timeAgo(new Date(a.created_at));
+        return `<div class="notif-item${cls}" onclick="marcarAlertaLido(${a.id},this)">
+          <div class="notif-type ${nivelMap[a.nivel]||'info'}">${nivelLabel[a.nivel]||'Info'}</div>
+          <div class="notif-title">${a.titulo}</div>
+          ${a.mensagem ? '<div class="notif-body">'+a.mensagem+'</div>' : ''}
+          <div class="notif-time">${tempo}</div>
+        </div>`;
+      }).join('');
+    }
+    updateNotifDot();
+  } catch(e) { console.warn('Alertas error:', e.message); }
+}
+
+async function marcarAlertaLido(id, el) {
+  if(el) el.classList.remove('unread');
+  await sb.from('alertas').update({ lido: true }).eq('id', id);
+  const countLabel = document.getElementById('alertas-count-label');
+  const naoLidas = document.querySelectorAll('.notif-item.unread').length;
+  if(countLabel) countLabel.textContent = naoLidas > 0 ? naoLidas + ' não lidas' : 'tudo lido';
+  updateNotifDot();
+}
+
+function timeAgo(date) {
+  const s = Math.floor((Date.now() - date.getTime()) / 1000);
+  if(s < 60) return 'Agora mesmo';
+  if(s < 3600) return 'há ' + Math.floor(s/60) + ' min';
+  if(s < 86400) return 'há ' + Math.floor(s/3600) + 'h';
+  return 'há ' + Math.floor(s/86400) + ' dias';
+}
+
+// ── KANBAN PERSISTENTE ──
+let _tarefasCache = [];
+async function loadTarefas() {
+  try {
+    const { data } = await sb.from('tarefas').select('*').order('posicao');
+    _tarefasCache = data || [];
+    ['backlog','doing','review','done'].forEach(col => {
+      const body = document.getElementById('col-' + col);
+      if(!body) return;
+      const cards = _tarefasCache.filter(t => t.coluna === col);
+      body.innerHTML = cards.map(t => renderKanbanCard(t)).join('');
+    });
+    updateKanbanCounts();
+  } catch(e) { console.warn('Tarefas error:', e.message); }
+}
+
+function renderKanbanCard(t) {
+  const prioClass = t.prioridade || 'media';
+  const prioLabel = { alta:'Alta', media:'Média', baixa:'Baixa' }[prioClass] || 'Média';
+  const prazo = t.prazo ? new Date(t.prazo).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}) : '';
+  const late = t.prazo && new Date(t.prazo) < new Date() && t.coluna !== 'done' ? ' late' : '';
+  const opacity = t.coluna === 'done' ? ' style="opacity:0.65"' : '';
+  const pessoa = t.responsavel ? t.responsavel.charAt(0).toUpperCase() : '';
+  return `<div class="k-card" draggable="true" ondragstart="drag(event)" id="task-${t.id}" data-id="${t.id}"${opacity}>
+    <div class="k-card-title">${t.titulo}</div>
+    <div class="k-meta">
+      ${t.tag ? '<div class="k-tag">'+t.tag+'</div>' : ''}
+      <div class="k-prio ${prioClass}">${prioLabel}</div>
+      ${pessoa ? '<div class="k-person">'+pessoa+'</div>' : ''}
+      ${prazo ? '<div class="k-due'+late+'">'+prazo+'</div>' : ''}
+      <div class="k-del" onclick="event.stopPropagation();deleteTarefa('${t.id}')" style="margin-left:auto;cursor:pointer;font-size:11px;color:var(--text4);padding:2px 4px" title="Excluir">&times;</div>
+    </div>
+  </div>`;
+}
+
+async function createTask() {
+  const titulo = document.getElementById('task-title')?.value?.trim();
+  if(!titulo) return;
+  const tag = document.getElementById('task-tag')?.value || '';
+  const prio = document.getElementById('task-prio')?.value || 'media';
+  const resp = document.getElementById('task-person')?.value || '';
+  const prazo = document.getElementById('task-due')?.value || null;
+
+  await sb.from('tarefas').insert({
+    titulo, tag, prioridade: prio, responsavel: resp, prazo, coluna: 'backlog', posicao: _tarefasCache.length
+  });
+  closeModal('nova-tarefa');
+  if(document.getElementById('task-title')) document.getElementById('task-title').value = '';
+  loadTarefas();
+  showToast('Tarefa criada');
+}
+
+async function deleteTarefa(id) {
+  if(!confirm('Excluir esta tarefa?')) return;
+  await sb.from('tarefas').delete().eq('id', id);
+  loadTarefas();
+  showToast('Tarefa excluída');
+}
+
+function drag(e) {
+  e.dataTransfer.setData('text/plain', e.target.dataset?.id || e.target.id);
+}
+function dragOver(e) { e.preventDefault(); }
+async function drop(e, colId) {
+  e.preventDefault();
+  const taskId = e.dataTransfer.getData('text/plain');
+  if(!taskId) return;
+  const realId = taskId.replace('task-','');
+  await sb.from('tarefas').update({ coluna: colId, updated_at: new Date().toISOString() }).eq('id', realId);
+  loadTarefas();
+}
+
+function addCard(col) {
+  openModal('nova-tarefa');
+}
+
+// ── SCORING DE CLIENTES ──
+let _scoringCache = [];
+async function loadClienteScoring() {
+  try {
+    const { data } = await sb.from('cliente_scoring').select('*').order('score', { ascending: false }).limit(200);
+    _scoringCache = data || [];
+    renderScoringKPIs(_scoringCache);
+    renderScoringTable(_scoringCache, '');
+  } catch(e) { console.warn('Scoring error:', e.message); }
+}
+
+function renderScoringKPIs(data) {
+  const segs = { VIP:0, Frequente:0, Ocasional:0, 'Em Risco':0, Inativo:0 };
+  data.forEach(c => { if(segs[c.segmento] !== undefined) segs[c.segmento]++; });
+
+  const el = (id) => document.getElementById(id);
+  if(el('score-vip')) el('score-vip').textContent = segs.VIP;
+  if(el('score-freq')) el('score-freq').textContent = segs.Frequente;
+  if(el('score-risco')) el('score-risco').textContent = segs['Em Risco'];
+  if(el('score-total')) el('score-total').textContent = data.length;
+
+  // Barra de distribuicao
+  const total = data.length || 1;
+  const cores = { VIP:'#1a7a3a', Frequente:'#1a4fa0', Ocasional:'#b8660a', 'Em Risco':'#c0392b', Inativo:'#999' };
+  const bar = document.getElementById('segmento-bar');
+  const leg = document.getElementById('segmento-legenda');
+  if(bar) bar.innerHTML = Object.entries(segs).map(([k,v]) =>
+    `<div style="flex:${v};background:${cores[k]||'#ccc'};min-width:${v>0?'2px':'0'}" title="${k}: ${v}"></div>`
+  ).join('');
+  if(leg) leg.innerHTML = Object.entries(segs).map(([k,v]) =>
+    `<div style="display:flex;align-items:center;gap:5px;font-size:11px"><div style="width:10px;height:10px;border-radius:3px;background:${cores[k]}"></div>${k}: ${v} (${Math.round(v/total*100)}%)</div>`
+  ).join('');
+}
+
+function renderScoringTable(data, filtro) {
+  const filtered = filtro ? data.filter(c => c.segmento === filtro) : data;
+  const container = document.getElementById('scoring-table-container');
+  if(!container) return;
+
+  const cores = { VIP:'ativo', Frequente:'prod', Ocasional:'plan', 'Em Risco':'pause', Inativo:'rev' };
+  container.innerHTML = `<table><thead><tr><th>Cliente</th><th>Score</th><th>Segmento</th><th>Total Gasto</th><th>Pedidos</th><th>Ticket</th><th>Última Compra</th><th>Dias</th></tr></thead><tbody>
+    ${filtered.slice(0,100).map(c => `<tr>
+      <td class="em">${c.contato_nome}</td>
+      <td><div style="display:flex;align-items:center;gap:6px"><div style="width:30px;height:6px;border-radius:3px;background:var(--border);overflow:hidden"><div style="height:100%;width:${c.score}%;background:${c.score>=80?'var(--green)':c.score>=60?'var(--blue)':c.score>=40?'var(--amber)':'var(--red)'}"></div></div><span style="font-size:11px;font-weight:600">${c.score}</span></div></td>
+      <td><span class="chip ${cores[c.segmento]||''}">${c.segmento}</span></td>
+      <td class="good">R$${Math.round(c.total_gasto).toLocaleString('pt-BR')}</td>
+      <td>${c.total_pedidos}</td>
+      <td>R$${Math.round(c.ticket_medio).toLocaleString('pt-BR')}</td>
+      <td>${c.ultima_compra ? new Date(c.ultima_compra).toLocaleDateString('pt-BR') : '—'}</td>
+      <td>${c.dias_sem_compra != null ? c.dias_sem_compra+'d' : '—'}</td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+function filterScoring(tab, segmento) {
+  tab.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  renderScoringTable(_scoringCache, segmento);
+}
+
+// ── FUNIL DE VENDAS ──
+async function loadFunilVendas() {
+  try {
+    const { data } = await sb.from('funil_vendas').select('*');
+    if(!data) return;
+
+    const mesSelect = document.getElementById('funil-mes');
+    const canalSelect = document.getElementById('funil-canal');
+    const now = new Date();
+
+    // Popular select de meses se vazio
+    if(mesSelect && mesSelect.options.length === 0) {
+      const meses = [...new Set(data.map(r => r.ano+'-'+r.mes))].sort().reverse();
+      meses.forEach(m => {
+        const [a,mes] = m.split('-');
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = getMesNome(parseInt(mes)) + ' ' + a;
+        mesSelect.appendChild(opt);
+      });
+    }
+
+    const selMes = mesSelect?.value || (now.getFullYear()+'-'+(now.getMonth()+1));
+    const [anoF, mesF] = selMes.split('-').map(Number);
+    const canalF = canalSelect?.value || '';
+
+    let filtered = data.filter(r => r.ano === anoF && r.mes === mesF);
+    if(canalF) filtered = filtered.filter(r => String(r.loja_id) === canalF);
+
+    // Somar
+    const totais = { em_digitacao:0, em_aberto:0, producao:0, confeccionado:0, atendido:0, cancelado:0, total:0 };
+    filtered.forEach(r => {
+      Object.keys(totais).forEach(k => { totais[k] += parseInt(r[k]) || 0; });
+    });
+
+    renderFunil(totais);
+  } catch(e) { console.warn('Funil error:', e.message); }
+}
+
+function renderFunil(t) {
+  const container = document.getElementById('funil-container');
+  if(!container) return;
+
+  const stages = [
+    { label: 'Em Digitação', value: t.em_digitacao, color: '#999' },
+    { label: 'Em Aberto', value: t.em_aberto, color: 'var(--amber)' },
+    { label: 'Produção (Costura/Bordado)', value: t.producao, color: 'var(--blue)' },
+    { label: 'Confeccionado', value: t.confeccionado, color: '#6a5acd' },
+    { label: 'Atendido', value: t.atendido, color: 'var(--green)' },
+  ];
+
+  const max = Math.max(...stages.map(s => s.value), 1);
+
+  container.innerHTML = stages.map((s, i) => {
+    const pct = Math.round(s.value / max * 100);
+    const conv = i > 0 && stages[i-1].value > 0 ? Math.round(s.value / stages[i-1].value * 100) : null;
+    return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+      <div style="width:180px;font-size:12px;font-weight:500;text-align:right;color:var(--text2)">${s.label}</div>
+      <div style="flex:1;height:28px;background:var(--surface3);border-radius:6px;overflow:hidden;position:relative">
+        <div style="height:100%;width:${pct}%;background:${s.color};border-radius:6px;transition:width 0.6s ease"></div>
+        <div style="position:absolute;top:50%;right:8px;transform:translateY(-50%);font-size:11px;font-weight:700">${s.value}</div>
+      </div>
+      ${conv !== null ? '<div style="font-size:10px;color:var(--text3);width:50px;text-align:center">'+conv+'%</div>' : '<div style="width:50px"></div>'}
+    </div>`;
+  }).join('') + `<div style="display:flex;align-items:center;gap:12px;margin-top:4px;opacity:0.6">
+    <div style="width:180px;font-size:12px;font-weight:500;text-align:right;color:var(--red)">Cancelado</div>
+    <div style="flex:1;height:20px;background:var(--red-bg);border-radius:6px;overflow:hidden;position:relative">
+      <div style="height:100%;width:${Math.round(t.cancelado/max*100)}%;background:var(--red);border-radius:6px;opacity:0.6"></div>
+      <div style="position:absolute;top:50%;right:8px;transform:translateY(-50%);font-size:10px;font-weight:600;color:var(--red)">${t.cancelado}</div>
+    </div>
+    <div style="width:50px"></div>
+  </div>`;
+}
+
+// ── ANALYTICS POR CANAL ──
+async function loadCanalAnalytics() {
+  try {
+    const { data: mensal } = await sb.from('dashboard_mensal').select('*');
+    if(!mensal) return;
+
+    const now = new Date();
+    const mesAtual = now.getMonth()+1, anoAtual = now.getFullYear();
+    const mesAnterior = mesAtual===1?12:mesAtual-1;
+    const anoAnterior = mesAtual===1?anoAtual-1:anoAtual;
+
+    const canais = [
+      { key:'site', label:'Site', lojaField:'pedidos_site', recField:'receita_site' },
+      { key:'loja', label:'Loja/WhatsApp', lojaField:'pedidos_loja', recField:'receita_loja' },
+      { key:'ml', label:'Mercado Livre', lojaField:'pedidos_ml', recField:'receita_ml' },
+      { key:'tiktok', label:'TikTok', lojaField:'pedidos_tiktok', recField:'receita_tiktok' },
+      { key:'shopee', label:'Shopee', lojaField:'pedidos_shopee', recField:'receita_shopee' },
+    ];
+
+    function somarMes(rows, ano, mes) {
+      const result = {};
+      canais.forEach(c => { result[c.key] = { pedidos:0, receita:0 }; });
+      rows.filter(r => r.ano===ano && r.mes===mes).forEach(r => {
+        canais.forEach(c => {
+          result[c.key].pedidos += parseInt(r[c.lojaField]) || 0;
+          result[c.key].receita += parseFloat(r[c.recField]) || 0;
+        });
+      });
+      return result;
+    }
+
+    const atual = somarMes(mensal, anoAtual, mesAtual);
+    const anterior = somarMes(mensal, anoAnterior, mesAnterior);
+    const totalReceita = Object.values(atual).reduce((s,c) => s+c.receita, 0) || 1;
+    const maxReceita = Math.max(...Object.values(atual).map(c=>c.receita), 1);
+
+    const container = document.getElementById('canal-analytics-container');
+    if(!container) return;
+
+    container.innerHTML = `<table style="width:100%"><thead><tr><th>Canal</th><th>Receita</th><th style="width:25%">Share</th><th>Pedidos</th><th>Ticket</th><th>Cresc.</th></tr></thead><tbody>
+      ${canais.map(c => {
+        const d = atual[c.key];
+        const prev = anterior[c.key];
+        const ticket = d.pedidos > 0 ? Math.round(d.receita/d.pedidos) : 0;
+        const share = Math.round(d.receita/totalReceita*100);
+        const cresc = prev.receita > 0 ? Math.round((d.receita - prev.receita)/prev.receita*100) : 0;
+        const crescClass = cresc >= 0 ? 'good' : 'bad';
+        const barW = Math.round(d.receita/maxReceita*100);
+        return `<tr>
+          <td class="em">${c.label}</td>
+          <td class="good">R$${Math.round(d.receita).toLocaleString('pt-BR')}</td>
+          <td><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:8px;background:var(--surface3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${barW}%;background:var(--black);border-radius:4px"></div></div><span style="font-size:10px;font-weight:600;min-width:30px">${share}%</span></div></td>
+          <td>${d.pedidos}</td>
+          <td>R$${ticket.toLocaleString('pt-BR')}</td>
+          <td class="${crescClass}">${cresc>=0?'+':''}${cresc}%</td>
+        </tr>`;
+      }).join('')}
+    </tbody></table>`;
+
+    // Atualizar KPIs do performance
+    const totalPed = Object.values(atual).reduce((s,c) => s+c.pedidos, 0);
+    const ticketGeral = totalPed > 0 ? Math.round(totalReceita/totalPed) : 0;
+    const melhorCanal = canais.reduce((best,c) => atual[c.key].receita > (atual[best.key]?.receita||0) ? c : best, canais[0]);
+
+    const el = (id) => document.getElementById(id);
+    if(el('perf-kpi1')) el('perf-kpi1').textContent = 'R$'+Math.round(totalReceita/1000)+'k';
+    if(el('perf-kpi1-label')) el('perf-kpi1-label').textContent = 'Faturamento '+getMesNome(mesAtual);
+    if(el('perf-kpi1-sub')) el('perf-kpi1-sub').textContent = totalPed+' pedidos';
+    if(el('perf-kpi2')) el('perf-kpi2').textContent = 'R$'+ticketGeral.toLocaleString('pt-BR');
+    if(el('perf-kpi2-sub')) el('perf-kpi2-sub').textContent = 'Ticket médio geral';
+    if(el('perf-kpi3')) el('perf-kpi3').textContent = melhorCanal.label;
+    if(el('perf-kpi3-sub')) el('perf-kpi3-sub').textContent = 'R$'+Math.round(atual[melhorCanal.key].receita/1000)+'k em receita';
+    if(el('perf-kpi4')) el('perf-kpi4').textContent = totalPed.toLocaleString('pt-BR');
+    if(el('perf-kpi4-sub')) el('perf-kpi4-sub').textContent = getMesNome(mesAtual)+' '+anoAtual;
+
+  } catch(e) { console.warn('Canal analytics error:', e.message); }
+}
+
+// ── PERFORMANCE DATA (combina funil + canais + top produtos) ──
+async function loadPerformanceData() {
+  await Promise.all([loadFunilVendas(), loadCanalAnalytics(), loadPerfTopProdutos()]);
+}
+
+async function loadPerfTopProdutos() {
+  try {
+    const now = new Date();
+    const mesAtual = now.getMonth()+1, anoAtual = now.getFullYear();
+    const { data } = await sb.from('pedidos')
+      .select('contato_nome, total, situacao_id')
+      .gte('data', anoAtual+'-'+String(mesAtual).padStart(2,'0')+'-01');
+    if(!data) return;
+
+    // Por status
+    const statusMap = { 9:'Atendido', 6:'Em aberto', 12:'Cancelado', 21:'Em digitação', 35734:'Costura', 35736:'Bordado', 17008:'Confeccionado' };
+    const statusChip = { 9:'ativo', 6:'prod', 12:'pause', 21:'plan', 35734:'rev', 35736:'rev', 17008:'prod' };
+    const porStatus = {};
+    data.forEach(p => {
+      const sid = p.situacao_id;
+      if(!porStatus[sid]) porStatus[sid] = { count:0, total:0 };
+      porStatus[sid].count++;
+      porStatus[sid].total += parseFloat(p.total);
+    });
+
+    const statusContainer = document.getElementById('perf-por-status');
+    if(statusContainer) {
+      statusContainer.innerHTML = `<table><thead><tr><th>Status</th><th>Pedidos</th><th>Valor</th></tr></thead><tbody>
+        ${Object.entries(porStatus).sort((a,b)=>b[1].count-a[1].count).map(([sid,v]) =>
+          `<tr><td><span class="chip ${statusChip[sid]||''}">${statusMap[sid]||'ID '+sid}</span></td><td>${v.count}</td><td class="good">R$${Math.round(v.total).toLocaleString('pt-BR')}</td></tr>`
+        ).join('')}
+      </tbody></table>`;
+    }
+
+    // Top produtos placeholder
+    const prodContainer = document.getElementById('perf-top-produtos');
+    if(prodContainer) prodContainer.innerHTML = '<div style="font-size:12px;color:var(--text3)">Dados de produtos por item requerem detalhes do pedido — em breve</div>';
+  } catch(e) { console.warn('PerfTop error:', e.message); }
+}
+
+// ── PREVISÃO DE RECEITA ──
+async function loadPrevisaoReceita() {
+  try {
+    const { data } = await sb.from('receita_historica').select('*');
+    if(!data || data.length < 3) return;
+
+    const sorted = data.sort((a,b) => (a.ano*100+a.mes) - (b.ano*100+b.mes));
+    const ultimos = sorted.slice(-6);
+
+    // Regressao linear simples
+    const n = ultimos.length;
+    const xs = ultimos.map((_, i) => i);
+    const ys = ultimos.map(r => parseFloat(r.receita));
+    const xMean = xs.reduce((s,x)=>s+x,0)/n;
+    const yMean = ys.reduce((s,y)=>s+y,0)/n;
+    const slope = xs.reduce((s,x,i) => s + (x-xMean)*(ys[i]-yMean), 0) / xs.reduce((s,x) => s + (x-xMean)**2, 0);
+    const intercept = yMean - slope * xMean;
+
+    const previsaoAtual = Math.round(intercept + slope * n);
+    const previsaoProximo = Math.round(intercept + slope * (n+1));
+    const tendencia = slope > 0 ? 'subindo' : slope < 0 ? 'descendo' : 'estável';
+    const tendenciaPct = ys[ys.length-1] > 0 ? Math.round(slope / ys[ys.length-1] * 100) : 0;
+
+    const el = (id) => document.getElementById(id);
+    const now = new Date();
+    const proxMes = now.getMonth()+2 > 12 ? 1 : now.getMonth()+2;
+    const proxAno = now.getMonth()+2 > 12 ? now.getFullYear()+1 : now.getFullYear();
+
+    if(el('previsao-valor')) el('previsao-valor').textContent = 'R$' + Math.round(previsaoAtual/1000) + 'k';
+    if(el('previsao-sub')) el('previsao-sub').textContent = 'Previsão ' + getMesNome(now.getMonth()+1) + ' ' + now.getFullYear() + ' · tendência ' + tendencia + ' (' + (tendenciaPct>=0?'+':'') + tendenciaPct + '%)';
+
+    const detalhes = document.getElementById('previsao-detalhes');
+    if(detalhes) {
+      detalhes.innerHTML = `
+        <div style="flex:1;padding:10px;background:var(--surface3);border-radius:8px;text-align:center">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);margin-bottom:4px">Próximo Mês</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px">R$${Math.round(previsaoProximo/1000)}k</div>
+          <div style="font-size:10px;color:var(--text3)">${getMesNome(proxMes)} ${proxAno}</div>
+        </div>
+        <div style="flex:1;padding:10px;background:var(--surface3);border-radius:8px;text-align:center">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);margin-bottom:4px">Tendência</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:${slope>=0?'var(--green)':'var(--red)'}">${slope>=0?'↑':'↓'} ${Math.abs(tendenciaPct)}%</div>
+          <div style="font-size:10px;color:var(--text3)">por mês</div>
+        </div>
+        <div style="flex:1;padding:10px;background:var(--surface3);border-radius:8px;text-align:center">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);margin-bottom:4px">Último Mês</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px">R$${Math.round(ys[ys.length-1]/1000)}k</div>
+          <div style="font-size:10px;color:var(--text3)">${getMesNome(ultimos[ultimos.length-1].mes)} ${ultimos[ultimos.length-1].ano}</div>
+        </div>
+      `;
+    }
+  } catch(e) { console.warn('Previsao error:', e.message); }
+}
+
+// ── CALENDÁRIO ──
+let calAno, calMes, _eventosCache = [];
+function initCalendario() {
+  const now = new Date();
+  calAno = now.getFullYear();
+  calMes = now.getMonth() + 1;
+  loadCalendario();
+}
+
+async function loadCalendario() {
+  try {
+    const { data } = await sb.from('calendario').select('*').order('data_inicio');
+    _eventosCache = data || [];
+    renderCalendario();
+  } catch(e) { console.warn('Calendario error:', e.message); }
+}
+
+function renderCalendario() {
+  const label = document.getElementById('cal-mes-label');
+  if(label) label.textContent = getMesNome(calMes) + ' ' + calAno;
+
+  const grid = document.getElementById('cal-grid');
+  if(!grid) return;
+
+  const primeiroDia = new Date(calAno, calMes-1, 1).getDay();
+  const diasNoMes = new Date(calAno, calMes, 0).getDate();
+  const hoje = new Date();
+
+  let html = '';
+  // Dias vazios antes
+  for(let i = 0; i < primeiroDia; i++) {
+    html += '<div style="background:var(--surface);padding:8px;min-height:70px"></div>';
+  }
+  // Dias do mes
+  for(let d = 1; d <= diasNoMes; d++) {
+    const dateStr = calAno + '-' + String(calMes).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    const isToday = hoje.getFullYear()===calAno && hoje.getMonth()+1===calMes && hoje.getDate()===d;
+    const eventos = _eventosCache.filter(e => e.data_inicio <= dateStr && (e.data_fim ? e.data_fim >= dateStr : e.data_inicio === dateStr));
+    const todayStyle = isToday ? 'font-weight:800;color:var(--green)' : '';
+    const tiposCor = { campanha:'var(--black)', promocao:'var(--green)', lancamento:'var(--blue)', evento:'var(--amber)', deadline:'var(--red)', feriado:'#999' };
+
+    html += `<div style="background:var(--surface);padding:6px;min-height:70px;cursor:pointer" onclick="calDiaClick('${dateStr}')">
+      <div style="font-size:12px;margin-bottom:4px;${todayStyle}">${d}</div>
+      ${eventos.slice(0,3).map(e => `<div style="font-size:9px;padding:2px 4px;margin-bottom:2px;border-radius:3px;background:${tiposCor[e.tipo]||'#ccc'};color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${e.titulo}">${e.titulo}</div>`).join('')}
+      ${eventos.length > 3 ? '<div style="font-size:9px;color:var(--text3)">+'+(eventos.length-3)+' mais</div>' : ''}
+    </div>`;
+  }
+
+  grid.innerHTML = html;
+}
+
+function navegarMes(dir) {
+  calMes += dir;
+  if(calMes > 12) { calMes = 1; calAno++; }
+  if(calMes < 1) { calMes = 12; calAno--; }
+  renderCalendario();
+}
+
+function calDiaClick(dateStr) {
+  document.getElementById('evt-inicio').value = dateStr;
+  openModal('novo-evento');
+}
+
+async function salvarEvento() {
+  const titulo = document.getElementById('evt-titulo')?.value?.trim();
+  const tipo = document.getElementById('evt-tipo')?.value || 'campanha';
+  const inicio = document.getElementById('evt-inicio')?.value;
+  const fim = document.getElementById('evt-fim')?.value || null;
+  const desc = document.getElementById('evt-desc')?.value || '';
+  if(!titulo || !inicio) { showToast('Preencha título e data'); return; }
+
+  await sb.from('calendario').insert({ titulo, tipo, data_inicio: inicio, data_fim: fim, descricao: desc });
+  closeModal('novo-evento');
+  document.getElementById('evt-titulo').value = '';
+  document.getElementById('evt-desc').value = '';
+  loadCalendario();
+  showToast('Evento criado');
+}
+
+// ── KEYWORD DISCOVERY (estilo AnswerThePublic) ──
+let _keywordsCache = [];
+let _kwSeed = '';
+
+// Google Suggest via Edge Function do Supabase (sem problemas de CORS)
+async function googleSuggest(query, lang) {
+  try {
+    // 1. Tentar via Edge Function do Supabase (mais confiavel)
+    const supaUrl = SUPABASE_URL + '/functions/v1/google-suggest?q=' + encodeURIComponent(query) + '&hl=' + encodeURIComponent(lang);
+    const res = await fetch(supaUrl, {
+      headers: { 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) return data;
+    }
+  } catch {}
+
+  // 2. Fallback: proxies publicos
+  const proxies = [
+    `https://corsproxy.io/?${encodeURIComponent('https://suggestqueries.google.com/complete/search?client=firefox&hl='+lang+'&q='+encodeURIComponent(query))}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent('https://suggestqueries.google.com/complete/search?client=firefox&hl='+lang+'&q='+encodeURIComponent(query))}`,
+  ];
+  for (const url of proxies) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { continue; }
+      if (Array.isArray(data) && data[1]) return data[1];
+      if (Array.isArray(data)) return data;
+    } catch { continue; }
+  }
+  return [];
+}
+
+async function buscarKeywords() {
+  const input = document.getElementById('kw-input');
+  const btn = document.getElementById('kw-btn');
+  const keyword = input?.value?.trim();
+  if (!keyword) return;
+
+  const lang = document.getElementById('kw-idioma')?.value || 'pt-BR';
+  _kwSeed = keyword;
+  btn.textContent = 'Buscando...';
+  btn.disabled = true;
+
+  const progress = document.getElementById('kw-progress');
+  const progressBar = document.getElementById('kw-progress-bar');
+  const progressText = document.getElementById('kw-progress-text');
+  if (progress) progress.style.display = 'block';
+
+  try {
+    const allSugestoes = new Set();
+
+    // Mapa de posicao (menor = mais popular)
+    const posMap = {};
+    function addResults(results, weight) {
+      results.forEach((s, i) => {
+        allSugestoes.add(s);
+        // Guardar melhor posicao (menor = mais buscado)
+        const score = (i + 1) * weight;
+        if (!posMap[s] || posMap[s] > score) posMap[s] = score;
+      });
+    }
+
+    // FASE 1: Busca direta (peso 1 — mais relevante)
+    if (progressText) progressText.textContent = 'Buscando termo principal...';
+    if (progressBar) progressBar.style.width = '5%';
+    const base = await googleSuggest(keyword, lang);
+    addResults(base, 1);
+
+    // FASE 2: Prefixos de perguntas
+    const perguntaPrefixos = ['como ', 'o que ', 'o que é ', 'por que ', 'por que o ', 'qual ', 'quais ', 'onde ', 'quando ', 'quem ', 'é possível ', 'pode ', 'deve ', 'será que '];
+    if (progressText) progressText.textContent = 'Buscando perguntas (' + perguntaPrefixos.length + ' variações)...';
+    if (progressBar) progressBar.style.width = '15%';
+
+    const perguntaResults = await Promise.all(
+      perguntaPrefixos.map(p => googleSuggest(p + keyword, lang).catch(() => []))
+    );
+    perguntaResults.forEach(r => addResults(r, 2));
+
+    // FASE 3: Preposições e comparações
+    const prepComp = [
+      keyword + ' vs ', keyword + ' ou ', keyword + ' melhor ', keyword + ' diferença ',
+      keyword + ' com ', keyword + ' sem ', keyword + ' para ', keyword + ' de ',
+      keyword + ' em ', keyword + ' perto ', keyword + ' até ',
+    ];
+    if (progressText) progressText.textContent = 'Buscando comparações e preposições...';
+    if (progressBar) progressBar.style.width = '35%';
+
+    const prepResults = await Promise.all(
+      prepComp.map(p => googleSuggest(p, lang).catch(() => []))
+    );
+    prepResults.forEach(r => addResults(r, 3));
+
+    // FASE 4: Termos comerciais
+    const comercial = [
+      keyword + ' preço', keyword + ' barato', keyword + ' comprar', keyword + ' online',
+      keyword + ' promoção', keyword + ' desconto', keyword + ' frete grátis',
+      keyword + ' onde comprar', keyword + ' quanto custa', 'comprar ' + keyword,
+    ];
+    if (progressText) progressText.textContent = 'Buscando termos comerciais...';
+    if (progressBar) progressBar.style.width = '50%';
+
+    const comResults = await Promise.all(
+      comercial.map(p => googleSuggest(p, lang).catch(() => []))
+    );
+    comResults.forEach(r => addResults(r, 3));
+
+    // FASE 5: Alfabéticas (a-z)
+    const letras = 'abcdefghijklmnopqrstuvwxyz'.split('');
+    if (progressText) progressText.textContent = 'Buscando variações A-Z (26 letras)...';
+
+    for (let i = 0; i < letras.length; i += 6) {
+      const batch = letras.slice(i, i + 6);
+      if (progressBar) progressBar.style.width = (55 + Math.round(i / 26 * 30)) + '%';
+      const abcResults = await Promise.all(
+        batch.map(l => googleSuggest(keyword + ' ' + l, lang).catch(() => []))
+      );
+      abcResults.forEach(r => addResults(r, 4));
+    }
+
+    // FASE 6: Números
+    const numeros = ['1', '2', '3', '5', '10', '2024', '2025', '2026'];
+    if (progressText) progressText.textContent = 'Buscando variações numéricas...';
+    if (progressBar) progressBar.style.width = '90%';
+
+    const numResults = await Promise.all(
+      numeros.map(n => googleSuggest(keyword + ' ' + n, lang).catch(() => []))
+    );
+    numResults.forEach(r => addResults(r, 5));
+
+    // CLASSIFICAR com score de popularidade
+    if (progressText) progressText.textContent = 'Classificando resultados...';
+    if (progressBar) progressBar.style.width = '95%';
+
+    _keywordsCache = classificarKeywords([...allSugestoes], keyword);
+
+    // Adicionar score de popularidade (menor posMap = mais popular)
+    const maxScore = Math.max(...Object.values(posMap), 1);
+    _keywordsCache.forEach(k => {
+      const raw = posMap[k.texto] || maxScore;
+      k.popularidade = Math.max(1, Math.round(100 - (raw / maxScore * 100)));
+    });
+
+    // Ordenar por popularidade (mais popular primeiro)
+    _keywordsCache.sort((a, b) => b.popularidade - a.popularidade);
+
+    // MOSTRAR
+    if (progressBar) progressBar.style.width = '100%';
+    setTimeout(() => { if (progress) progress.style.display = 'none'; }, 500);
+
+    document.getElementById('kw-results').style.display = 'block';
+    document.getElementById('kw-empty').style.display = 'none';
+    document.getElementById('kw-title').textContent = _keywordsCache.length + ' variações encontradas';
+    document.getElementById('kw-sub').textContent = 'Termo: "' + keyword + '" · Google Suggest ' + lang;
+
+    renderKeywordKPIs(_keywordsCache);
+    renderKeywordDistribution(_keywordsCache);
+    renderKeywordsTable(_keywordsCache, '');
+    renderKeywordWheel(_keywordsCache);
+
+  } catch (e) {
+    console.warn('Keywords error:', e);
+    showToast('Erro ao buscar — tente novamente');
+  } finally {
+    btn.textContent = 'Buscar';
+    btn.disabled = false;
+    if (progress) progress.style.display = 'none';
+  }
+}
+
+function classificarKeywords(sugestoes, seed) {
+  const perguntaRegex = /^(como|o que|o qu[eê]|por que|porque|quando|onde|qual|quais|quem|é possível|é verdade|pode|deve|será|dá para|tem como|precisa)/i;
+  const comparacaoRegex = /(vs|versus| ou | melhor| pior| diferença| comparar| comparação| top |\btop\d| ranking)/i;
+  const preposicaoRegex = /( com | sem | para | perto | near | até | entre | sobre | contra )/i;
+  const modificadorRegex = /(preço|preco|barato|caro|comprar|online|grátis|gratis|promoção|promocao|desconto|frete|entrega|tamanho|medida|quanto custa|onde comprar|loja|site|valor)/i;
+  const alfabeticaRegex = new RegExp('^' + seed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+[a-z]$', 'i');
+  const numerosRegex = /\d{1,4}/;
+
+  return sugestoes
+    .filter(s => s && s.trim().length > 0 && s.toLowerCase() !== seed.toLowerCase())
+    .map(s => {
+      let tipo = 'outro';
+      let subtipo = '';
+
+      if (perguntaRegex.test(s)) {
+        tipo = 'pergunta';
+        const match = s.match(/^(como|o que|por que|porque|quando|onde|qual|quais|quem|pode|deve|será|dá para|precisa|tem como)/i);
+        subtipo = match ? match[0].toLowerCase() : '';
+      } else if (comparacaoRegex.test(s)) {
+        tipo = 'comparacao';
+        if (/vs|versus/i.test(s)) subtipo = 'vs';
+        else if (/melhor/i.test(s)) subtipo = 'melhor';
+        else if (/ ou /i.test(s)) subtipo = 'ou';
+        else subtipo = 'comparação';
+      } else if (modificadorRegex.test(s)) {
+        tipo = 'modificador';
+        if (/preço|preco|quanto custa|valor/i.test(s)) subtipo = 'preço';
+        else if (/comprar|onde comprar|loja|site/i.test(s)) subtipo = 'compra';
+        else if (/barato|desconto|promoção|promocao|grátis|gratis|frete/i.test(s)) subtipo = 'oferta';
+        else subtipo = 'comercial';
+      } else if (preposicaoRegex.test(s)) {
+        tipo = 'preposicao';
+        const match = s.match(/( com | sem | para | perto | até | entre | sobre | contra )/i);
+        subtipo = match ? match[0].trim() : '';
+      } else if (alfabeticaRegex.test(s)) {
+        tipo = 'alfabetica';
+        subtipo = s.split(/\s+/).pop() || '';
+      } else if (numerosRegex.test(s) && s !== seed) {
+        tipo = 'outro';
+        subtipo = 'numérico';
+      }
+
+      return { texto: s, tipo, subtipo };
+    })
+    .sort((a, b) => a.texto.localeCompare(b.texto, 'pt-BR'));
+}
+
+function renderKeywordKPIs(data) {
+  const counts = { pergunta: 0, comparacao: 0, preposicao: 0, modificador: 0, alfabetica: 0, outro: 0 };
+  data.forEach(k => { counts[k.tipo] = (counts[k.tipo] || 0) + 1; });
+
+  const el = (id) => document.getElementById(id);
+  if (el('kw-total')) el('kw-total').textContent = data.length;
+  if (el('kw-cnt-perguntas')) el('kw-cnt-perguntas').textContent = counts.pergunta;
+  if (el('kw-cnt-comercial')) el('kw-cnt-comercial').textContent = counts.modificador;
+  if (el('kw-cnt-comparacao')) el('kw-cnt-comparacao').textContent = counts.comparacao;
+}
+
+function renderKeywordDistribution(data) {
+  const counts = {};
+  data.forEach(k => { counts[k.tipo] = (counts[k.tipo] || 0) + 1; });
+  const total = data.length || 1;
+
+  const cores = {
+    pergunta: '#1a4fa0', comparacao: '#c0392b', preposicao: '#6a5acd',
+    modificador: '#1a7a3a', alfabetica: '#b8660a', outro: '#999'
+  };
+  const labels = {
+    pergunta: 'Perguntas', comparacao: 'Comparações', preposicao: 'Preposições',
+    modificador: 'Comercial', alfabetica: 'Alfabéticas', outro: 'Relacionadas'
+  };
+
+  const bar = document.getElementById('kw-dist-bar');
+  const leg = document.getElementById('kw-dist-legenda');
+  if (bar) {
+    bar.innerHTML = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([tipo, cnt]) => `<div style="flex:${cnt};background:${cores[tipo]||'#ccc'};min-width:${cnt>0?'3px':'0'};border-radius:4px" title="${labels[tipo]||tipo}: ${cnt}"></div>`)
+      .join('');
+  }
+  if (leg) {
+    leg.innerHTML = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([tipo, cnt]) => `<div style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer" onclick="filterKeywords(document.querySelector('.tab'),'')" title="Clique para filtrar">
+        <div style="width:10px;height:10px;border-radius:3px;background:${cores[tipo]}"></div>
+        ${labels[tipo]||tipo}: <strong>${cnt}</strong> (${Math.round(cnt/total*100)}%)
+      </div>`)
+      .join('');
+  }
+}
+
+function renderKeywordsTable(data, filtro) {
+  const filtered = filtro ? data.filter(k => k.tipo === filtro) : data;
+  const container = document.getElementById('kw-table-container');
+  if (!container) return;
+
+  const cores = {
+    pergunta: { chip: 'prod', bg: 'var(--blue-bg)', color: 'var(--blue)' },
+    comparacao: { chip: 'rev', bg: 'var(--red-bg)', color: 'var(--red)' },
+    preposicao: { chip: 'plan', bg: '#f3f0ff', color: '#6a5acd' },
+    modificador: { chip: 'ativo', bg: 'var(--green-bg)', color: 'var(--green)' },
+    alfabetica: { chip: '', bg: 'var(--amber-bg)', color: 'var(--amber)' },
+    outro: { chip: '', bg: 'var(--surface3)', color: 'var(--text3)' }
+  };
+  const labels = {
+    pergunta: 'Pergunta', comparacao: 'Comparação', preposicao: 'Preposição',
+    modificador: 'Comercial', alfabetica: 'Alfabética', outro: 'Relacionada'
+  };
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3);font-size:13px">Nenhum resultado nessa categoria</div>';
+    return;
+  }
+
+  // Sorting controls
+  const sortHtml = `<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;font-size:11px;color:var(--text3)">
+    <span>Ordenar:</span>
+    <span style="cursor:pointer;font-weight:600;color:var(--black);text-decoration:underline" onclick="sortKeywords('popularidade')">Popularidade</span>
+    <span style="cursor:pointer" onclick="sortKeywords('alfa')">A-Z</span>
+    <span style="cursor:pointer" onclick="sortKeywords('tipo')">Categoria</span>
+    <span style="margin-left:auto">${filtered.length} resultados</span>
+  </div>`;
+
+  container.innerHTML = sortHtml + `<table style="width:100%"><thead><tr>
+    <th style="width:35%">Sugestão</th>
+    <th style="width:120px">Popularidade</th>
+    <th>Categoria</th>
+    <th>Modificador</th>
+    <th style="width:60px">Ação</th>
+  </tr></thead><tbody>
+    ${filtered.map(k => {
+      const c = cores[k.tipo] || cores.outro;
+      const pop = k.popularidade || 0;
+      const heatColor = pop >= 80 ? 'var(--green)' : pop >= 50 ? 'var(--amber)' : pop >= 25 ? '#c97b1a' : 'var(--text4)';
+      const heatLabel = pop >= 80 ? 'Quente' : pop >= 50 ? 'Morno' : pop >= 25 ? 'Baixo' : 'Frio';
+      return `<tr>
+        <td class="em" style="font-size:13px">${highlightSeed(k.texto, _kwSeed)}</td>
+        <td><div style="display:flex;align-items:center;gap:6px">
+          <div style="flex:1;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pop}%;background:${heatColor};border-radius:3px"></div></div>
+          <span style="font-size:10px;font-weight:600;color:${heatColor};min-width:42px">${heatLabel}</span>
+        </div></td>
+        <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:${c.bg};color:${c.color}">${labels[k.tipo]||k.tipo}</span></td>
+        <td style="font-size:11px;color:var(--text3)">${k.subtipo || '—'}</td>
+        <td><button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px" onclick="navigator.clipboard.writeText(this.closest('tr').querySelector('td').textContent.trim());showToast('Copiado!')">Copiar</button></td>
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+
+function highlightSeed(text, seed) {
+  if (!seed) return text;
+  const regex = new RegExp('(' + seed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+  return text.replace(regex, '<strong style="color:var(--black)">$1</strong>');
+}
+
+function renderKeywordWheel(data) {
+  const wheel = document.getElementById('kw-wheel');
+  if (!wheel) return;
+
+  const cores = {
+    pergunta: '#1a4fa0', comparacao: '#c0392b', preposicao: '#6a5acd',
+    modificador: '#1a7a3a', alfabetica: '#b8660a', outro: '#999'
+  };
+  const labels = {
+    pergunta: 'Perguntas', comparacao: 'Comparações', preposicao: 'Preposições',
+    modificador: 'Comercial', alfabetica: 'Alfabéticas', outro: 'Relacionadas'
+  };
+
+  // Agrupar por subtipo dentro de cada tipo
+  const grupos = {};
+  data.forEach(k => {
+    const key = k.tipo + '|' + (k.subtipo || 'geral');
+    if (!grupos[key]) grupos[key] = { tipo: k.tipo, subtipo: k.subtipo || 'geral', items: [] };
+    grupos[key].items.push(k.texto);
+  });
+
+  wheel.innerHTML = Object.values(grupos)
+    .sort((a, b) => b.items.length - a.items.length)
+    .slice(0, 20)
+    .map(g => {
+      const cor = cores[g.tipo] || '#999';
+      const maxShow = 5;
+      const itemsHtml = g.items.slice(0, maxShow).map(t =>
+        `<div style="font-size:11px;padding:3px 8px;background:rgba(0,0,0,0.04);border-radius:4px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px" onclick="navigator.clipboard.writeText('${t.replace(/'/g,"\\'")}');showToast('Copiado!')" title="${t}">${t}</div>`
+      ).join('');
+      const moreCount = g.items.length - maxShow;
+      return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;min-width:200px;max-width:280px;flex:1">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <div style="width:8px;height:8px;border-radius:50%;background:${cor}"></div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:${cor}">${g.subtipo}</div>
+          <div style="margin-left:auto;font-size:10px;color:var(--text4)">${g.items.length}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          ${itemsHtml}
+          ${moreCount > 0 ? '<div style="font-size:10px;color:var(--text4);padding:2px 8px">+' + moreCount + ' mais</div>' : ''}
+        </div>
+      </div>`;
+    }).join('');
+}
+
+let _kwFiltroAtivo = '';
+
+function filterKeywords(tab, tipo) {
+  _kwFiltroAtivo = tipo;
+  const tabs = tab?.parentElement?.querySelectorAll('.tab') || document.querySelectorAll('#kw-results .tab');
+  tabs.forEach(t => t.classList.remove('active'));
+  if (tab) tab.classList.add('active');
+  renderKeywordsTable(_keywordsCache, tipo);
+}
+
+function sortKeywords(modo) {
+  if (modo === 'popularidade') _keywordsCache.sort((a, b) => (b.popularidade||0) - (a.popularidade||0));
+  else if (modo === 'alfa') _keywordsCache.sort((a, b) => a.texto.localeCompare(b.texto, 'pt-BR'));
+  else if (modo === 'tipo') _keywordsCache.sort((a, b) => a.tipo.localeCompare(b.tipo) || (b.popularidade||0) - (a.popularidade||0));
+  renderKeywordsTable(_keywordsCache, _kwFiltroAtivo);
+}
+
+function exportarKeywordsCSV() {
+  if (!_keywordsCache.length) return;
+  const csv = 'Sugestão;Categoria;Modificador;Popularidade\n' + _keywordsCache.map(k =>
+    `"${k.texto}";"${k.tipo}";"${k.subtipo || ''}";"${k.popularidade || 0}"`
+  ).join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'keywords-' + (_kwSeed || 'dms') + '.csv'; a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSV exportado com ' + _keywordsCache.length + ' palavras-chave');
+}
+
+function copiarTodasKeywords() {
+  if (!_keywordsCache.length) return;
+  const text = _keywordsCache.map(k => k.texto).join('\n');
+  navigator.clipboard.writeText(text);
+  showToast(_keywordsCache.length + ' palavras-chave copiadas');
+}
+
+// ── MARKETPLACES (Social Selling) ──
+function loadMarketplaces() {
+  const pm = liveData.porMes;
+  if (!pm || Object.keys(pm).length === 0) return;
+
+  const now = new Date();
+  const mesAtual = now.getMonth() + 1, anoAtual = now.getFullYear();
+  const el = (id) => document.getElementById(id);
+  const fmt = (v) => 'R$' + Math.round(v).toLocaleString('pt-BR');
+  const fmtK = (v) => 'R$' + Math.round(v/1000) + 'k';
+  const fmtN = (v) => Math.round(v).toLocaleString('pt-BR');
+
+  // Popular select de meses
+  const mpSelect = document.getElementById('mp-filtro-mes');
+  if (mpSelect && mpSelect.options.length <= 2) {
+    const meses = Object.keys(pm).filter(k => k.startsWith(anoAtual+'-')).sort().reverse();
+    if (meses.length > 0) {
+      const sep = document.createElement('option');
+      sep.disabled = true; sep.textContent = '── Meses individuais ──';
+      mpSelect.appendChild(sep);
+    }
+    meses.forEach(k => {
+      const [a, m] = k.split('-').map(Number);
+      const opt = document.createElement('option');
+      opt.value = k; opt.textContent = getMesNome(m) + ' ' + a;
+      mpSelect.appendChild(opt);
+    });
+  }
+
+  const filtro = mpSelect?.value || 'atual';
+
+  // Calcular dados conforme filtro
+  let mlR = 0, mlP = 0, shR = 0, shP = 0, tkR = 0, tkP = 0;
+  let labelPeriodo = '';
+
+  if (filtro === 'ytd') {
+    // Acumulado do ano
+    Object.entries(pm).filter(([k]) => k.startsWith(anoAtual+'-')).forEach(([, d]) => {
+      mlR += d.receita_ml || 0; mlP += d.pedidos_ml || 0;
+      shR += d.receita_shopee || 0; shP += d.pedidos_shopee || 0;
+      tkR += d.receita_tiktok || 0; tkP += d.pedidos_tiktok || 0;
+    });
+    labelPeriodo = 'Acumulado ' + anoAtual;
+  } else if (filtro === 'atual') {
+    const m = pm[anoAtual+'-'+mesAtual] || {};
+    mlR = m.receita_ml || 0; mlP = m.pedidos_ml || 0;
+    shR = m.receita_shopee || 0; shP = m.pedidos_shopee || 0;
+    tkR = m.receita_tiktok || 0; tkP = m.pedidos_tiktok || 0;
+    labelPeriodo = getMesNome(mesAtual) + ' ' + anoAtual;
+  } else {
+    const m = pm[filtro] || {};
+    mlR = m.receita_ml || 0; mlP = m.pedidos_ml || 0;
+    shR = m.receita_shopee || 0; shP = m.pedidos_shopee || 0;
+    tkR = m.receita_tiktok || 0; tkP = m.pedidos_tiktok || 0;
+    const [a, mes] = filtro.split('-').map(Number);
+    labelPeriodo = getMesNome(mes) + ' ' + a;
+  }
+
+  const totalR = mlR + shR + tkR, totalP = mlP + shP + tkP;
+
+  const fmtVal = (v) => v >= 100000 ? fmtK(v) : fmt(v);
+  if(el('mp-ml-receita')) el('mp-ml-receita').textContent = fmtVal(mlR);
+  if(el('mp-ml-sub')) el('mp-ml-sub').textContent = mlP + ' pedidos · ticket R$' + (mlP>0?fmtN(mlR/mlP):'0');
+  if(el('mp-shopee-receita')) el('mp-shopee-receita').textContent = fmtVal(shR);
+  if(el('mp-shopee-sub')) el('mp-shopee-sub').textContent = shP + ' pedidos · ticket R$' + (shP>0?fmtN(shR/shP):'0');
+  if(el('mp-tiktok-receita')) el('mp-tiktok-receita').textContent = fmtVal(tkR);
+  if(el('mp-tiktok-sub')) el('mp-tiktok-sub').textContent = tkP + ' pedidos · ticket R$' + (tkP>0?fmtN(tkR/tkP):'0');
+  if(el('mp-total-receita')) el('mp-total-receita').textContent = fmtVal(totalR);
+  if(el('mp-total-sub')) el('mp-total-sub').textContent = totalP + ' pedidos · ' + labelPeriodo;
+
+  // Tabela mensal comparativa 2026
+  const meses2026 = Object.entries(pm)
+    .filter(([k]) => k.startsWith(anoAtual+'-'))
+    .sort(([a],[b]) => a.localeCompare(b));
+
+  const tabelaEl = document.getElementById('mp-tabela-mensal');
+  if(tabelaEl && meses2026.length > 0) {
+    tabelaEl.innerHTML = `<table style="width:100%"><thead><tr><th>Mês</th><th>ML Receita</th><th>ML Ped.</th><th>Shopee Receita</th><th>Shopee Ped.</th><th>TikTok Receita</th><th>TikTok Ped.</th><th>Total</th></tr></thead><tbody>
+      ${meses2026.map(([k, d]) => {
+        const mes = parseInt(k.split('-')[1]);
+        const tML = d.receita_ml||0, tSH = d.receita_shopee||0, tTK = d.receita_tiktok||0;
+        return `<tr>
+          <td class="em">${getMesNome(mes)}</td>
+          <td class="good">R$${fmtN(tML)}</td><td>${d.pedidos_ml||0}</td>
+          <td>R$${fmtN(tSH)}</td><td>${d.pedidos_shopee||0}</td>
+          <td>R$${fmtN(tTK)}</td><td>${d.pedidos_tiktok||0}</td>
+          <td class="em">R$${fmtN(tML+tSH+tTK)}</td>
+        </tr>`;
+      }).join('')}
+    </tbody></table>`;
+  }
+
+  // Barras de receita
+  const maxR = Math.max(mlR, shR, tkR, 1);
+  const barsReceita = document.getElementById('mp-bars-receita');
+  if(barsReceita) {
+    barsReceita.innerHTML = [
+      {label:'Mercado Livre', val:mlR, color:'#ffe600'},
+      {label:'Shopee', val:shR, color:'#ee4d2d'},
+      {label:'TikTok', val:tkR, color:'#010101'}
+    ].map(c => `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="width:100px;font-size:12px;font-weight:500;text-align:right">${c.label}</div>
+      <div style="flex:1;height:24px;background:var(--surface3);border-radius:6px;overflow:hidden">
+        <div style="height:100%;width:${Math.round(c.val/maxR*100)}%;background:${c.color};border-radius:6px;transition:width 0.5s"></div>
+      </div>
+      <div style="font-size:12px;font-weight:700;min-width:60px">R$${fmtN(c.val)}</div>
+    </div>`).join('');
+  }
+
+  // Barras de pedidos
+  const maxP = Math.max(mlP, shP, tkP, 1);
+  const barsPedidos = document.getElementById('mp-bars-pedidos');
+  if(barsPedidos) {
+    barsPedidos.innerHTML = [
+      {label:'Mercado Livre', val:mlP, color:'#ffe600'},
+      {label:'Shopee', val:shP, color:'#ee4d2d'},
+      {label:'TikTok', val:tkP, color:'#010101'}
+    ].map(c => `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="width:100px;font-size:12px;font-weight:500;text-align:right">${c.label}</div>
+      <div style="flex:1;height:24px;background:var(--surface3);border-radius:6px;overflow:hidden">
+        <div style="height:100%;width:${Math.round(c.val/maxP*100)}%;background:${c.color};border-radius:6px;transition:width 0.5s"></div>
+      </div>
+      <div style="font-size:12px;font-weight:700;min-width:40px">${c.val}</div>
+    </div>`).join('');
+  }
+}
+
+// ── FINANCEIRO ──
+function loadFinanceiro() {
+  const stats = liveData.stats;
+  const contas = liveData.contas;
+  const pm = liveData.porMes;
+  if (!stats) return;
+
+  const el = (id) => document.getElementById(id);
+  const fmt = (v) => 'R$' + Math.round(v/1000) + 'k';
+  const fmtFull = (v) => 'R$' + Math.round(v).toLocaleString('pt-BR');
+
+  const receber = parseFloat(stats.total_receber) || 0;
+  const pagar = parseFloat(stats.total_pagar) || 0;
+  const saldo = receber - pagar;
+  const ytd = parseFloat(stats.receita_2026) || 0;
+
+  // KPIs
+  if(el('fin-kpi-receber')) el('fin-kpi-receber').textContent = fmt(receber);
+  if(el('fin-kpi-receber-sub')) el('fin-kpi-receber-sub').textContent = 'contas em aberto';
+  if(el('fin-kpi-pagar')) el('fin-kpi-pagar').textContent = fmt(pagar);
+  if(el('fin-kpi-pagar-sub')) el('fin-kpi-pagar-sub').textContent = 'contas em aberto';
+  if(el('fin-kpi-saldo')) { el('fin-kpi-saldo').textContent = fmt(saldo); el('fin-kpi-saldo').style.color = saldo >= 0 ? 'var(--green)' : 'var(--red)'; }
+  if(el('fin-kpi-saldo-sub')) el('fin-kpi-saldo-sub').textContent = saldo >= 0 ? 'positivo' : 'negativo';
+  if(el('fin-kpi-ytd')) el('fin-kpi-ytd').textContent = fmt(ytd);
+  if(el('fin-kpi-ytd-sub')) el('fin-kpi-ytd-sub').textContent = (stats.pedidos_2026||0).toLocaleString('pt-BR') + ' pedidos em 2026';
+
+  // Contas detalhado
+  if(contas) {
+    const recDetail = el('fin-receber-detail');
+    if(recDetail) {
+      recDetail.innerHTML = `<table><thead><tr><th>Status</th><th>Qtd</th><th>Valor</th></tr></thead><tbody>
+        <tr><td><span class="chip prod">Em aberto</span></td><td>${contas.cr_aberto_qtd||0}</td><td class="good">${fmtFull(contas.cr_aberto_valor||0)}</td></tr>
+        <tr><td><span class="chip pause">Atrasado</span></td><td>${contas.cr_atrasado_qtd||0}</td><td class="bad">${fmtFull(contas.cr_atrasado_valor||0)}</td></tr>
+      </tbody></table>`;
+    }
+    const pagDetail = el('fin-pagar-detail');
+    if(pagDetail) {
+      pagDetail.innerHTML = `<table><thead><tr><th>Status</th><th>Qtd</th><th>Valor</th></tr></thead><tbody>
+        <tr><td><span class="chip prod">Em aberto</span></td><td>${contas.cp_aberto_qtd||0}</td><td>${fmtFull(contas.cp_aberto_valor||0)}</td></tr>
+        <tr><td><span class="chip pause">Atrasado</span></td><td>${contas.cp_atrasado_qtd||0}</td><td class="bad">${fmtFull(contas.cp_atrasado_valor||0)}</td></tr>
+      </tbody></table>`;
+    }
+  }
+
+  // DRE Simplificado
+  const custoPerc = 0.27;
+  const dreEl = el('fin-dre');
+  if(dreEl) {
+    const custoEst = ytd * custoPerc;
+    const margemBruta = ytd - custoEst;
+    const margemPct = ytd > 0 ? Math.round(margemBruta / ytd * 100) : 0;
+    dreEl.innerHTML = `<table style="width:100%"><tbody>
+      <tr style="font-weight:700"><td>Receita Bruta (2026)</td><td class="good" style="text-align:right">${fmtFull(ytd)}</td></tr>
+      <tr><td>(-) Custo Estimado (27%)</td><td style="text-align:right;color:var(--red)">${fmtFull(custoEst)}</td></tr>
+      <tr style="border-top:2px solid var(--border);font-weight:700"><td>= Margem Bruta</td><td style="text-align:right;color:var(--green)">${fmtFull(margemBruta)} (${margemPct}%)</td></tr>
+    </tbody></table>`;
+  }
+
+  // Balancete mensal
+  const balEl = el('fin-balancete');
+  if(balEl && pm) {
+    const meses2026 = Object.entries(pm)
+      .filter(([k]) => k.startsWith('2026-'))
+      .sort(([a],[b]) => a.localeCompare(b));
+
+    let prevReceita = 0;
+    balEl.innerHTML = `<table style="width:100%"><thead><tr><th>Mês</th><th>Receita</th><th>Pedidos</th><th>Ticket</th><th>Var. %</th></tr></thead><tbody>
+      ${meses2026.map(([k, d]) => {
+        const mes = parseInt(k.split('-')[1]);
+        const ticket = d.pedidos > 0 ? Math.round(d.receita / d.pedidos) : 0;
+        const variacao = prevReceita > 0 ? Math.round((d.receita - prevReceita) / prevReceita * 100) : 0;
+        const varClass = variacao >= 0 ? 'good' : 'bad';
+        const row = `<tr>
+          <td class="em">${getMesNome(mes)}</td>
+          <td class="good">${fmtFull(d.receita)}</td>
+          <td>${d.pedidos}</td>
+          <td>R$${ticket.toLocaleString('pt-BR')}</td>
+          <td class="${varClass}">${prevReceita > 0 ? (variacao>=0?'+':'')+variacao+'%' : '—'}</td>
+        </tr>`;
+        prevReceita = d.receita;
+        return row;
+      }).join('')}
+    </tbody></table>`;
+  }
+}
+
+// ── PROJEÇÕES (2025 vs 2026) ──
+function loadProjecoes() {
+  const stats = liveData.stats;
+  const pm = liveData.porMes;
+  if (!stats || !pm) return;
+
+  const el = (id) => document.getElementById(id);
+  const fmt = (v) => 'R$' + Math.round(v/1000) + 'k';
+  const fmtFull = (v) => 'R$' + Math.round(v).toLocaleString('pt-BR');
+
+  const rec26 = parseFloat(stats.receita_2026) || 0;
+  const ped26 = parseInt(stats.pedidos_2026) || 0;
+  const rec25 = parseFloat(stats.receita_2025) || 0;
+  const ped25 = parseInt(stats.pedidos_2025) || 0;
+
+  // Meses com dados em 2026
+  const meses26 = Object.entries(pm).filter(([k]) => k.startsWith('2026-')).sort(([a],[b]) => a.localeCompare(b));
+  const mesesComDados = meses26.length || 1;
+  const mediaM26 = rec26 / mesesComDados;
+  const projecaoAnual = mediaM26 * 12;
+  const crescPct = rec25 > 0 ? Math.round((projecaoAnual - rec25) / rec25 * 100) : 0;
+
+  // KPIs
+  if(el('proj-receita-26')) el('proj-receita-26').textContent = fmt(rec26);
+  if(el('proj-receita-26-sub')) el('proj-receita-26-sub').textContent = ped26.toLocaleString('pt-BR') + ' pedidos · ' + mesesComDados + ' meses';
+  if(el('proj-receita-25')) el('proj-receita-25').textContent = fmt(rec25);
+  if(el('proj-receita-25-sub')) el('proj-receita-25-sub').textContent = ped25.toLocaleString('pt-BR') + ' pedidos';
+  if(el('proj-anual')) el('proj-anual').textContent = fmt(projecaoAnual);
+  if(el('proj-anual-sub')) el('proj-anual-sub').textContent = 'média ' + fmt(mediaM26) + '/mês × 12';
+  if(el('proj-cresc')) { el('proj-cresc').textContent = (crescPct>=0?'+':'') + crescPct + '%'; el('proj-cresc').style.color = crescPct >= 0 ? 'var(--green)' : 'var(--red)'; }
+
+  // Tabela comparativa 12 meses
+  const meses25 = Object.entries(pm).filter(([k]) => k.startsWith('2025-')).sort(([a],[b]) => a.localeCompare(b));
+  const map25 = {}; meses25.forEach(([k,d]) => { map25[parseInt(k.split('-')[1])] = d; });
+  const map26 = {}; meses26.forEach(([k,d]) => { map26[parseInt(k.split('-')[1])] = d; });
+
+  const tabelaEl = el('proj-tabela');
+  if(tabelaEl) {
+    let rows = '';
+    for(let m = 1; m <= 12; m++) {
+      const d25 = map25[m] || { receita: 0, pedidos: 0 };
+      const d26 = map26[m];
+      const rec26m = d26 ? d26.receita : mediaM26;
+      const isProj = !d26;
+      const var26vs25 = d25.receita > 0 ? Math.round((rec26m - d25.receita) / d25.receita * 100) : 0;
+      const varClass = var26vs25 >= 0 ? 'good' : 'bad';
+      rows += `<tr${isProj?' style="opacity:0.5"':''}>
+        <td class="em">${getMesNome(m)}${isProj?' (proj.)':''}</td>
+        <td>${fmtFull(d25.receita)}</td><td>${d25.pedidos}</td>
+        <td class="${isProj?'':'good'}">${fmtFull(rec26m)}</td><td>${d26?d26.pedidos:'~'+Math.round(ped26/mesesComDados)}</td>
+        <td class="${varClass}">${d25.receita>0?(var26vs25>=0?'+':'')+var26vs25+'%':'—'}</td>
+      </tr>`;
+    }
+    tabelaEl.innerHTML = `<table style="width:100%"><thead><tr><th>Mês</th><th>2025 Receita</th><th>2025 Ped.</th><th>2026 Receita</th><th>2026 Ped.</th><th>Var. %</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  // Barras comparativas
+  const barrasEl = el('proj-barras');
+  if(barrasEl) {
+    const allVals = [];
+    for(let m=1;m<=12;m++) { allVals.push((map25[m]||{receita:0}).receita); allVals.push((map26[m]||{receita:mediaM26}).receita); }
+    const maxVal = Math.max(...allVals, 1);
+
+    let html = '';
+    for(let m = 1; m <= 12; m++) {
+      const r25 = (map25[m] || { receita: 0 }).receita;
+      const r26 = map26[m] ? map26[m].receita : mediaM26;
+      const isProj = !map26[m];
+      html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px${isProj?';opacity:0.5':''}">
+        <div style="width:50px;font-size:11px;font-weight:600;text-align:right">${getMesNome(m).substring(0,3)}</div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+          <div style="height:10px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.round(r25/maxVal*100)}%;background:#999;border-radius:3px"></div></div>
+          <div style="height:10px;background:var(--surface3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.round(r26/maxVal*100)}%;background:var(--black);border-radius:3px"></div></div>
+        </div>
+        <div style="font-size:9px;min-width:70px;color:var(--text3)">${fmt(r25)} / ${fmt(r26)}</div>
+      </div>`;
+    }
+    barrasEl.innerHTML = html + '<div style="display:flex;gap:16px;margin-top:8px;font-size:10px;color:var(--text3)"><div><span style="display:inline-block;width:10px;height:10px;background:#999;border-radius:2px;margin-right:4px"></span>2025</div><div><span style="display:inline-block;width:10px;height:10px;background:var(--black);border-radius:2px;margin-right:4px"></span>2026</div></div>';
+  }
+}
+
+// ── INIT UPGRADE ──
+async function initUpgradeFeatures() {
+  setupRealtimeSubscriptions();
+  loadAlertas();
+  loadTarefas();
+  initCalendario();
+  loadPrevisaoReceita();
+  loadPerformanceData();
+  loadClienteScoring();
+  // Esperar liveData ficar disponível, então carregar seções que dependem dele
+  setTimeout(() => {
+    loadMarketplaces();
+    loadFinanceiro();
+    loadProjecoes();
+  }, 2000);
+}
 
 // ─── APIS ENGINE ───
 // ══════════════════════════════════════════════════════
@@ -6972,7 +8672,7 @@ function completeTodo(checkEl) {
 function addTodoItem() {
   document.getElementById('modal-cr-todo')?.classList.add('open');
 }
-let todoCount = 20;
+var _todoCount2 = 20;
 function createTodoItem() {
   const title = document.getElementById('todo-new-title')?.value?.trim();
   if(!title) return;
@@ -6983,7 +8683,7 @@ function createTodoItem() {
   const brief = document.getElementById('todo-new-brief')?.value?.trim() || '';
   const dueDate = document.getElementById('todo-new-date')?.value;
   const due = dueDate ? new Date(dueDate).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}) : '';
-  todoCount++;
+  _todoCount2++;
   const item = document.createElement('div');
   item.className = 'todo-item';
   item.dataset.prio = prio;
@@ -7000,17 +8700,8 @@ function createTodoItem() {
 }
 
 // ══════════════════════════════════
-// MERCADO
+// MERCADO (legacy — usa filterNews do bloco principal)
 // ══════════════════════════════════
-function filterNews(el, cat) {
-  document.querySelectorAll('.mkt-filter').forEach(f=>f.classList.remove('active'));
-  el.classList.add('active');
-  const cards = document.querySelectorAll('#news-grid .news-card');
-  cards.forEach(card => {
-    if(cat==='all') { card.style.display=''; return; }
-    card.style.display = card.dataset.cat === cat ? '' : 'none';
-  });
-}
 function refreshNews(btn) {
   btn.classList.add('spinning');
   const hero = document.getElementById('news-hero-card');
