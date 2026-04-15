@@ -3423,83 +3423,123 @@ if(whn) whn.addEventListener('input', () => {
     <div class="g2">
       <div class="card">
         <div class="card-header">
-          <div><div class="card-title">Concorrentes no Radar</div><div class="card-sub">Movimentações recentes detectadas</div></div>
+          <div><div class="card-title">Concorrentes no Radar</div><div class="card-sub">Dados verificados · Abril 2026</div></div>
           <button class="btn btn-ghost btn-sm" onclick="addConcorrente()">+ Adicionar</button>
         </div>
+
+        <!-- Dana (voce) -->
+        <div class="comp-row" style="background:var(--green-bg);border-radius:10px;padding:12px;margin-bottom:6px">
+          <div class="comp-avatar" style="background:var(--black);color:white;font-size:10px">DJ</div>
+          <div class="comp-info">
+            <div class="comp-name" style="color:var(--green)">Dana Jalecos Exclusivos (Voce)</div>
+            <div class="comp-handle">@danajalecos · 63k seg. · danajalecos.com.br</div>
+            <div class="comp-activity">Fundada em 2016 por Daniela Binhotti Santos. Fabrica + loja em Picarras SC, loja em Balneario Camboriu SC. 72+ canais de venda no Bling. Diferencial: atendimento consultivo B2B + eventos presenciais.</div>
+          </div>
+          <div class="comp-tag" style="background:var(--green-bg);color:var(--green);border:1px solid var(--green)">Voce</div>
+        </div>
+
+        <!-- Dra. Cherie -->
         <div class="comp-row">
-          <div class="comp-avatar">🧥</div>
+          <div class="comp-avatar">DC</div>
           <div class="comp-info">
             <div class="comp-name">Dra. Cherie</div>
-            <div class="comp-handle">dracherie.com.br · Vendida via Dental Speed</div>
-            <div class="comp-activity">Marca forte em alfaiataria e jalecos tecnológicos. Linha feminina e masculina premium. Vendas via Dental Speed.</div>
+            <div class="comp-handle">@dra.cherie · 1M seg. · dracherie.com.br</div>
+            <div class="comp-activity">Fundada em 2014 por Ana Carolina e Ana Cecilia Navarro (SP). Faturamento ~R$60M. 8 lojas fisicas + e-commerce. Lancou linhas "Cherie For Men" e "Cherie For Teams". Expansao acelerada — nova loja em Sao Jose dos Campos.</div>
           </div>
-          <div class="comp-tag alert">⚠ Forte</div>
+          <div class="comp-tag alert">Lider · 16x maior</div>
         </div>
+
+        <!-- Farcoo -->
         <div class="comp-row">
-          <div class="comp-avatar">👗</div>
-          <div class="comp-info">
-            <div class="comp-name">Grafitte Jalecos</div>
-            <div class="comp-handle">grafittejalecos.com.br · Nacional</div>
-            <div class="comp-activity">Jalecos e scrubs com design exclusivo. Foco em conforto e durabilidade. E-commerce ativo com promoções.</div>
-          </div>
-          <div class="comp-tag alert">⚠ Ativo</div>
-        </div>
-        <div class="comp-row">
-          <div class="comp-avatar">🏥</div>
+          <div class="comp-avatar">FC</div>
           <div class="comp-info">
             <div class="comp-name">Farcoo</div>
-            <div class="comp-handle">@farcoo · 263k seg. no Instagram</div>
-            <div class="comp-activity">"Isso nao e um jaleco. E UM FARCOO." Posicionamento premium com foco em exclusividade. 263k seguidores e 1.296 posts.</div>
+            <div class="comp-handle">@farcoo · 263k seg. · farcoo.com</div>
+            <div class="comp-activity">Liderada por Barbara Ganzarolli. Posicionamento ultra-premium: "Isso nao e um jaleco. E UM FARCOO." Design autoral, bordados a mao, producao propria. 1.296 posts. Colecoes femininas e masculinas bem segmentadas.</div>
           </div>
-          <div class="comp-tag info">Premium</div>
+          <div class="comp-tag alert">Premium · 4x maior</div>
         </div>
+
+        <!-- Jalecos Conforto -->
         <div class="comp-row">
-          <div class="comp-avatar">👩‍⚕️</div>
+          <div class="comp-avatar">JC</div>
           <div class="comp-info">
             <div class="comp-name">Jalecos Conforto</div>
-            <div class="comp-handle">jalecosconforto.com.br · E-commerce</div>
-            <div class="comp-activity">Scrubs e jalecos premium com frete fixo e grátis. Blog ativo com conteúdo para veterinários e biomédicos.</div>
+            <div class="comp-handle">@jalecosconforto · 77k seg. · jalecosconforto.com.br</div>
+            <div class="comp-activity">Posicionamento: "Conforto, Praticidade e Elegancia." 1.104 posts. Scrubs e pijamas cirurgicos. Entrega para todo Brasil. Frete fixo e gratis. Blog ativo com conteudo para veterinarios e biomedicos.</div>
+          </div>
+          <div class="comp-tag info">Proximo · 1.2x maior</div>
+        </div>
+
+        <!-- Grafitte -->
+        <div class="comp-row">
+          <div class="comp-avatar">GJ</div>
+          <div class="comp-info">
+            <div class="comp-name">Grafitte Jalecos</div>
+            <div class="comp-handle">@grafittejalecos · grafittejalecos.com.br</div>
+            <div class="comp-activity">Scrubs e jalecos de performance e estilo. E-commerce ativo + Mercado Livre. Publico-alvo: estudantes de medicina e profissionais de saude. Promocoes frequentes.</div>
           </div>
           <div class="comp-tag info">E-commerce</div>
         </div>
+
+        <!-- Comparativo rapido -->
+        <div style="margin-top:14px;padding:14px;background:var(--surface3);border-radius:10px">
+          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px">Comparativo de Alcance Instagram</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;width:100px;text-align:right;color:var(--text3)">Dra. Cherie</span><div style="flex:1;height:16px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:100%;height:100%;background:#dc2626;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:9px;color:white;font-weight:700">1M</div></div></div>
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;width:100px;text-align:right;color:var(--text3)">Farcoo</span><div style="flex:1;height:16px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:26.3%;height:100%;background:#d97706;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:9px;color:white;font-weight:700">263k</div></div></div>
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;width:100px;text-align:right;color:var(--text3)">Jalecos Conforto</span><div style="flex:1;height:16px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:7.7%;height:100%;background:#1a4fa0;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:9px;color:white;font-weight:700">77k</div></div></div>
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;width:100px;text-align:right;font-weight:700;color:var(--green)">Dana Jalecos</span><div style="flex:1;height:16px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:6.3%;height:100%;background:var(--green);border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:9px;color:white;font-weight:700">63k</div></div></div>
+          </div>
+        </div>
       </div>
       <div class="card">
-        <div class="card-title" style="margin-bottom:14px">Influenciadoras em Prospecção</div>
+        <div class="card-title" style="margin-bottom:4px">Influenciadores para Parcerias</div>
+        <div class="card-sub" style="margin-bottom:14px">Perfis verificados · nicho odonto/saude · alto potencial para jalecos</div>
         <div class="comp-row">
-          <div class="comp-avatar">RN</div>
+          <div class="comp-avatar" style="background:#7c3aed;color:white">PB</div>
           <div class="comp-info">
-            <div class="comp-name">@rinovack</div>
-            <div class="comp-handle">Odontologia · 300k seg.</div>
-            <div class="comp-activity">Ricardo Novack — grande alcance no nicho odonto. Potencial alto para parceria de jalecos.</div>
+            <div class="comp-name">@paulobonavides (Tio Paulo)</div>
+            <div class="comp-handle">Odontologia · Humor · 5M seg.</div>
+            <div class="comp-activity">Maior perfil de odontologia do Brasil. Conteudo de humor e educativo. Alcance massivo — ideal para awareness de marca.</div>
+          </div>
+          <div><button class="btn btn-primary btn-sm" onclick="prospectar('@paulobonavides')">Prospectar</button></div>
+        </div>
+        <div class="comp-row">
+          <div class="comp-avatar" style="background:#dc2626;color:white">RV</div>
+          <div class="comp-info">
+            <div class="comp-name">@drviotto (Dr. Roberto Viotto)</div>
+            <div class="comp-handle">Estetica Dental · Lentes · 1M seg.</div>
+            <div class="comp-activity">Referencia em lentes dentais e estetica. Aparece de jaleco em todos os conteudos. Audiencia premium — perfeito para Dana.</div>
+          </div>
+          <div><button class="btn btn-primary btn-sm" onclick="prospectar('@drviotto')">Prospectar</button></div>
+        </div>
+        <div class="comp-row">
+          <div class="comp-avatar" style="background:#059669;color:white">RN</div>
+          <div class="comp-info">
+            <div class="comp-name">@rinovack (Ricardo Novack)</div>
+            <div class="comp-handle">Marketing Odonto · 315k seg.</div>
+            <div class="comp-activity">Especialista em marketing para dentistas. Audiencia de donos de clinica — decisores de compra de uniformes para equipes inteiras.</div>
           </div>
           <div><button class="btn btn-primary btn-sm" onclick="prospectar('@rinovack')">Prospectar</button></div>
         </div>
         <div class="comp-row">
-          <div class="comp-avatar">KC</div>
+          <div class="comp-avatar" style="background:#d97706;color:white">KC</div>
           <div class="comp-info">
-            <div class="comp-name">@karinacaporal_</div>
-            <div class="comp-handle">Odontologia · 200k seg.</div>
-            <div class="comp-activity">Karina Caporal — influenciadora odonto ativa. Conteudo de rotina clinica com alto engajamento.</div>
+            <div class="comp-name">@karinacaporal (Karina Caporal)</div>
+            <div class="comp-handle">Gestao de Clinicas · 270k seg.</div>
+            <div class="comp-activity">Foco em gestao e rotina clinica. Audiencia feminina 25-40 anos — engajamento alto. Potencial para colecao assinada.</div>
           </div>
-          <div><button class="btn btn-primary btn-sm" onclick="prospectar('@karinacaporal_')">Prospectar</button></div>
+          <div><button class="btn btn-primary btn-sm" onclick="prospectar('@karinacaporal')">Prospectar</button></div>
         </div>
         <div class="comp-row">
-          <div class="comp-avatar">KA</div>
+          <div class="comp-avatar" style="background:#1a4fa0;color:white">AF</div>
           <div class="comp-info">
-            <div class="comp-name">@odonto.loove</div>
-            <div class="comp-handle">Odontologia · 130k seg.</div>
-            <div class="comp-activity">Kimella Alves — conteudo educativo e de rotina. Audiencia engajada e nichada em odonto.</div>
+            <div class="comp-name">@odontologiadicas (Andrea Figueiredo)</div>
+            <div class="comp-handle">Odontologia Clinica · 200k seg.</div>
+            <div class="comp-activity">Conteudo educativo e dicas praticas. Aparece fardada — perfeito para mostrar jalecos em uso real no dia a dia.</div>
           </div>
-          <div><button class="btn btn-primary btn-sm" onclick="prospectar('@odonto.loove')">Prospectar</button></div>
-        </div>
-        <div class="comp-row">
-          <div class="comp-avatar">LS</div>
-          <div class="comp-info">
-            <div class="comp-name">@dralais.silveira</div>
-            <div class="comp-handle">Odontologia · Mentora · 130k seg.</div>
-            <div class="comp-activity">Dra. Lais Silveira — harmonizacao orofacial, mentora de +8mil alunos. Alcance e autoridade.</div>
-          </div>
-          <div><button class="btn btn-primary btn-sm" onclick="prospectar('@dralais.silveira')">Prospectar</button></div>
+          <div><button class="btn btn-primary btn-sm" onclick="prospectar('@odontologiadicas')">Prospectar</button></div>
         </div>
       </div>
     </div>
