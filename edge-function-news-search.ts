@@ -36,7 +36,8 @@ Deno.serve(async (req) => {
       const pubDate = extract(block, 'pubDate')
 
       let link = ''
-      const linkM = block.match(/<link\/>\s*(https?:\/\/\S+)/s)
+      const linkM = block.match(/<link[^>]*>(https?:\/\/[^<\s]+)/s)
+        || block.match(/<link\/>\s*(https?:\/\/\S+)/s)
       if (linkM) link = linkM[1].trim()
 
       if (title && title.length > 15 && source) {

@@ -3749,7 +3749,7 @@ function renderNews() {
   _newsCache.forEach((n, i) => {
     const color = catColors[n.cat] || '#1a4fa0';
     const isFirst = i === 0;
-    html += `<div onclick="window.open('${n.url}','_blank')" style="display:flex;gap:16px;padding:${isFirst?'20px 22px':'14px 18px'};background:var(--white);border:1.5px solid var(--border);border-radius:12px;cursor:pointer;transition:all .15s;border-left:4px solid ${color}" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='none';this.style.transform='none'">
+    html += `<div onclick="if('${n.url}')window.open('${n.url}','_blank')" style="display:flex;gap:16px;padding:${isFirst?'20px 22px':'14px 18px'};background:var(--white);border:1.5px solid var(--border);border-radius:12px;cursor:pointer;transition:all .15s;border-left:4px solid ${color}" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='none';this.style.transform='none'">
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           <span style="font-size:9.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:${color}">${catLabels[n.cat]||n.cat}</span>
