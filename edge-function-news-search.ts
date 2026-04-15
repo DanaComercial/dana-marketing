@@ -1,7 +1,10 @@
 // ══════════════════════════════════════════════════════════
-// Edge Function: news-search (v5 — simples, sem cache)
-// Busca noticias do Google News RSS e retorna direto
+// Edge Function: news-search (v6 — GNews.io API com imagens)
+// Gratis: 100 requests/dia
+// TROCAR A API_KEY pela sua: https://gnews.io/register
 // ══════════════════════════════════════════════════════════
+
+const GNEWS_API_KEY = '5e234d0de49bf95473c9d5a257d7166b'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -11,88 +14,58 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const allTerms = [
-      'jaleco profissional', 'scrub médico', 'uniforme hospitalar',
-      'confecção vestuário Brasil', 'moda profissional saúde',
-      'indústria têxtil', 'e-commerce vestuário Brasil',
-      'varejo moda crescimento', 'uniforme corporativo tendência',
-      'enfermagem uniforme', 'odontologia jaleco',
-      'sustentabilidade têxtil moda', 'mercado uniformes',
-      'marketing moda digital', 'tendência uniforme profissional',
+    const searchTerms = [
+      'jaleco',
+      'scrub saúde',
+      'uniforme hospitalar',
+      'vestuário profissional saúde',
+      'confecção têxtil Brasil',
+      'indústria têxtil moda',
+      'varejo vestuário Brasil',
+      'e-commerce moda',
+      'mercado moda Brasil',
+      'odontologia uniforme',
+      'enfermagem profissional',
+      'saúde profissional moda',
     ]
 
-    const terms = allTerms.sort(() => Math.random() - 0.5).slice(0, 4)
+    // Pegar 2 termos aleatorios (economiza requests — 100/dia no plano free)
+    const terms = searchTerms.sort(() => Math.random() - 0.5).slice(0, 2)
     const allNews: any[] = []
 
     for (const term of terms) {
       try {
-        const url = `https://news.google.com/rss/search?q=${encodeURIComponent(term)}&hl=pt-BR&gl=BR&ceid=BR:pt-419`
-        const res = await fetch(url, { signal: AbortSignal.timeout(6000) })
-        const xml = await res.text()
+        const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(term)}&lang=pt&country=br&max=8&apikey=${GNEWS_API_KEY}`
+        const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+        const data = await res.json()
 
-        // Regex para extrair cada item
-        const itemRegex = /<item>([\s\S]*?)<\/item>/g
-        let match
-        let count = 0
-        while ((match = itemRegex.exec(xml)) !== null && count < 4) {
-          const block = match[1]
+        if (data.articles) {
+          for (const a of data.articles) {
+            let cat = 'mercado'
+            const text = (term + ' ' + a.title).toLowerCase()
+            if (/moda|feminino|estilo|design|personaliz|bordado/.test(text)) cat = 'moda'
+            else if (/saúde|saude|hospital|enferm|odonto|médic|medic|clínic/.test(text)) cat = 'saude'
+            else if (/tendên|tendenc|sustentab|inovaç|tecnolog/.test(text)) cat = 'tendencia'
+            else if (/marketing|digital|influenc|instagram|tiktok|social/.test(text)) cat = 'social'
 
-          const title = extract(block, 'title')
-          const source = extractSource(block)
-          const pubDate = extract(block, 'pubDate')
-
-          // Link: está entre <link/> e <guid
-          let link = ''
-          const linkM = block.match(/<link\/>\s*(https?:\/\/\S+)/s)
-          if (linkM) link = linkM[1].trim()
-
-          if (!title || title.length < 10) continue
-
-          // Pegar imagem do Google News
-          let img = ''
-          if (link) {
-            try {
-              const gRes = await fetch(link, {
-                signal: AbortSignal.timeout(3000),
-                headers: { 'User-Agent': 'Mozilla/5.0' },
-              })
-              const html = await gRes.text()
-              // og:image do Google News = thumbnail real
-              const imgM = html.match(/content="(https:\/\/lh3\.googleusercontent\.com\/[^"]+)"/i)
-              if (imgM) img = imgM[1].replace(/=s\d+-w\d+/, '=s0-w600')
-              // Se nao achou lh3, tentar qualquer og:image
-              if (!img) {
-                const ogM = html.match(/property="og:image"[^>]*content="(https?:\/\/[^"]+)"/i)
-                  || html.match(/content="(https?:\/\/[^"]+)"[^>]*property="og:image"/i)
-                if (ogM && ogM[1] && !ogM[1].includes('google.com/images')) img = ogM[1]
-              }
-            } catch {}
+            allNews.push({
+              title: a.title || '',
+              desc: a.description || '',
+              url: a.url || '',
+              source: a.source?.name || '',
+              img: a.image || '',
+              cat,
+              time: a.publishedAt ? ago(new Date(a.publishedAt)) : 'Recente',
+              impact: Math.random() > 0.4 ? 'alto' : 'medio',
+            })
           }
-
-          let cat = 'mercado'
-          const text = (term + ' ' + title).toLowerCase()
-          if (/moda|feminino|estilo|design|personaliz|bordado/.test(text)) cat = 'moda'
-          else if (/saúde|saude|hospital|enferm|odonto|médic|medic|clínic/.test(text)) cat = 'saude'
-          else if (/tendên|tendenc|sustentab|inovaç|tecnolog/.test(text)) cat = 'tendencia'
-          else if (/marketing|digital|influenc|instagram|tiktok|social|conteúdo/.test(text)) cat = 'social'
-
-          allNews.push({
-            title: clean(title),
-            url: link,
-            source: source || 'Google News',
-            cat,
-            img,
-            time: pubDate ? ago(new Date(pubDate)) : 'Recente',
-            impact: Math.random() > 0.4 ? 'alto' : 'medio',
-          })
-          count++
         }
       } catch (e) {
-        console.error('Term error:', term, e.message)
+        console.error('GNews error:', term, e.message)
       }
     }
 
-    // Remover duplicatas e embaralhar
+    // Remover duplicatas
     const seen = new Set()
     const unique = allNews.filter(n => {
       const k = n.title.substring(0, 40).toLowerCase()
@@ -111,20 +84,6 @@ Deno.serve(async (req) => {
     })
   }
 })
-
-function extract(xml: string, tag: string): string {
-  const m = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`))
-  return m ? m[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : ''
-}
-
-function extractSource(xml: string): string {
-  const m = xml.match(/<source[^>]*>([\s\S]*?)<\/source>/)
-  return m ? m[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : ''
-}
-
-function clean(t: string): string {
-  return t.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/<[^>]+>/g, '').trim()
-}
 
 function ago(d: Date): string {
   const s = Math.floor((Date.now() - d.getTime()) / 1000)
