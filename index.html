@@ -3577,8 +3577,18 @@ async function loadTrends() {
   if (btn) btn.classList.add('spinning');
 
   try {
-    // Buscar sugestoes para os termos-semente do nicho
-    const seeds = ['jaleco', 'scrub', 'jaleco feminino', 'uniforme hospitalar', 'jaleco bordado', 'scrub feminino', 'uniforme enfermagem', 'jaleco personalizado'];
+    // Pool grande de seeds — sorteia 8 diferentes a cada refresh
+    const allSeeds = [
+      'jaleco', 'scrub', 'jaleco feminino', 'scrub feminino', 'uniforme hospitalar',
+      'jaleco bordado', 'jaleco personalizado', 'uniforme enfermagem', 'jaleco medico',
+      'scrub colorido', 'jaleco gola padre', 'jaleco acinturado', 'uniforme clinica',
+      'scrub veterinario', 'jaleco comprar', 'jaleco barato', 'scrub masculino',
+      'uniforme odontologia', 'jaleco fisioterapia', 'scrub plantao', 'jaleco Santa Catarina',
+      'uniforme saude personalizado', 'jaleco bordado nome', 'scrub confortavel',
+      'jaleco feminino preço', 'uniforme profissional saude', 'jaleco online',
+    ];
+    // Embaralha e pega 8 seeds diferentes a cada clique
+    const seeds = allSeeds.sort(() => Math.random() - 0.5).slice(0, 8);
     const scoreMap = {};
 
     // Buscar em paralelo (lotes de 4)
