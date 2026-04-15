@@ -3405,85 +3405,16 @@ if(whn) whn.addEventListener('input', () => {
   <div class="mkt-panel" id="mkt-tendencias">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <div style="font-size:12.5px;color:var(--text3)">Termos em alta no Google relacionados ao seu negócio — Brasil</div>
-      <div style="font-size:11px;color:var(--text3)">Fonte: Pesquisa real de mercado · Abril 2026</div>
-    </div>
-
-    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">🔥 Em Alta Esta Semana</div>
-    <div class="trend-grid" style="margin-bottom:20px">
-      <div class="trend-item">
-        <div class="trend-rank hot">#1</div>
-        <div class="trend-keyword">jaleco gola padre</div>
-        <div class="trend-volume">Tendencia absoluta 2026</div>
-        <div class="trend-bar"><div class="trend-fill" style="width:100%"></div></div>
-        <div class="trend-chg up">Visual minimalista e protetor</div>
-      </div>
-      <div class="trend-item">
-        <div class="trend-rank hot">#2</div>
-        <div class="trend-keyword">scrub feminino colorido</div>
-        <div class="trend-volume">Profissionais abandonam branco</div>
-        <div class="trend-bar"><div class="trend-fill" style="width:85%"></div></div>
-        <div class="trend-chg up">Cores expressam personalidade</div>
-      </div>
-      <div class="trend-item">
-        <div class="trend-rank hot">#3</div>
-        <div class="trend-keyword">jaleco feminino acinturado</div>
-        <div class="trend-volume">Modelagem valorizada</div>
-        <div class="trend-bar"><div class="trend-fill" style="width:70%"></div></div>
-        <div class="trend-chg up">Alta demanda e-commerce</div>
-      </div>
-      <div class="trend-item">
-        <div class="trend-rank">#4</div>
-        <div class="trend-keyword">jaleco bordado personalizado</div>
-        <div class="trend-volume">Nome + especialidade + logo</div>
-        <div class="trend-bar"><div class="trend-fill" style="width:55%"></div></div>
-        <div class="trend-chg up">Transmite autoridade</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="font-size:11px;color:var(--text3)" id="trend-fonte">Fonte: Google Suggest · Dados ao vivo</div>
+        <button class="mkt-refresh" id="trend-refresh-btn" onclick="loadTrends()" style="padding:4px 10px;font-size:11px">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" style="width:12px;height:12px"><path d="M13.5 8A5.5 5.5 0 112.5 5.5"/><path d="M2.5 2v3.5h3.5"/></svg>
+          Atualizar
+        </button>
       </div>
     </div>
-
-    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Crescimento Consistente</div>
-    <div class="trend-grid" style="margin-bottom:20px">
-      <div class="trend-item">
-        <div class="trend-rank">#5</div>
-        <div class="trend-keyword">tons terrosos e neutros</div>
-        <div class="trend-volume">Alternativa sofisticada ao branco</div>
-        <div class="trend-bar"><div class="trend-fill" style="width:48%"></div></div>
-        <div class="trend-chg up">Tendencia moda 2026</div>
-      </div>
-      <div class="trend-item">
-        <div class="trend-rank">#6</div>
-        <div class="trend-keyword">gabardine com elastano</div>
-        <div class="trend-volume">Tecido referencia do mercado</div>
-        <div class="trend-bar"><div class="trend-fill" style="width:40%"></div></div>
-        <div class="trend-chg up">Durabilidade + conforto</div>
-      </div>
-      <div class="trend-item">
-        <div class="trend-rank">#7</div>
-        <div class="trend-keyword">scrub veterinario</div>
-        <div class="trend-volume">Nicho em crescimento</div>
-        <div class="trend-bar"><div class="trend-fill" style="width:30%"></div></div>
-        <div class="trend-chg up">Sem marcas posicionadas</div>
-      </div>
-      <div class="trend-item">
-        <div class="trend-rank">#8</div>
-        <div class="trend-keyword">uniforme sustentavel</div>
-        <div class="trend-volume">Obrigatorio em 2026</div>
-        <div class="trend-bar"><div class="trend-fill" style="width:25%"></div></div>
-        <div class="trend-chg up">Embalagem reciclavel</div>
-      </div>
-    </div>
-
-    <div class="card" style="background:var(--black);color:white;border-color:var(--black3)">
-      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;margin-bottom:12px;color:rgba(255,255,255,0.7)">💡 Insight estratégico para conteúdo</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div style="background:rgba(255,255,255,0.07);border-radius:9px;padding:13px">
-          <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:6px">Criar conteúdo sobre</div>
-          <div style="font-size:13px;color:white;line-height:1.6">• "jaleco gola padre feminino" — tendência absoluta 2026, baixa concorrência<br>• "scrub confortável para plantão" — dor real, alta conversão<br>• "uniforme clínica personalizado SC" — geolocalização favorável para Dana</div>
-        </div>
-        <div style="background:rgba(255,255,255,0.07);border-radius:9px;padding:13px">
-          <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:6px">Sazonalidade + Mercado Real</div>
-          <div style="font-size:13px;color:white;line-height:1.6">📈 Varejo vestuário: <strong>R$314,9 bi</strong> em 2025 (+6,8% — IEMI)<br>📈 E-commerce 2026: projeção <strong>R$258 bi</strong> (+10% — ABComm)<br>📈 Inverno (jun-ago): buscas por jalecos sobem <strong>+41%</strong></div>
-        </div>
-      </div>
+    <div id="trends-container">
+      <div class="news-loading"><div class="news-spinner"></div><div>Buscando tendências reais do Google...</div></div>
     </div>
   </div>
 
@@ -3620,7 +3551,146 @@ function switchMkt(tab, id) {
   document.querySelectorAll('.mkt-panel').forEach(p => p.classList.remove('active'));
   tab.classList.add('active');
   document.getElementById('mkt-'+id)?.classList.add('active');
+  if (id === 'tendencias' && !window._trendsLoaded) loadTrends();
 }
+
+// ── TENDÊNCIAS DE BUSCA (dados reais Google Suggest) ──
+let _trendsCache = null;
+
+async function _suggestFetch(q) {
+  try {
+    const url = SUPABASE_URL + '/functions/v1/google-suggest?q=' + encodeURIComponent(q) + '&hl=pt-BR';
+    const r = await Promise.race([
+      fetch(url, { headers: { 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY } }),
+      new Promise((_, rej) => setTimeout(() => rej('timeout'), 8000))
+    ]);
+    if (r.ok) { const d = await r.json(); if (Array.isArray(d)) return d; }
+  } catch {}
+  return [];
+}
+
+async function loadTrends() {
+  const container = document.getElementById('trends-container');
+  const btn = document.getElementById('trend-refresh-btn');
+  if (!container) return;
+  container.innerHTML = '<div class="news-loading"><div class="news-spinner"></div><div>Buscando tendências reais do Google...</div></div>';
+  if (btn) btn.classList.add('spinning');
+
+  try {
+    // Buscar sugestoes para os termos-semente do nicho
+    const seeds = ['jaleco', 'scrub', 'jaleco feminino', 'uniforme hospitalar', 'jaleco bordado', 'scrub feminino', 'uniforme enfermagem', 'jaleco personalizado'];
+    const scoreMap = {};
+
+    // Buscar em paralelo (lotes de 4)
+    for (let i = 0; i < seeds.length; i += 4) {
+      const batch = seeds.slice(i, i + 4);
+      const results = await Promise.all(batch.map(s => _suggestFetch(s)));
+      results.forEach((suggestions, bi) => {
+        const seed = batch[bi];
+        suggestions.forEach((sug, pos) => {
+          const key = sug.toLowerCase().trim();
+          if (key.length < 8 || key === seed) return;
+          if (!scoreMap[key]) scoreMap[key] = { text: sug, score: 0, seeds: new Set() };
+          // Menor posicao = mais relevante; aparecer em mais seeds = mais popular
+          scoreMap[key].score += (10 - Math.min(pos, 9));
+          scoreMap[key].seeds.add(seed);
+        });
+      });
+    }
+
+    // Bonus para termos que aparecem em multiplos seeds
+    Object.values(scoreMap).forEach(v => { v.score += (v.seeds.size - 1) * 5; });
+
+    // Ordenar por score e pegar top 8
+    const sorted = Object.values(scoreMap)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8);
+
+    if (sorted.length === 0) throw new Error('sem dados');
+
+    // Classificar cada termo
+    const classify = (t) => {
+      const l = t.toLowerCase();
+      if (/preço|comprar|barato|onde|loja|promoção|desconto|frete|quanto/.test(l)) return { cat: 'Comercial', color: '#059669' };
+      if (/feminino|masculino|cor |colorido|estilo|moda|bonito|design/.test(l)) return { cat: 'Estilo', color: '#7c3aed' };
+      if (/bordado|personalizado|nome|logo|custom/.test(l)) return { cat: 'Personalização', color: '#d97706' };
+      if (/enferm|médic|hospital|clínic|saúde|saude|odonto|veterinár|fisio/.test(l)) return { cat: 'Profissão', color: '#dc2626' };
+      if (/tecido|gabardine|algodão|elastano|oxford|microfibra/.test(l)) return { cat: 'Material', color: '#0369a1' };
+      return { cat: 'Tendência', color: '#1a4fa0' };
+    };
+
+    const maxScore = sorted[0]?.score || 1;
+
+    // Separar em "Em Alta" (top 4) e "Crescimento" (5-8)
+    const hot = sorted.slice(0, 4);
+    const rising = sorted.slice(4, 8);
+
+    const renderGrid = (items, startIdx) => items.map((item, i) => {
+      const rank = startIdx + i + 1;
+      const pct = Math.round((item.score / maxScore) * 100);
+      const cl = classify(item.text);
+      return `<div class="trend-item">
+        <div class="trend-rank${rank <= 3 ? ' hot' : ''}">#${rank}</div>
+        <div class="trend-keyword">${esc(item.text)}</div>
+        <div class="trend-volume">${item.seeds.size} categorias relacionadas</div>
+        <div class="trend-bar"><div class="trend-fill" style="width:${pct}%"></div></div>
+        <div class="trend-chg up" style="color:${cl.color}">${cl.cat}</div>
+      </div>`;
+    }).join('');
+
+    // Gerar insights baseados nos dados reais
+    const topTerms = sorted.slice(0, 3).map(s => s.text);
+    const comerciais = sorted.filter(s => classify(s.text).cat === 'Comercial').slice(0, 2);
+    const estilos = sorted.filter(s => classify(s.text).cat === 'Estilo' || classify(s.text).cat === 'Personalização').slice(0, 2);
+
+    let insightConteudo = topTerms.map(t => `• "${esc(t)}" — alta demanda no Google`).join('<br>');
+    if (comerciais.length) insightConteudo += '<br>• Termos comerciais ativos: ' + comerciais.map(c => '"' + esc(c.text) + '"').join(', ');
+    if (!insightConteudo) insightConteudo = '• Buscar por termos do nicho para gerar insights';
+
+    let insightMercado = '📈 Varejo vestuário: <strong>R$314,9 bi</strong> em 2025 (+6,8% — IEMI)';
+    insightMercado += '<br>📈 E-commerce 2026: projeção <strong>R$258 bi</strong> (+10% — ABComm)';
+    insightMercado += '<br>📈 ' + sorted.length + ' termos em alta detectados no Google agora';
+
+    container.innerHTML = `
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">🔥 Em Alta Esta Semana</div>
+      <div class="trend-grid" style="margin-bottom:20px">${renderGrid(hot, 0)}</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Crescimento Consistente</div>
+      <div class="trend-grid" style="margin-bottom:20px">${renderGrid(rising, 4)}</div>
+      <div class="card" style="background:var(--black);color:white;border-color:var(--black3)">
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;margin-bottom:12px;color:rgba(255,255,255,0.7)">💡 Insight estratégico para conteúdo</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="background:rgba(255,255,255,0.07);border-radius:9px;padding:13px">
+            <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:6px">Criar conteúdo sobre</div>
+            <div style="font-size:13px;color:white;line-height:1.6">${insightConteudo}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.07);border-radius:9px;padding:13px">
+            <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:6px">Sazonalidade + Mercado Real</div>
+            <div style="font-size:13px;color:white;line-height:1.6">${insightMercado}</div>
+          </div>
+        </div>
+      </div>`;
+
+    window._trendsLoaded = true;
+    _trendsCache = container.innerHTML;
+
+    // Animar as barras
+    setTimeout(() => {
+      container.querySelectorAll('.trend-fill').forEach(el => {
+        const w = el.style.width; el.style.width = '0%';
+        setTimeout(() => { el.style.width = w; }, 50);
+      });
+    }, 100);
+
+  } catch (e) {
+    console.warn('Trends error:', e);
+    container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Erro ao carregar tendências. <a href="#" onclick="loadTrends();return false" style="color:var(--black);font-weight:600">Tentar novamente</a></div>';
+  }
+  if (btn) btn.classList.remove('spinning');
+  const fonte = document.getElementById('trend-fonte');
+  if (fonte) fonte.textContent = 'Fonte: Google Suggest · ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function filterNews(el, cat) {
   document.querySelectorAll('.news-filter').forEach(f => f.classList.remove('active'));
