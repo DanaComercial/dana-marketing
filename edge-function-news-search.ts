@@ -59,34 +59,19 @@ Deno.serve(async (req) => {
             const cleanLink = link.trim()
             try { domain = new URL(cleanLink).hostname.replace('www.', '') } catch {}
 
-            // Resolver redirect do Google News para URL real
-            let realUrl = cleanLink
+            // Pegar thumbnail do Google News (lh3.googleusercontent.com)
             let img = ''
             try {
-              const redirectRes = await fetch(cleanLink, {
+              const gRes = await fetch(cleanLink, {
                 signal: AbortSignal.timeout(5000),
-                redirect: 'follow',
                 headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
               })
-              realUrl = redirectRes.url || cleanLink
-              // Extrair domínio real
-              try { domain = new URL(realUrl).hostname.replace('www.', '') } catch {}
-
-              const pageHtml = await redirectRes.text()
-              // Buscar og:image (vários formatos possíveis)
-              const ogPatterns = [
-                /property="og:image"\s+content="([^"]+)"/i,
-                /content="([^"]+)"\s+property="og:image"/i,
-                /name="twitter:image"\s+content="([^"]+)"/i,
-                /content="([^"]+)"\s+name="twitter:image"/i,
-                /property="og:image:url"\s+content="([^"]+)"/i,
-              ]
-              for (const pattern of ogPatterns) {
-                const match = pageHtml.match(pattern)
-                if (match && match[1] && match[1].startsWith('http') && !match[1].includes('google.com/')) {
-                  img = match[1]
-                  break
-                }
+              const gHtml = await gRes.text()
+              // Google News retorna og:image com thumbnail real da notícia
+              const imgMatch = gHtml.match(/content="(https:\/\/lh3\.googleusercontent\.com\/[^"]+)"/i)
+              if (imgMatch && imgMatch[1]) {
+                // Trocar w300 por w600 para melhor qualidade
+                img = imgMatch[1].replace(/=s\d+-w\d+/, '=s0-w600')
               }
             } catch {}
 
