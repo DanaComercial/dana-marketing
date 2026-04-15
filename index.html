@@ -3373,7 +3373,7 @@ if(whn) whn.addEventListener('input', () => {
         <div class="live-badge"><div class="live-dot"></div>Ao vivo</div>
       </div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div id="news-header-controls" style="display:flex;gap:8px;align-items:center">
       <div id="last-update" style="font-size:11px;color:var(--text3)">Atualizado agora</div>
       <div style="font-size:10px;color:var(--text4);padding:3px 8px;background:var(--surface3);border-radius:4px" id="news-quota">Google News · Ilimitado</div>
       <div class="mkt-refresh" id="mkt-refresh-btn" onclick="fetchNews()">
@@ -3551,6 +3551,9 @@ function switchMkt(tab, id) {
   document.querySelectorAll('.mkt-panel').forEach(p => p.classList.remove('active'));
   tab.classList.add('active');
   document.getElementById('mkt-'+id)?.classList.add('active');
+  // Mostrar controles de noticias apenas na aba noticias
+  const nc = document.getElementById('news-header-controls');
+  if (nc) nc.style.display = id === 'noticias' ? 'flex' : 'none';
   if (id === 'tendencias' && !window._trendsLoaded) loadTrends();
 }
 
