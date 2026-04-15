@@ -1,110 +1,107 @@
 // ══════════════════════════════════════════════════════════
-// Edge Function: news-search (v3 — simplificada e confiável)
-// Nome: news-search
+// Edge Function: news-search (v5 — simples, sem cache)
+// Busca noticias do Google News RSS e retorna direto
 // ══════════════════════════════════════════════════════════
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
-      headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, apikey, Content-Type' },
+      headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, apikey, Content-Type' },
     })
   }
 
   try {
-    // Todos os termos de busca — pegar 5 aleatórios
     const allTerms = [
       'jaleco profissional', 'scrub médico', 'uniforme hospitalar',
-      'moda profissional saúde', 'confecção uniformes Brasil',
-      'vestuário profissional tendência', 'jaleco personalizado bordado',
-      'mercado têxtil Brasil', 'e-commerce moda Brasil',
-      'varejo vestuário crescimento', 'indústria confecção',
-      'uniforme corporativo sustentável', 'tecido hospitalar inovação',
+      'confecção vestuário Brasil', 'moda profissional saúde',
+      'indústria têxtil', 'e-commerce vestuário Brasil',
+      'varejo moda crescimento', 'uniforme corporativo tendência',
       'enfermagem uniforme', 'odontologia jaleco',
-      'marketing moda profissional', 'influenciador saúde',
-      'tendência uniforme 2026', 'scrub feminino colorido',
-      'jaleco feminino acinturado',
+      'sustentabilidade têxtil moda', 'mercado uniformes',
+      'marketing moda digital', 'tendência uniforme profissional',
     ]
 
-    // Embaralhar e pegar 5 termos aleatórios
-    const shuffled = allTerms.sort(() => Math.random() - 0.5)
-    const selectedTerms = shuffled.slice(0, 5)
-
+    const terms = allTerms.sort(() => Math.random() - 0.5).slice(0, 4)
     const allNews: any[] = []
 
-    // Categorias baseadas no termo
-    function categorizeTerm(term: string): string {
-      if (/moda|feminino|estilo|colorido|acinturado|personalizado|bordado/.test(term)) return 'moda'
-      if (/saúde|hospitalar|enfermagem|odontologia|médico/.test(term)) return 'saude'
-      if (/mercado|varejo|e-commerce|indústria|confecção|têxtil|crescimento/.test(term)) return 'mercado'
-      if (/tendência|sustentável|inovação|tecnologia|2026/.test(term)) return 'tendencia'
-      if (/marketing|influenciador|digital|TikTok|Instagram/.test(term)) return 'social'
-      return 'mercado'
-    }
-
-    for (const term of selectedTerms) {
+    for (const term of terms) {
       try {
-        const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(term)}&hl=pt-BR&gl=BR&ceid=BR:pt-419`
-        const rssRes = await fetch(rssUrl, { signal: AbortSignal.timeout(8000) })
-        const rssText = await rssRes.text()
+        const url = `https://news.google.com/rss/search?q=${encodeURIComponent(term)}&hl=pt-BR&gl=BR&ceid=BR:pt-419`
+        const res = await fetch(url, { signal: AbortSignal.timeout(6000) })
+        const xml = await res.text()
 
-        const items = rssText.split('<item>').slice(1, 5)
-        for (const item of items) {
-          const title = clean(between(item, '<title>', '</title>'))
-          const link = between(item, '<link/>', '<guid') || between(item, '<link>', '</link>')
-          const pubDate = between(item, '<pubDate>', '</pubDate>')
-          const source = clean(between(item, '<source', '</source>').replace(/^[^>]*>/, ''))
+        // Regex para extrair cada item
+        const itemRegex = /<item>([\s\S]*?)<\/item>/g
+        let match
+        let count = 0
+        while ((match = itemRegex.exec(xml)) !== null && count < 4) {
+          const block = match[1]
 
-          if (title && title.length > 10) {
-            let domain = ''
-            const cleanLink = link.trim()
-            try { domain = new URL(cleanLink).hostname.replace('www.', '') } catch {}
+          const title = extract(block, 'title')
+          const source = extractSource(block)
+          const pubDate = extract(block, 'pubDate')
 
-            // Pegar thumbnail do Google News (lh3.googleusercontent.com)
-            let img = ''
+          // Link: está entre <link/> e <guid
+          let link = ''
+          const linkM = block.match(/<link\/>\s*(https?:\/\/\S+)/s)
+          if (linkM) link = linkM[1].trim()
+
+          if (!title || title.length < 10) continue
+
+          // Pegar imagem do Google News
+          let img = ''
+          if (link) {
             try {
-              const gRes = await fetch(cleanLink, {
-                signal: AbortSignal.timeout(5000),
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+              const gRes = await fetch(link, {
+                signal: AbortSignal.timeout(3000),
+                headers: { 'User-Agent': 'Mozilla/5.0' },
               })
-              const gHtml = await gRes.text()
-              // Google News retorna og:image com thumbnail real da notícia
-              const imgMatch = gHtml.match(/content="(https:\/\/lh3\.googleusercontent\.com\/[^"]+)"/i)
-              if (imgMatch && imgMatch[1]) {
-                // Trocar w300 por w600 para melhor qualidade
-                img = imgMatch[1].replace(/=s\d+-w\d+/, '=s0-w600')
+              const html = await gRes.text()
+              // og:image do Google News = thumbnail real
+              const imgM = html.match(/content="(https:\/\/lh3\.googleusercontent\.com\/[^"]+)"/i)
+              if (imgM) img = imgM[1].replace(/=s\d+-w\d+/, '=s0-w600')
+              // Se nao achou lh3, tentar qualquer og:image
+              if (!img) {
+                const ogM = html.match(/property="og:image"[^>]*content="(https?:\/\/[^"]+)"/i)
+                  || html.match(/content="(https?:\/\/[^"]+)"[^>]*property="og:image"/i)
+                if (ogM && ogM[1] && !ogM[1].includes('google.com/images')) img = ogM[1]
               }
             } catch {}
-
-            allNews.push({
-              cat: categorizeTerm(term),
-              title,
-              url: realUrl,
-              source: source || domain,
-              domain,
-              img,
-              time: pubDate ? timeAgo(new Date(pubDate)) : 'Recente',
-              impact: Math.random() > 0.5 ? 'alto' : 'medio',
-            })
           }
+
+          let cat = 'mercado'
+          const text = (term + ' ' + title).toLowerCase()
+          if (/moda|feminino|estilo|design|personaliz|bordado/.test(text)) cat = 'moda'
+          else if (/saúde|saude|hospital|enferm|odonto|médic|medic|clínic/.test(text)) cat = 'saude'
+          else if (/tendên|tendenc|sustentab|inovaç|tecnolog/.test(text)) cat = 'tendencia'
+          else if (/marketing|digital|influenc|instagram|tiktok|social|conteúdo/.test(text)) cat = 'social'
+
+          allNews.push({
+            title: clean(title),
+            url: link,
+            source: source || 'Google News',
+            cat,
+            img,
+            time: pubDate ? ago(new Date(pubDate)) : 'Recente',
+            impact: Math.random() > 0.4 ? 'alto' : 'medio',
+          })
+          count++
         }
       } catch (e) {
-        console.error('Erro buscando:', term, e.message)
+        console.error('Term error:', term, e.message)
       }
     }
 
-    // Remover duplicatas por título
+    // Remover duplicatas e embaralhar
     const seen = new Set()
     const unique = allNews.filter(n => {
-      const key = n.title.toLowerCase().substring(0, 50)
-      if (seen.has(key)) return false
-      seen.add(key)
+      const k = n.title.substring(0, 40).toLowerCase()
+      if (seen.has(k)) return false
+      seen.add(k)
       return true
-    })
+    }).sort(() => Math.random() - 0.5).slice(0, 15)
 
-    // Embaralhar resultado final
-    const result = unique.sort(() => Math.random() - 0.5).slice(0, 15)
-
-    return new Response(JSON.stringify({ news: result, total: result.length }), {
+    return new Response(JSON.stringify({ news: unique, total: unique.length }), {
       headers: { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' },
     })
   } catch (e: any) {
@@ -115,22 +112,24 @@ Deno.serve(async (req) => {
   }
 })
 
-function between(text: string, start: string, end: string): string {
-  const i = text.indexOf(start)
-  if (i === -1) return ''
-  const s = i + start.length
-  const e = text.indexOf(end, s)
-  return e === -1 ? '' : text.substring(s, e).trim()
+function extract(xml: string, tag: string): string {
+  const m = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`))
+  return m ? m[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : ''
 }
 
-function clean(text: string): string {
-  return text.replace(/<!\[CDATA\[/g, '').replace(/\]\]>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/<[^>]+>/g, '').trim()
+function extractSource(xml: string): string {
+  const m = xml.match(/<source[^>]*>([\s\S]*?)<\/source>/)
+  return m ? m[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : ''
 }
 
-function timeAgo(date: Date): string {
-  const s = Math.floor((Date.now() - date.getTime()) / 1000)
+function clean(t: string): string {
+  return t.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/<[^>]+>/g, '').trim()
+}
+
+function ago(d: Date): string {
+  const s = Math.floor((Date.now() - d.getTime()) / 1000)
   if (s < 3600) return Math.floor(s / 60) + ' min'
   if (s < 86400) return Math.floor(s / 3600) + 'h atrás'
   if (s < 604800) return Math.floor(s / 86400) + 'd atrás'
-  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
