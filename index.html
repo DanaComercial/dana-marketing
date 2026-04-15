@@ -3375,7 +3375,7 @@ if(whn) whn.addEventListener('input', () => {
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <div id="last-update" style="font-size:11px;color:var(--text3)">Atualizado agora</div>
-      <div style="font-size:10px;color:var(--text4);padding:3px 8px;background:var(--surface3);border-radius:4px" id="news-quota">Restam ~50 atualizações hoje</div>
+      <div style="font-size:10px;color:var(--text4);padding:3px 8px;background:var(--surface3);border-radius:4px" id="news-quota">Google News · Ilimitado</div>
       <div class="mkt-refresh" id="mkt-refresh-btn" onclick="fetchNews()">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13.5 8A5.5 5.5 0 112.5 5.5"/><path d="M2.5 2v3.5h3.5"/></svg>
         Atualizar
@@ -3743,48 +3743,26 @@ function renderNews() {
   };
   const emojis = { moda:'👗', saude:'🏥', mercado:'📊', tendencia:'🔥', social:'📱' };
 
-  function newsImgHtml(n, height) {
-    const grad = gradients[n.cat] || 'linear-gradient(135deg,#333,#666)';
-    const initials = (n.source || '?').substring(0, 2).toUpperCase();
-    const hasImg = n.img && n.img.startsWith('http');
+  const catColors = { moda:'#7c3aed', saude:'#dc2626', mercado:'#1a4fa0', tendencia:'#059669', social:'#d97706' };
 
-    if (hasImg) {
-      return `<div class="news-img" style="height:${height};max-height:220px;background:${grad};position:relative;overflow:hidden">
-        <img src="${n.img}" alt="" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.parentElement.innerHTML='<div style=\\'height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px\\'><div style=\\'width:48px;height:48px;border-radius:12px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-family:Syne,sans-serif;font-weight:800;font-size:18px;color:white\\'>${initials}</div><div style=\\'font-size:11px;color:rgba(255,255,255,0.8);font-weight:600\\'>${n.source}</div></div><div class=\\'news-source-badge\\'>${n.source}</div><div class=\\'news-time-badge\\'>${n.time}</div>'">
-        <div class="news-source-badge">${n.source}</div>
-        <div class="news-time-badge">${n.time}</div>
-      </div>`;
-    }
-
-    return `<div class="news-img" style="height:${height};background:${grad};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative">
-      <div style="width:48px;height:48px;border-radius:12px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:white;letter-spacing:1px">${initials}</div>
-      <div style="font-size:11px;color:rgba(255,255,255,0.8);font-weight:600;max-width:80%;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.source}</div>
-      <div class="news-source-badge">${n.source}</div>
-      <div class="news-time-badge">${n.time}</div>
-    </div>`;
-  }
-
-  const featured = _newsCache[0];
-  let html = `<div class="news-card featured" data-cat="${featured.cat}" onclick="window.open('${featured.url}','_blank')" style="margin-bottom:14px;cursor:pointer">
-    ${newsImgHtml(featured, '100%')}
-    <div class="news-body" style="padding:20px 22px;display:flex;flex-direction:column;justify-content:center">
-      <div class="news-cat ${featured.cat}">Destaque · ${catLabels[featured.cat] || featured.cat}</div>
-      <div class="news-title">${featured.title}</div>
-      ${featured.desc ? '<div class="news-desc">' + featured.desc + '</div>' : ''}
-      <div class="news-meta"><span class="news-src">${featured.source}</span><span class="news-impact ${featured.impact||'medio'}">${featured.impact === 'alto' ? 'Alto' : 'Médio'} impacto</span></div>
-    </div>
-  </div>`;
-
-  html += '<div class="news-grid">';
-  _newsCache.slice(1).forEach(n => {
-    html += `<div class="news-card" data-cat="${n.cat}" onclick="window.open('${n.url}','_blank')" style="cursor:pointer">
-      ${newsImgHtml(n, '140px')}
-      <div class="news-body">
-        <div class="news-cat ${n.cat}">${catLabels[n.cat] || n.cat}</div>
-        <div class="news-title">${n.title}</div>
-        ${n.desc ? '<div class="news-desc">' + n.desc + '</div>' : ''}
-        <div class="news-meta"><span class="news-src">${n.source}</span><span class="news-impact ${n.impact||'medio'}">${(n.impact === 'alto' ? 'Alto' : 'Médio') + ' impacto'}</span></div>
+  let html = '<div style="display:flex;flex-direction:column;gap:10px">';
+  _newsCache.forEach((n, i) => {
+    const color = catColors[n.cat] || '#1a4fa0';
+    const isFirst = i === 0;
+    html += `<div onclick="window.open('${n.url}','_blank')" style="display:flex;gap:16px;padding:${isFirst?'20px 22px':'14px 18px'};background:var(--white);border:1.5px solid var(--border);border-radius:12px;cursor:pointer;transition:all .15s;border-left:4px solid ${color}" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='none';this.style.transform='none'">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:9.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:${color}">${catLabels[n.cat]||n.cat}</span>
+          <span style="font-size:10px;color:var(--text4)">${n.time}</span>
+        </div>
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:${isFirst?'16px':'13.5px'};color:var(--black);line-height:1.35;margin-bottom:${isFirst?'8px':'4px'}">${n.title}</div>
+        ${n.desc && isFirst ? '<div style="font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+n.desc+'</div>' : ''}
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:11px;font-weight:600;color:var(--text3)">${n.source}</span>
+          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:${n.impact==='alto'?'var(--green-bg)':'var(--amber-bg)'};color:${n.impact==='alto'?'var(--green)':'var(--amber)'}">${n.impact==='alto'?'Alto':'Médio'} impacto</span>
+        </div>
       </div>
+      <div style="display:flex;align-items:center;color:var(--text4);font-size:18px;flex-shrink:0">→</div>
     </div>`;
   });
   html += '</div>';
