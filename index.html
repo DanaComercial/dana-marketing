@@ -3375,6 +3375,7 @@ if(whn) whn.addEventListener('input', () => {
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <div id="last-update" style="font-size:11px;color:var(--text3)">Atualizado agora</div>
+      <div style="font-size:10px;color:var(--text4);padding:3px 8px;background:var(--surface3);border-radius:4px" id="news-quota">Restam ~50 atualizações hoje</div>
       <div class="mkt-refresh" id="mkt-refresh-btn" onclick="fetchNews()">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13.5 8A5.5 5.5 0 112.5 5.5"/><path d="M2.5 2v3.5h3.5"/></svg>
         Atualizar
@@ -3644,8 +3645,38 @@ function updateNewsCount() {
 }
 
 let _newsCache = [];
+// GNews free = 100 requests/dia, cada clique usa 2 requests = 50 atualizacoes/dia
+const NEWS_DAILY_LIMIT = 50;
+function getNewsUsage() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('dms-news-usage') || '{}');
+    const today = new Date().toISOString().split('T')[0];
+    if (stored.date !== today) return { date: today, count: 0 };
+    return stored;
+  } catch { return { date: new Date().toISOString().split('T')[0], count: 0 }; }
+}
+function addNewsUsage() {
+  const usage = getNewsUsage();
+  usage.count++;
+  localStorage.setItem('dms-news-usage', JSON.stringify(usage));
+  updateNewsQuota();
+}
+function updateNewsQuota() {
+  const usage = getNewsUsage();
+  const restam = Math.max(0, NEWS_DAILY_LIMIT - usage.count);
+  const el = document.getElementById('news-quota');
+  if (el) {
+    el.textContent = 'Restam ' + restam + ' de ' + NEWS_DAILY_LIMIT + ' atualizações hoje';
+    el.style.color = restam <= 5 ? 'var(--red)' : restam <= 15 ? 'var(--amber)' : 'var(--text4)';
+  }
+}
 
 async function fetchNews() {
+  const usage = getNewsUsage();
+  if (usage.count >= NEWS_DAILY_LIMIT) {
+    showToast('Limite diário de atualizações atingido (50/dia). Tente amanhã.');
+    return;
+  }
   const btn = document.getElementById('mkt-refresh-btn');
   if (btn) btn.classList.add('spinning');
   const container = document.getElementById('news-container');
@@ -3662,6 +3693,7 @@ async function fetchNews() {
 
     if (data.news && data.news.length > 0) {
       _newsCache = data.news;
+      addNewsUsage();
       console.log('Noticias carregadas:', data.news.length);
     } else {
       throw new Error('Sem noticias');
@@ -3772,6 +3804,7 @@ function prospectar(handle) {
 
 // Auto-load
 window.addEventListener('load', () => {
+  updateNewsQuota();
   setTimeout(fetchNews, 800);
   // Animate trend bars
   setTimeout(() => {
