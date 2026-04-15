@@ -59,28 +59,41 @@ Deno.serve(async (req) => {
             const cleanLink = link.trim()
             try { domain = new URL(cleanLink).hostname.replace('www.', '') } catch {}
 
-            // Tentar puxar og:image da página (rápido, 4s timeout)
+            // Resolver redirect do Google News para URL real
+            let realUrl = cleanLink
             let img = ''
             try {
-              const pageRes = await fetch(cleanLink, {
-                signal: AbortSignal.timeout(4000),
-                headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
+              const redirectRes = await fetch(cleanLink, {
+                signal: AbortSignal.timeout(5000),
                 redirect: 'follow',
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
               })
-              const pageHtml = await pageRes.text()
-              const ogMatch = pageHtml.match(/property="og:image"\s+content="([^"]+)"/i)
-                || pageHtml.match(/content="([^"]+)"\s+property="og:image"/i)
-                || pageHtml.match(/name="twitter:image"\s+content="([^"]+)"/i)
-                || pageHtml.match(/content="([^"]+)"\s+name="twitter:image"/i)
-              if (ogMatch && ogMatch[1] && !ogMatch[1].includes('logo')) {
-                img = ogMatch[1]
+              realUrl = redirectRes.url || cleanLink
+              // Extrair domínio real
+              try { domain = new URL(realUrl).hostname.replace('www.', '') } catch {}
+
+              const pageHtml = await redirectRes.text()
+              // Buscar og:image (vários formatos possíveis)
+              const ogPatterns = [
+                /property="og:image"\s+content="([^"]+)"/i,
+                /content="([^"]+)"\s+property="og:image"/i,
+                /name="twitter:image"\s+content="([^"]+)"/i,
+                /content="([^"]+)"\s+name="twitter:image"/i,
+                /property="og:image:url"\s+content="([^"]+)"/i,
+              ]
+              for (const pattern of ogPatterns) {
+                const match = pageHtml.match(pattern)
+                if (match && match[1] && match[1].startsWith('http') && !match[1].includes('google.com/')) {
+                  img = match[1]
+                  break
+                }
               }
             } catch {}
 
             allNews.push({
               cat: categorizeTerm(term),
               title,
-              url: cleanLink,
+              url: realUrl,
               source: source || domain,
               domain,
               img,
