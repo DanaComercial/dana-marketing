@@ -3896,7 +3896,8 @@ function addConcorrente() {
 }
 
 function prospectar(handle) {
-  if(typeof showToast === 'function') showToast('Abrindo prospecção para '+handle+'...'); else alert('Prospectar: '+handle);
+  const user = handle.replace('@','');
+  window.open('https://www.instagram.com/' + user + '/', '_blank');
 }
 
 // Auto-load
