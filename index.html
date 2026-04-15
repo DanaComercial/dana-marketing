@@ -3642,35 +3642,42 @@ let _newsCache = [];
 
 async function fetchNews() {
   const btn = document.getElementById('mkt-refresh-btn');
-  if (btn) btn.classList.add('spinning');
   const container = document.getElementById('news-container');
-  container.innerHTML = '<div class="news-loading"><div class="news-spinner"></div><div>Buscando notícias...</div></div>';
+
+  const done = () => {
+    if (btn) btn.classList.remove('spinning');
+    try { renderNews(); } catch(re) { console.warn('renderNews error:', re); }
+    const quotaEl = document.getElementById('news-quota');
+    if (quotaEl) quotaEl.textContent = 'Google News · Ilimitado';
+    const el = document.getElementById('last-update');
+    if (el) el.textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
 
   try {
+    if (btn) btn.classList.add('spinning');
+    if (container) container.innerHTML = '<div class="news-loading"><div class="news-spinner"></div><div>Buscando notícias...</div></div>';
+
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 11000));
     const newsUrl = SUPABASE_URL + '/functions/v1/news-search?t=' + Date.now();
-    const res = await fetch(newsUrl, {
-      headers: { 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
-      signal: AbortSignal.timeout(12000),
-    });
+    const res = await Promise.race([
+      fetch(newsUrl, { headers: { 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY } }),
+      timeout
+    ]);
+
     if (res.ok) {
       const data = await res.json();
       if (data.news && data.news.length > 0) {
-        _newsCache = data.news.slice(0, 5);
+        _newsCache = data.news.slice(0, 10);
       }
     }
-  } catch (e) { console.warn('News error:', e); }
+  } catch (e) { console.warn('News fetch error:', e.message); }
 
-  // Se API nao retornou nada, usar curadas
+  // Se API nao retornou nada, usar curadas (10 aleatorias diferentes das anteriores)
   if (_newsCache.length === 0) {
-    _newsCache = [...NEWS_CURADAS].sort(() => Math.random() - 0.5).slice(0, 5);
+    _newsCache = [...NEWS_CURADAS].sort(() => Math.random() - 0.5).slice(0, 10);
   }
 
-  if (btn) btn.classList.remove('spinning');
-  renderNews();
-  const quotaEl = document.getElementById('news-quota');
-  if (quotaEl) quotaEl.textContent = 'Google News · Ilimitado';
-  const el = document.getElementById('last-update');
-  if (el) el.textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  done();
 }
 
 // 25 noticias curadas do nicho com imagens reais de sites grandes
@@ -3771,7 +3778,6 @@ function prospectar(handle) {
 
 // Auto-load
 window.addEventListener('load', () => {
-  updateNewsQuota();
   setTimeout(fetchNews, 800);
   // Animate trend bars
   setTimeout(() => {
