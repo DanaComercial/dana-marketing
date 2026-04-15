@@ -12,53 +12,27 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Termos SIMPLES que retornam milhares de resultados
-    const categories: Record<string, string[]> = {
-      moda: ['moda', 'roupa', 'vestuario', 'confeccao', 'estilo'],
-      saude: ['saude', 'hospital', 'enfermagem', 'clinica', 'medicina'],
-      mercado: ['varejo', 'comercio', 'loja', 'consumo', 'economia'],
-      tendencia: ['tendencia', 'inovacao', 'tecnologia', 'sustentabilidade', 'futuro'],
-      social: ['instagram', 'influenciador', 'marketing digital', 'redes sociais', 'tiktok'],
-    }
+    // 1 unico request com termo do nicho — economiza requests
+    const terms = ['uniforme', 'moda saude', 'varejo moda', 'confeccao', 'enfermagem', 'vestuario', 'roupa profissional']
+    const term = terms[Math.floor(Math.random() * terms.length)]
 
-    const allNews: any[] = []
+    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(term)}&lang=pt&country=br&max=6&apikey=${GNEWS_API_KEY}`
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+    const data = await res.json()
 
-    for (const [cat, terms] of Object.entries(categories)) {
-      const term = terms[Math.floor(Math.random() * terms.length)]
-      try {
-        const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(term)}&lang=pt&country=br&max=4&apikey=${GNEWS_API_KEY}`
-        const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
-        const data = await res.json()
-
-        if (data.articles) {
-          for (const a of data.articles) {
-            if (a.title && a.title.length > 15) {
-              allNews.push({
-                title: a.title,
-                desc: a.description || '',
-                url: a.url || '',
-                source: a.source?.name || '',
-                img: a.image || '',
-                cat,
-                time: a.publishedAt ? ago(new Date(a.publishedAt)) : 'Recente',
-                impact: Math.random() > 0.4 ? 'alto' : 'medio',
-              })
-            }
-          }
-        }
-      } catch (e) {
-        console.error('Error:', cat, e.message)
-      }
-    }
-
-    // Remover duplicatas
-    const seen = new Set()
-    const unique = allNews.filter(n => {
-      const k = n.title.substring(0, 40).toLowerCase()
-      if (seen.has(k)) return false
-      seen.add(k)
-      return true
-    })
+    const unique = (data.articles || [])
+      .filter((a: any) => a.title && a.title.length > 15)
+      .slice(0, 5)
+      .map((a: any) => ({
+        title: a.title,
+        desc: a.description || '',
+        url: a.url || '',
+        source: a.source?.name || '',
+        img: a.image || '',
+        cat: 'mercado',
+        time: a.publishedAt ? ago(new Date(a.publishedAt)) : 'Recente',
+        impact: Math.random() > 0.4 ? 'alto' : 'medio',
+      }))
 
     return new Response(JSON.stringify({ news: unique, total: unique.length }), {
       headers: { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' },

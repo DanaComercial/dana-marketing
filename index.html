@@ -3393,14 +3393,8 @@ if(whn) whn.addEventListener('input', () => {
 
   <!-- ── NOTÍCIAS ── -->
   <div class="mkt-panel active" id="mkt-noticias">
-    <div class="news-filter-bar">
-      <div class="news-filter active" onclick="filterNews(this,'todas')">Todas</div>
-      <div class="news-filter" onclick="filterNews(this,'moda')">Moda Profissional</div>
-      <div class="news-filter" onclick="filterNews(this,'saude')">Saúde e Bem-estar</div>
-      <div class="news-filter" onclick="filterNews(this,'mercado')">Mercado e Varejo</div>
-      <div class="news-filter" onclick="filterNews(this,'tendencia')">Tendências</div>
-      <div class="news-filter" onclick="filterNews(this,'social')">Conteúdo e Social</div>
-      <div style="margin-left:auto;font-size:11px;color:var(--text3)" id="news-count">Carregando...</div>
+    <div style="display:flex;align-items:center;margin-bottom:14px">
+      <div style="font-size:12px;color:var(--text3)" id="news-count">Carregando...</div>
     </div>
     <div id="news-container">
       <div class="news-loading"><div class="news-spinner"></div><div>Buscando as melhores notícias do seu nicho...</div></div>
@@ -3645,8 +3639,8 @@ function updateNewsCount() {
 }
 
 let _newsCache = [];
-// GNews free = 100 requests/dia, cada clique usa 5 requests (1 por categoria) = 20 atualizacoes/dia
-const NEWS_DAILY_LIMIT = 20;
+// GNews free = 100 requests/dia, cada clique usa 1 request = ~67 atualizacoes/dia (33 ja usados hoje)
+const NEWS_DAILY_LIMIT = 67;
 function getNewsUsage() {
   try {
     const stored = JSON.parse(localStorage.getItem('dms-news-usage') || '{}');
