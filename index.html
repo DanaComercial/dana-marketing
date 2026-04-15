@@ -3710,11 +3710,20 @@ function renderNews() {
   const emojis = { moda:'👗', saude:'🏥', mercado:'📊', tendencia:'🔥', social:'📱' };
 
   function newsImgHtml(n, height) {
-    const domain = n.domain || '';
     const grad = gradients[n.cat] || 'linear-gradient(135deg,#333,#666)';
     const initials = (n.source || '?').substring(0, 2).toUpperCase();
+    const hasImg = n.img && n.img.startsWith('http');
+
+    if (hasImg) {
+      return `<div class="news-img" style="height:${height};background:${grad};position:relative;overflow:hidden">
+        <img src="${n.img}" alt="" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">
+        <div class="news-source-badge">${n.source}</div>
+        <div class="news-time-badge">${n.time}</div>
+      </div>`;
+    }
+
     return `<div class="news-img" style="height:${height};background:${grad};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;position:relative">
-      <div style="width:48px;height:48px;border-radius:12px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:white;letter-spacing:1px;backdrop-filter:blur(4px)">${initials}</div>
+      <div style="width:48px;height:48px;border-radius:12px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:white;letter-spacing:1px">${initials}</div>
       <div style="font-size:11px;color:rgba(255,255,255,0.8);font-weight:600;max-width:80%;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.source}</div>
       <div class="news-source-badge">${n.source}</div>
       <div class="news-time-badge">${n.time}</div>

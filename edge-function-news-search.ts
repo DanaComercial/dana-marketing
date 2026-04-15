@@ -56,14 +56,34 @@ Deno.serve(async (req) => {
 
           if (title && title.length > 10) {
             let domain = ''
-            try { domain = new URL(link.trim()).hostname.replace('www.', '') } catch {}
+            const cleanLink = link.trim()
+            try { domain = new URL(cleanLink).hostname.replace('www.', '') } catch {}
+
+            // Tentar puxar og:image da página (rápido, 4s timeout)
+            let img = ''
+            try {
+              const pageRes = await fetch(cleanLink, {
+                signal: AbortSignal.timeout(4000),
+                headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
+                redirect: 'follow',
+              })
+              const pageHtml = await pageRes.text()
+              const ogMatch = pageHtml.match(/property="og:image"\s+content="([^"]+)"/i)
+                || pageHtml.match(/content="([^"]+)"\s+property="og:image"/i)
+                || pageHtml.match(/name="twitter:image"\s+content="([^"]+)"/i)
+                || pageHtml.match(/content="([^"]+)"\s+name="twitter:image"/i)
+              if (ogMatch && ogMatch[1] && !ogMatch[1].includes('logo')) {
+                img = ogMatch[1]
+              }
+            } catch {}
 
             allNews.push({
               cat: categorizeTerm(term),
               title,
-              url: link.trim(),
+              url: cleanLink,
               source: source || domain,
               domain,
+              img,
               time: pubDate ? timeAgo(new Date(pubDate)) : 'Recente',
               impact: Math.random() > 0.5 ? 'alto' : 'medio',
             })
