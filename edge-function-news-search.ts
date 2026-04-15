@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════
-// Edge Function: news-search (v8 — termos simples, muitos resultados)
+// Edge Function: news-search (v9 — 1 request, 5+ noticias com imagem)
 // ══════════════════════════════════════════════════════════
 
 const GNEWS_API_KEY = '5e234d0de49bf95473c9d5a257d7166b'
@@ -12,17 +12,25 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // 1 unico request com termo do nicho — economiza requests
-    const terms = ['uniforme', 'moda saude', 'varejo moda', 'confeccao', 'enfermagem', 'vestuario', 'roupa profissional']
-    const term = terms[Math.floor(Math.random() * terms.length)]
+    // Queries que retornam noticias do nicho de sites grandes
+    // Cada uma usa OR para combinar termos e pegar mais resultados relevantes
+    const queries = [
+      'jaleco OR vestuario OR textil OR varejo moda',
+      'confeccao OR enfermagem OR uniforme OR moda profissional',
+      'varejo roupa OR industria textil OR vestuario OR moda saude',
+      'jaleco OR uniforme OR textil OR moda varejo Brasil',
+      'enfermagem OR confeccao OR vestuario OR roupa profissional',
+    ]
 
-    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(term)}&lang=pt&country=br&max=6&apikey=${GNEWS_API_KEY}`
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+    const query = queries[Math.floor(Math.random() * queries.length)]
+
+    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=pt&country=br&max=10&apikey=${GNEWS_API_KEY}`
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
     const data = await res.json()
 
-    const unique = (data.articles || [])
-      .filter((a: any) => a.title && a.title.length > 15)
-      .slice(0, 5)
+    const articles = (data.articles || [])
+      .filter((a: any) => a.title && a.title.length > 15 && a.image)
+      .slice(0, 6)
       .map((a: any) => ({
         title: a.title,
         desc: a.description || '',
@@ -34,7 +42,7 @@ Deno.serve(async (req) => {
         impact: Math.random() > 0.4 ? 'alto' : 'medio',
       }))
 
-    return new Response(JSON.stringify({ news: unique, total: unique.length }), {
+    return new Response(JSON.stringify({ news: articles, total: articles.length }), {
       headers: { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' },
     })
   } catch (e: any) {
