@@ -3639,8 +3639,6 @@ function updateNewsCount() {
 }
 
 let _newsCache = [];
-let _allNewsPool = []; // Pool de TODAS as noticias (API + curadas)
-let _newsPage = 0; // Pagina atual no pool
 
 async function fetchNews() {
   const btn = document.getElementById('mkt-refresh-btn');
@@ -3648,50 +3646,29 @@ async function fetchNews() {
   const container = document.getElementById('news-container');
   container.innerHTML = '<div class="news-loading"><div class="news-spinner"></div><div>Buscando notícias...</div></div>';
 
-  // Se o pool esta vazio ou acabou, recarregar
-  if (_allNewsPool.length === 0 || _newsPage * 5 >= _allNewsPool.length) {
-    _allNewsPool = [];
-    _newsPage = 0;
-
-    // 1. Tentar API (noticias novas com imagem)
-    try {
-      const newsUrl = SUPABASE_URL + '/functions/v1/news-search?cat=todas&t=' + Date.now();
-      const res = await fetch(newsUrl, {
-        headers: { 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
-        signal: AbortSignal.timeout(12000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.news?.length > 0) {
-          _allNewsPool.push(...data.news);
-        }
-      }
-    } catch (e) { console.warn('API news error:', e); }
-
-    // 2. Adicionar noticias curadas (sempre, para garantir 5+)
-    const curadas = [...NEWS_CURADAS].sort(() => Math.random() - 0.5);
-    // So adicionar curadas que nao tem titulo igual as da API
-    const apiTitles = new Set(_allNewsPool.map(n => n.title.substring(0, 30).toLowerCase()));
-    curadas.forEach(n => {
-      if (!apiTitles.has(n.title.substring(0, 30).toLowerCase())) _allNewsPool.push(n);
+  try {
+    const newsUrl = SUPABASE_URL + '/functions/v1/news-search?t=' + Date.now();
+    const res = await fetch(newsUrl, {
+      headers: { 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      signal: AbortSignal.timeout(12000),
     });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.news && data.news.length > 0) {
+        _newsCache = data.news.slice(0, 5);
+      }
+    }
+  } catch (e) { console.warn('News error:', e); }
 
-    // Embaralhar tudo
-    _allNewsPool.sort(() => Math.random() - 0.5);
+  // Se API nao retornou nada, usar curadas
+  if (_newsCache.length === 0) {
+    _newsCache = [...NEWS_CURADAS].sort(() => Math.random() - 0.5).slice(0, 5);
   }
-
-  // Pegar proximas 5 do pool
-  const start = _newsPage * 5;
-  _newsCache = _allNewsPool.slice(start, start + 5);
-  _newsPage++;
-
-  // Atualizar quota visual
-  const quotaEl = document.getElementById('news-quota');
-  const restam = Math.max(0, Math.ceil((_allNewsPool.length - _newsPage * 5) / 5));
-  if (quotaEl) quotaEl.textContent = restam + ' páginas restantes';
 
   if (btn) btn.classList.remove('spinning');
   renderNews();
+  const quotaEl = document.getElementById('news-quota');
+  if (quotaEl) quotaEl.textContent = 'Google News · Ilimitado';
   const el = document.getElementById('last-update');
   if (el) el.textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
@@ -3745,29 +3722,39 @@ function renderNews() {
 
   const catColors = { moda:'#7c3aed', saude:'#dc2626', mercado:'#1a4fa0', tendencia:'#059669', social:'#d97706' };
 
-  let html = '<div style="display:flex;flex-direction:column;gap:10px">';
+  window._newsUrls = _newsCache.map(n => n.url || '');
+
+  let html = '<div id="news-list" style="display:flex;flex-direction:column;gap:10px">';
   _newsCache.forEach((n, i) => {
     const color = catColors[n.cat] || '#1a4fa0';
     const isFirst = i === 0;
-    html += `<div onclick="if('${n.url}')window.open('${n.url}','_blank')" style="display:flex;gap:16px;padding:${isFirst?'20px 22px':'14px 18px'};background:var(--white);border:1.5px solid var(--border);border-radius:12px;cursor:pointer;transition:all .15s;border-left:4px solid ${color}" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='none';this.style.transform='none'">
+    const esc = (s) => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    html += `<div class="news-click" data-idx="${i}" style="display:flex;gap:16px;padding:${isFirst?'20px 22px':'14px 18px'};background:var(--white);border:1.5px solid var(--border);border-radius:12px;cursor:pointer;transition:all .15s;border-left:4px solid ${color}" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='none';this.style.transform='none'">
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <span style="font-size:9.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:${color}">${catLabels[n.cat]||n.cat}</span>
-          <span style="font-size:10px;color:var(--text4)">${n.time}</span>
+          <span style="font-size:9.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:${color}">${esc(catLabels[n.cat]||n.cat)}</span>
+          <span style="font-size:10px;color:var(--text4)">${esc(n.time)}</span>
         </div>
-        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:${isFirst?'16px':'13.5px'};color:var(--black);line-height:1.35;margin-bottom:${isFirst?'8px':'4px'}">${n.title}</div>
-        ${n.desc && isFirst ? '<div style="font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+n.desc+'</div>' : ''}
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:${isFirst?'16px':'13.5px'};color:var(--black);line-height:1.35;margin-bottom:${isFirst?'8px':'4px'}">${esc(n.title)}</div>
+        ${n.desc && isFirst ? '<div style="font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+esc(n.desc)+'</div>' : ''}
         <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:11px;font-weight:600;color:var(--text3)">${n.source}</span>
-          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:${n.impact==='alto'?'var(--green-bg)':'var(--amber-bg)'};color:${n.impact==='alto'?'var(--green)':'var(--amber)'}">${n.impact==='alto'?'Alto':'Médio'} impacto</span>
+          <span style="font-size:11px;font-weight:600;color:var(--text3)">${esc(n.source)}</span>
+          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:${n.impact==='alto'?'var(--green-bg)':'var(--amber-bg)'};color:${n.impact==='alto'?'var(--green)':'var(--amber)'}">${n.impact==='alto'?'Alto':'Medio'} impacto</span>
         </div>
       </div>
-      <div style="display:flex;align-items:center;color:var(--text4);font-size:18px;flex-shrink:0">→</div>
+      <div style="display:flex;align-items:center;color:var(--text4);font-size:18px;flex-shrink:0">&rarr;</div>
     </div>`;
   });
   html += '</div>';
   container.innerHTML = html;
-  document.getElementById('news-count').textContent = _newsCache.length + ' notícias';
+  document.getElementById('news-list')?.addEventListener('click', function(e) {
+    const card = e.target.closest('.news-click');
+    if (!card) return;
+    const url = window._newsUrls?.[parseInt(card.dataset.idx)];
+    if (url) window.open(url, '_blank');
+  });
+  const countEl = document.getElementById('news-count');
+  if (countEl) countEl.textContent = _newsCache.length + ' noticias';
 }
 
 function addConcorrente() {
