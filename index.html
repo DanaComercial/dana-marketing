@@ -5741,10 +5741,12 @@ updateDynamicField('foto');
 <div class="view" id="view-tarefas">
 <div style="padding:24px 28px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-    <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">Tarefas e Kanban</div><div style="font-size:12.5px;color:var(--text3);margin-top:3px">Arraste os cards entre colunas</div></div>
+    <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">Tarefas e Kanban</div><div style="font-size:12.5px;color:var(--text3);margin-top:3px">Arraste os cards entre colunas · scroll horizontal para ver mais</div></div>
     <button class="btn btn-primary btn-sm" onclick="openModal('nova-tarefa')">+ Nova tarefa</button>
   </div>
-  <div class="kanban" id="kanban-board">
+  <!-- Scrollbar topo (sincronizada com kanban) -->
+  <div id="kanban-scroll-top" style="overflow-x:auto;overflow-y:hidden;height:12px;margin-bottom:4px"><div id="kanban-scroll-inner" style="height:1px"></div></div>
+  <div class="kanban" id="kanban-board" onscroll="document.getElementById('kanban-scroll-top').scrollLeft=this.scrollLeft">
     <div style="text-align:center;color:var(--text3);padding:40px;font-size:13px">Carregando quadro...</div>
   </div>
 </div>
@@ -6060,17 +6062,41 @@ updateDynamicField('foto');
   <div class="modal">
     <div class="modal-header"><div class="modal-title">Nova Tarefa</div><button class="modal-close" onclick="closeModal('nova-tarefa')">×</button></div>
     <div class="form-row"><label class="label">Título da tarefa</label><input class="input" id="new-task-title" placeholder="Descreva a tarefa..."></div>
+    <div class="form-row"><label class="label">Descrição</label><textarea class="input" id="new-task-desc" rows="3" placeholder="Detalhes, links, observações..."></textarea></div>
     <div class="form-row-2">
-      <div><label class="label">Coluna</label><select class="input" id="new-task-col"><option value="backlog">Backlog</option><option value="doing">Em Andamento</option><option value="review">Em Revisão</option><option value="done">Concluído</option></select></div>
+      <div><label class="label">Coluna</label><select class="input" id="new-task-col"></select></div>
       <div><label class="label">Prioridade</label><select class="input" id="new-task-prio"><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select></div>
     </div>
     <div class="form-row-2">
-      <div><label class="label">Responsável</label><select class="input" id="new-task-resp"><option>M</option><option>A</option><option>L</option></select></div>
+      <div><label class="label">Tag</label><input class="input" id="new-task-tag" placeholder="Ex: Campanha, Roteiro..."></div>
       <div><label class="label">Prazo</label><input class="input" type="date" id="new-task-due"></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-ghost" onclick="closeModal('nova-tarefa')" style="flex:1">Cancelar</button>
       <button class="btn btn-primary" onclick="createTask()" style="flex:1">Criar Tarefa</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Ver/Editar Tarefa -->
+<div class="modal-overlay" id="modal-ver-tarefa">
+  <div class="modal" style="max-width:550px">
+    <div class="modal-header"><div class="modal-title" id="vt-title">Tarefa</div><button class="modal-close" onclick="closeModal('ver-tarefa')">×</button></div>
+    <div id="vt-coluna-badge" style="display:inline-block;font-size:10px;font-weight:700;padding:3px 10px;border-radius:6px;background:var(--surface2);color:var(--text2);margin-bottom:12px"></div>
+    <div style="margin-bottom:12px"><label class="label">Descrição</label><textarea class="input" id="vt-desc" rows="4"></textarea></div>
+    <div class="form-row-2" style="margin-bottom:12px">
+      <div><label class="label">Tag</label><input class="input" id="vt-tag"></div>
+      <div><label class="label">Prioridade</label><select class="input" id="vt-prio"><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select></div>
+    </div>
+    <div class="form-row-2" style="margin-bottom:12px">
+      <div><label class="label">Responsável</label><input class="input" id="vt-resp"></div>
+      <div><label class="label">Prazo</label><input class="input" type="date" id="vt-prazo"></div>
+    </div>
+    <div id="vt-links" style="margin-bottom:12px"></div>
+    <div id="vt-checklist" style="margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="salvarTarefaEdit()" style="flex:1">Salvar</button>
+      <button class="btn btn-ghost" onclick="deleteTarefaFromModal()" style="color:var(--red);border-color:var(--red)">Excluir</button>
     </div>
   </div>
 </div>
@@ -6650,8 +6676,8 @@ async function loadTarefas() {
     // Descobrir colunas únicas (preservar ordem)
     const colOrder = ['backlog','doing','review','done','referencias','materiais','campanhas','producao','cronograma','crono_abril','todo','roteiros','campanhas_ativas','todo_reuniao','black_friday','info_jaleco_box','10_anos','campanhas_q1'];
     const usedCols = new Set(_tarefasCache.map(t => t.coluna));
-    // Adicionar colunas padrão + as que têm cards
-    const cols = colOrder.filter(c => usedCols.has(c) || ['backlog','doing','review','done'].includes(c));
+    // Só mostrar colunas que TÊM cards (remove vazias)
+    const cols = colOrder.filter(c => usedCols.has(c));
     // Adicionar qualquer coluna desconhecida
     usedCols.forEach(c => { if (!cols.includes(c)) cols.push(c); });
 
@@ -6668,6 +6694,16 @@ async function loadTarefas() {
         <div class="kanban-add" onclick="addCard('${col}')">+ Adicionar</div>
       </div>`;
     }).join('');
+
+    // Popular select de colunas
+    populateColSelect();
+    // Sincronizar scrollbar topo
+    const scrollTop = document.getElementById('kanban-scroll-top');
+    const scrollInner = document.getElementById('kanban-scroll-inner');
+    if (scrollTop && scrollInner) {
+      scrollInner.style.width = board.scrollWidth + 'px';
+      scrollTop.onscroll = () => { board.scrollLeft = scrollTop.scrollLeft; };
+    }
   } catch(e) { console.warn('Tarefas error:', e.message); }
 }
 
@@ -6680,7 +6716,7 @@ function renderKanbanCard(t) {
   const pessoa = t.responsavel ? t.responsavel.charAt(0).toUpperCase() : '';
   const desc = t.descricao ? '<div style="font-size:11px;color:var(--text3);margin:4px 0;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+esc(t.descricao)+'</div>' : '';
   const links = t.links?.length ? '<div style="font-size:10px;color:var(--blue);margin-top:3px">🔗 '+t.links.length+' link(s)</div>' : '';
-  return `<div class="k-card" draggable="true" ondragstart="drag(event)" id="task-${t.id}" data-id="${t.id}">
+  return `<div class="k-card" draggable="true" ondragstart="drag(event)" id="task-${t.id}" data-id="${t.id}" onclick="openTarefa('${t.id}')" style="cursor:pointer">
     <div class="k-card-title">${esc(t.titulo)}</div>
     ${desc}${links}
     <div class="k-meta">
@@ -6694,21 +6730,116 @@ function renderKanbanCard(t) {
 }
 
 async function createTask() {
-  const titulo = document.getElementById('task-title')?.value?.trim();
+  const titulo = document.getElementById('new-task-title')?.value?.trim();
   if(!titulo) return;
-  const tag = document.getElementById('task-tag')?.value || '';
-  const prio = document.getElementById('task-prio')?.value || 'media';
-  const resp = document.getElementById('task-person')?.value || '';
-  const prazo = document.getElementById('task-due')?.value || null;
+  const desc = document.getElementById('new-task-desc')?.value || '';
+  const coluna = document.getElementById('new-task-col')?.value || 'backlog';
+  const tag = document.getElementById('new-task-tag')?.value || '';
+  const prio = document.getElementById('new-task-prio')?.value || 'media';
+  const prazo = document.getElementById('new-task-due')?.value || null;
 
   await sb.from('tarefas').insert({
-    titulo, tag, prioridade: prio, responsavel: resp, prazo, coluna: 'backlog', posicao: _tarefasCache.length
+    titulo, descricao: desc, tag, prioridade: prio, prazo, coluna, posicao: _tarefasCache.length
   });
   closeModal('nova-tarefa');
   if(document.getElementById('task-title')) document.getElementById('task-title').value = '';
   loadTarefas();
   showToast('Tarefa criada');
   logActivity('criou_tarefa', titulo, 'tarefas');
+}
+
+// ── ABRIR TAREFA (modal detalhes) ──
+let _editingTaskId = null;
+
+function openTarefa(id) {
+  const t = _tarefasCache.find(x => x.id === id);
+  if (!t) return;
+  _editingTaskId = id;
+
+  document.getElementById('vt-title').textContent = t.titulo;
+  document.getElementById('vt-coluna-badge').textContent = COL_LABELS[t.coluna] || t.coluna;
+  document.getElementById('vt-coluna-badge').style.background = (COL_COLORS[t.coluna] || '#999') + '20';
+  document.getElementById('vt-coluna-badge').style.color = COL_COLORS[t.coluna] || '#999';
+  document.getElementById('vt-desc').value = t.descricao || '';
+  document.getElementById('vt-tag').value = t.tag || '';
+  document.getElementById('vt-prio').value = t.prioridade || 'media';
+  document.getElementById('vt-resp').value = t.responsavel || '';
+  document.getElementById('vt-prazo').value = t.prazo || t.data_fim || '';
+
+  // Links
+  const linksEl = document.getElementById('vt-links');
+  if (t.links?.length) {
+    linksEl.innerHTML = '<label class="label">Links</label>' + t.links.map(l =>
+      `<a href="${l}" target="_blank" style="display:block;font-size:12px;color:var(--blue);margin-bottom:4px;word-break:break-all">🔗 ${l}</a>`
+    ).join('');
+  } else { linksEl.innerHTML = ''; }
+
+  // Checklist
+  const checkEl = document.getElementById('vt-checklist');
+  let checklist = [];
+  try { checklist = typeof t.checklist === 'string' ? JSON.parse(t.checklist) : (t.checklist || []); } catch {}
+  if (checklist.length) {
+    const done = checklist.filter(c => c.done).length;
+    checkEl.innerHTML = `<label class="label">Checklist (${done}/${checklist.length})</label>
+      <div style="background:var(--surface2);border-radius:8px;padding:8px">${checklist.map((c, i) =>
+        `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px">
+          <input type="checkbox" ${c.done?'checked':''} onchange="toggleCheckItem(${i},this.checked)" style="cursor:pointer">
+          <span style="${c.done?'text-decoration:line-through;color:var(--text4)':''}">${esc(c.text)}</span>
+        </div>`
+      ).join('')}</div>`;
+  } else { checkEl.innerHTML = ''; }
+
+  openModal('ver-tarefa');
+}
+
+function toggleCheckItem(idx, checked) {
+  const t = _tarefasCache.find(x => x.id === _editingTaskId);
+  if (!t) return;
+  let checklist = [];
+  try { checklist = typeof t.checklist === 'string' ? JSON.parse(t.checklist) : (t.checklist || []); } catch {}
+  if (checklist[idx]) checklist[idx].done = checked;
+  sb.from('tarefas').update({ checklist }).eq('id', _editingTaskId).then(() => {
+    t.checklist = checklist;
+  });
+}
+
+async function salvarTarefaEdit() {
+  if (!_editingTaskId) return;
+  const updates = {
+    descricao: document.getElementById('vt-desc').value,
+    tag: document.getElementById('vt-tag').value,
+    prioridade: document.getElementById('vt-prio').value,
+    responsavel: document.getElementById('vt-resp').value,
+    prazo: document.getElementById('vt-prazo').value || null,
+  };
+  await sb.from('tarefas').update(updates).eq('id', _editingTaskId);
+  closeModal('ver-tarefa');
+  loadTarefas();
+  logActivity('editou_tarefa', updates.descricao?.substring(0,50) || '', 'tarefas');
+  if (typeof showToast === 'function') showToast('Tarefa salva');
+}
+
+async function deleteTarefaFromModal() {
+  if (!_editingTaskId || !confirm('Excluir esta tarefa?')) return;
+  await deleteTarefa(_editingTaskId);
+  closeModal('ver-tarefa');
+  _editingTaskId = null;
+}
+
+// Popular select de colunas no modal nova tarefa
+function populateColSelect() {
+  const sel = document.getElementById('new-task-col');
+  if (!sel || sel.options.length > 4) return;
+  sel.innerHTML = '';
+  const usedCols = [...new Set(_tarefasCache.map(t => t.coluna))];
+  const allCols = Object.keys(COL_LABELS);
+  allCols.forEach(c => {
+    if (usedCols.includes(c) || ['backlog','doing','review','done'].includes(c)) {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = COL_LABELS[c] || c;
+      sel.appendChild(opt);
+    }
+  });
 }
 
 async function deleteTarefa(id) {
