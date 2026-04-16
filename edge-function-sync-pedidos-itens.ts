@@ -1,0 +1,174 @@
+// ══════════════════════════════════════════════════════════
+// Edge Function: sync-pedidos-itens
+// Puxa os ITENS de cada pedido recente do Bling (GET /pedidos/vendas/{id})
+// Deployar no Supabase como: sync-pedidos-itens
+// Chamar: manualmente ou via cron (ex: a cada 30min junto com sync-bling)
+// ══════════════════════════════════════════════════════════
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const BLING_CLIENT_ID = 'bd02a35efc5c5b4eb2846d77fdc4d6f063b11d19'
+const BLING_CLIENT_SECRET = 'b2844954fea8b4d935c7aadc1f7f7d99c064792b2c9c2eecc2ab2eb0bb6e'
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+async function blingFetch(path: string, token: string): Promise<any> {
+  for (let i = 0; i < 3; i++) {
+    try {
+      const res = await fetch(`https://api.bling.com.br/Api/v3/${path}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
+      if (res.status === 429) { await new Promise(r => setTimeout(r, 12000)); continue }
+      if (res.status === 404) return { data: null }
+      const text = await res.text()
+      if (text.startsWith('<')) { await new Promise(r => setTimeout(r, 8000)); continue }
+      return JSON.parse(text)
+    } catch { await new Promise(r => setTimeout(r, 5000)) }
+  }
+  return { data: null }
+}
+
+async function getToken(): Promise<string> {
+  const { data: row } = await supabase.from('bling_tokens').select('*').eq('id', 1).single()
+  if (!row) throw new Error('No token found')
+
+  // Testar token atual
+  const test = await blingFetch('pedidos/vendas?pagina=1&limite=1', row.access_token)
+  if (!test.error) return row.access_token
+
+  // Renovar
+  console.log('Renovando token...')
+  const res = await fetch('https://api.bling.com.br/Api/v3/oauth/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': 'Basic ' + btoa(`${BLING_CLIENT_ID}:${BLING_CLIENT_SECRET}`),
+    },
+    body: `grant_type=refresh_token&refresh_token=${row.refresh_token}`,
+  })
+  const data = await res.json()
+  if (!data.access_token) throw new Error('Token renewal failed: ' + JSON.stringify(data))
+
+  await supabase.from('bling_tokens').update({
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    updated_at: new Date().toISOString(),
+  }).eq('id', 1)
+  return data.access_token
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Authorization, apikey, Content-Type' },
+    })
+  }
+
+  try {
+    const token = await getToken()
+
+    // Pegar os pedidos dos últimos 14 dias que AINDA NÃO TÊM itens sincronizados
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - 14)
+
+    const { data: pedidos } = await supabase
+      .from('pedidos')
+      .select('id')
+      .gte('data', cutoff.toISOString().split('T')[0])
+      .gt('total_produtos', 0)
+      .order('data', { ascending: false })
+      .limit(500)
+
+    if (!pedidos || pedidos.length === 0) {
+      return jsonResponse({ ok: true, message: 'Nenhum pedido recente para sincronizar', itens_sincronizados: 0 })
+    }
+
+    // Verificar quais já têm itens
+    const pedidoIds = pedidos.map(p => p.id)
+    const { data: existentes } = await supabase
+      .from('pedidos_itens')
+      .select('pedido_id')
+      .in('pedido_id', pedidoIds)
+
+    const jaTemItens = new Set((existentes || []).map(e => e.pedido_id))
+    const faltam = pedidoIds.filter(id => !jaTemItens.has(id))
+
+    console.log(`Pedidos recentes: ${pedidos.length}, já sincronizados: ${jaTemItens.size}, faltam: ${faltam.length}`)
+
+    let totalItens = 0
+    let erros = 0
+
+    // Buscar itens de cada pedido (em lotes de 5 para não estourar rate limit)
+    for (let i = 0; i < faltam.length; i += 5) {
+      const batch = faltam.slice(i, i + 5)
+
+      const results = await Promise.all(
+        batch.map(async (pedidoId) => {
+          try {
+            const resp = await blingFetch(`pedidos/vendas/${pedidoId}`, token)
+            const pedido = resp.data
+
+            if (!pedido || !pedido.itens || pedido.itens.length === 0) return []
+
+            return pedido.itens.map((item: any) => ({
+              pedido_id: pedidoId,
+              produto_id: item.produto?.id || item.id || 0,
+              codigo: item.codigo || item.produto?.codigo || '',
+              descricao: item.descricao || item.produto?.descricao || '',
+              quantidade: item.quantidade || 0,
+              valor_unitario: item.valor || item.valorUnidade || 0,
+              valor_total: (item.quantidade || 0) * (item.valor || item.valorUnidade || 0),
+              unidade: item.unidade || 'UN',
+            }))
+          } catch (e) {
+            console.warn(`Erro pedido ${pedidoId}:`, e)
+            erros++
+            return []
+          }
+        })
+      )
+
+      // Flatten e inserir
+      const todosItens = results.flat().filter(i => i.descricao)
+      if (todosItens.length > 0) {
+        const { error } = await supabase.from('pedidos_itens').upsert(todosItens, {
+          onConflict: 'pedido_id,produto_id',
+        })
+        if (error) console.error('Upsert itens error:', error.message)
+        else totalItens += todosItens.length
+      }
+
+      // Rate limit: esperar 1s entre lotes
+      if (i + 5 < faltam.length) await new Promise(r => setTimeout(r, 1000))
+    }
+
+    // Registrar sync
+    await supabase.from('sync_log').insert({
+      tipo: 'itens',
+      registros: totalItens,
+      status: erros > 0 ? 'parcial' : 'ok',
+      detalhes: `${faltam.length} pedidos processados, ${totalItens} itens sincronizados, ${erros} erros`,
+    })
+
+    return jsonResponse({
+      ok: true,
+      pedidos_processados: faltam.length,
+      itens_sincronizados: totalItens,
+      erros,
+      ja_sincronizados: jaTemItens.size,
+    })
+
+  } catch (e: any) {
+    console.error('Sync itens error:', e)
+    return jsonResponse({ ok: false, error: e.message }, 500)
+  }
+})
+
+function jsonResponse(data: any, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  })
+}

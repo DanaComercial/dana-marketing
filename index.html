@@ -4800,11 +4800,19 @@ updateDynamicField('foto');
   </div>
 
   <!-- SKU mais vendidos -->
-  <div class="card mb20">
-    <div class="card-header">
-      <div><div class="card-title">Top Clientes por Volume</div><div class="card-sub" id="mp-sku-sub">Clientes com mais pedidos no período · dados Bling</div></div>
+  <div class="g2 mb20">
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title">Top Produtos Vendidos</div><div class="card-sub" id="mp-sku-sub">SKUs com mais unidades vendidas · dados Bling</div></div>
+      </div>
+      <div id="mp-top-skus" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
     </div>
-    <div id="mp-top-skus" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title">Top Clientes por Volume</div><div class="card-sub" id="mp-clientes-sub">Clientes com mais pedidos · dados Bling</div></div>
+      </div>
+      <div id="mp-top-clientes" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+    </div>
   </div>
 
   <!-- Canais e Eventos -->
@@ -7954,37 +7962,36 @@ async function loadTopProdutos(container, mesLabel) {
   if (!container) return;
   try {
     const now = new Date();
-    const mesRef = now.getMonth(); // mês anterior (0-indexed)
-    const anoRef = mesRef === 0 ? now.getFullYear() - 1 : now.getFullYear();
-    const mesQ = mesRef === 0 ? 12 : mesRef;
-    const inicio = anoRef + '-' + String(mesQ).padStart(2,'0') + '-01';
-    const fim = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-01';
+    const mesRef = now.getMonth() || 12;
+    const anoRef = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
 
-    // Query: contar pedidos por contato_nome (proxy para produto — o Bling não tem item detalhado na view atual)
-    // Usar pedidos do mês como proxy
-    const { data, error } = await sb.from('pedidos')
-      .select('contato_nome')
-      .gte('data', inicio)
-      .lt('data', fim)
-      .not('contato_nome', 'is', null)
-      .limit(2000);
+    // Tentar buscar da view top_produtos_mes (itens reais do Bling)
+    const { data: prodData } = await sb.from('top_produtos_mes')
+      .select('*').eq('ano', anoRef).eq('mes', mesRef).limit(6);
 
-    if (error || !data || data.length === 0) {
-      container.innerHTML = '<div class="card-title" style="margin-bottom:10px">Top Clientes — ' + (mesLabel||'') + '</div><div style="color:var(--text3);font-size:12px;padding:10px">Sem dados</div>';
+    if (prodData && prodData.length > 0) {
+      const maxVal = prodData[0]?.total_quantidade || 1;
+      container.innerHTML = '<div class="card-title" style="margin-bottom:10px">Top Produtos — ' + (mesLabel||'Mês') + '</div>' +
+        prodData.map((p, i) => `<div class="rank-row"><div class="rank-num${i<3?' top':''}">#${i+1}</div><div class="rank-bar-wrap"><div class="rank-bar-label">${esc(p.descricao)}</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:${Math.round(p.total_quantidade/maxVal*100)}%"></div></div></div><div class="rank-val">${Math.round(p.total_quantidade)} un</div></div>`).join('');
       return;
     }
 
-    // Contar por nome
-    const counts = {};
-    data.forEach(d => {
-      const nome = (d.contato_nome || '').trim();
-      if (nome) counts[nome] = (counts[nome] || 0) + 1;
-    });
+    // Fallback: top clientes (se itens ainda não foram sincronizados)
+    const inicio = anoRef + '-' + String(mesRef).padStart(2,'0') + '-01';
+    const fim = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-01';
+    const { data } = await sb.from('pedidos').select('contato_nome').gte('data', inicio).lt('data', fim).not('contato_nome', 'is', null).limit(2000);
 
+    if (!data || data.length === 0) {
+      container.innerHTML = '<div class="card-title" style="margin-bottom:10px">Top Produtos — ' + (mesLabel||'') + '</div><div style="color:var(--text3);font-size:12px;padding:10px">Sync de itens pendente</div>';
+      return;
+    }
+
+    const counts = {};
+    data.forEach(d => { const n = (d.contato_nome||'').trim(); if (n) counts[n] = (counts[n]||0) + 1; });
     const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]).slice(0, 6);
     const maxVal = sorted[0]?.[1] || 1;
 
-    container.innerHTML = '<div class="card-title" style="margin-bottom:10px">Top Clientes — ' + (mesLabel||'Mês') + '</div>' +
+    container.innerHTML = '<div class="card-title" style="margin-bottom:10px">Top Clientes — ' + (mesLabel||'Mês') + ' <span style="font-size:10px;color:var(--text4)">(sync de itens pendente)</span></div>' +
       sorted.map(([nome, cnt], i) => `<div class="rank-row"><div class="rank-num${i<3?' top':''}">#${i+1}</div><div class="rank-bar-wrap"><div class="rank-bar-label">${esc(nome)}</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:${Math.round(cnt/maxVal*100)}%"></div></div></div><div class="rank-val">${cnt} ped.</div></div>`).join('');
 
   } catch (e) {
@@ -8066,25 +8073,60 @@ async function loadMarketplacesExtras() {
     </tbody></table>`;
   }
 
-  // Top SKUs (clientes mais frequentes como proxy)
+  // Calcular período para queries
+  let inicio, fim;
+  if (filtro === 'ytd') {
+    inicio = anoAtual + '-01-01';
+    fim = anoAtual + '-12-31';
+  } else if (filtro === 'atual') {
+    inicio = anoAtual + '-' + String(mesAtual).padStart(2,'0') + '-01';
+    const nextM = mesAtual === 12 ? 1 : mesAtual + 1;
+    const nextA = mesAtual === 12 ? anoAtual + 1 : anoAtual;
+    fim = nextA + '-' + String(nextM).padStart(2,'0') + '-01';
+  } else {
+    const [a, m] = filtro.split('-').map(Number);
+    inicio = a + '-' + String(m).padStart(2,'0') + '-01';
+    const nextM = m === 12 ? 1 : m + 1;
+    const nextA = m === 12 ? a + 1 : a;
+    fim = nextA + '-' + String(nextM).padStart(2,'0') + '-01';
+  }
+
+  // ── TOP PRODUTOS (da view top_produtos_mes ou top_produtos) ──
   try {
-    let inicio, fim;
+    const skuEl = document.getElementById('mp-top-skus');
+    const subEl = document.getElementById('mp-sku-sub');
+    if (subEl) subEl.textContent = 'SKUs mais vendidos · ' + labelP;
+
+    // Tentar buscar da view top_produtos_mes (se existe)
+    let prodData = null;
     if (filtro === 'ytd') {
-      inicio = anoAtual + '-01-01';
-      fim = anoAtual + '-12-31';
-    } else if (filtro === 'atual') {
-      inicio = anoAtual + '-' + String(mesAtual).padStart(2,'0') + '-01';
-      const nextM = mesAtual === 12 ? 1 : mesAtual + 1;
-      const nextA = mesAtual === 12 ? anoAtual + 1 : anoAtual;
-      fim = nextA + '-' + String(nextM).padStart(2,'0') + '-01';
+      const { data } = await sb.from('top_produtos').select('*').limit(10);
+      prodData = data;
     } else {
-      const [a, m] = filtro.split('-').map(Number);
-      inicio = a + '-' + String(m).padStart(2,'0') + '-01';
-      const nextM = m === 12 ? 1 : m + 1;
-      const nextA = m === 12 ? a + 1 : a;
-      fim = nextA + '-' + String(nextM).padStart(2,'0') + '-01';
+      const mesQ = filtro === 'atual' ? mesAtual : parseInt(filtro.split('-')[1]);
+      const anoQ = filtro === 'atual' ? anoAtual : parseInt(filtro.split('-')[0]);
+      const { data } = await sb.from('top_produtos_mes').select('*').eq('ano', anoQ).eq('mes', mesQ).limit(10);
+      prodData = data;
     }
 
+    if (prodData && prodData.length > 0 && skuEl) {
+      const maxQtd = prodData[0]?.total_quantidade || 1;
+      skuEl.innerHTML = `<table style="width:100%"><thead><tr><th>#</th><th>Produto</th><th>Qtd.</th><th>Receita</th><th style="width:100px"></th></tr></thead><tbody>
+        ${prodData.slice(0, 10).map((p, i) => `<tr>
+          <td style="font-weight:700;color:${i<3?'var(--green)':'var(--text3)'}">${i+1}</td>
+          <td class="em">${esc(p.descricao)}${p.codigo ? ' <span style="color:var(--text4);font-size:10px">('+esc(p.codigo)+')</span>' : ''}</td>
+          <td>${Math.round(p.total_quantidade)} un</td>
+          <td class="good">${fmtR(Math.round(p.total_receita||0))}</td>
+          <td><div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:${Math.round(p.total_quantidade/maxQtd*100)}%;height:100%;background:var(--green);border-radius:4px"></div></div></td>
+        </tr>`).join('')}
+      </tbody></table>`;
+    } else if (skuEl) {
+      skuEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Sync de itens pendente — rode a Edge Function <strong>sync-pedidos-itens</strong> no Supabase</div>';
+    }
+  } catch (e) { console.warn('Top produtos error:', e); }
+
+  // ── TOP CLIENTES ──
+  try {
     const { data } = await sb.from('pedidos')
       .select('contato_nome, total')
       .gte('data', inicio)
@@ -8092,11 +8134,11 @@ async function loadMarketplacesExtras() {
       .not('contato_nome', 'is', null)
       .limit(3000);
 
-    const skuEl = document.getElementById('mp-top-skus');
-    const subEl = document.getElementById('mp-sku-sub');
-    if (subEl) subEl.textContent = 'Clientes com mais pedidos · ' + labelP;
+    const clienteEl = document.getElementById('mp-top-clientes');
+    const clienteSubEl = document.getElementById('mp-clientes-sub');
+    if (clienteSubEl) clienteSubEl.textContent = 'Clientes com mais pedidos · ' + labelP;
 
-    if (data && data.length > 0 && skuEl) {
+    if (data && data.length > 0 && clienteEl) {
       const counts = {};
       const totals = {};
       data.forEach(d => {
@@ -8109,17 +8151,17 @@ async function loadMarketplacesExtras() {
       const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
       const maxV = sorted[0]?.[1] || 1;
 
-      skuEl.innerHTML = `<table style="width:100%"><thead><tr><th>#</th><th>Cliente</th><th>Pedidos</th><th>Total Gasto</th><th style="width:100px"></th></tr></thead><tbody>
+      clienteEl.innerHTML = `<table style="width:100%"><thead><tr><th>#</th><th>Cliente</th><th>Ped.</th><th>Total</th><th style="width:80px"></th></tr></thead><tbody>
         ${sorted.map(([nome, cnt], i) => `<tr>
-          <td style="font-weight:700;color:${i<3?'var(--green)':'var(--text3)'}">${i+1}</td>
+          <td style="font-weight:700;color:${i<3?'#1a4fa0':'var(--text3)'}">${i+1}</td>
           <td class="em">${esc(nome)}</td>
           <td>${cnt}</td>
           <td class="good">${fmtR(Math.round(totals[nome]||0))}</td>
-          <td><div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:${Math.round(cnt/maxV*100)}%;height:100%;background:var(--green);border-radius:4px"></div></div></td>
+          <td><div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:${Math.round(cnt/maxV*100)}%;height:100%;background:#1a4fa0;border-radius:4px"></div></div></td>
         </tr>`).join('')}
       </tbody></table>`;
     }
-  } catch (e) { console.warn('Top SKUs error:', e); }
+  } catch (e) { console.warn('Top clientes error:', e); }
 }
 
 // ── INIT UPGRADE ──
