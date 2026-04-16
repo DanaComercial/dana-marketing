@@ -5749,7 +5749,10 @@ updateDynamicField('foto');
 <div style="padding:24px 28px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
     <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">Tarefas e Kanban</div><div style="font-size:12.5px;color:var(--text3);margin-top:3px">Arraste os cards entre colunas · scroll horizontal para ver mais</div></div>
-    <button class="btn btn-primary btn-sm" onclick="abrirNovaTarefa()" id="btn-nova-tarefa">+ Nova tarefa</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="abrirGerenciarColunas()" id="btn-gerenciar-cols">⚙ Gerenciar Colunas</button>
+      <button class="btn btn-primary btn-sm" onclick="abrirNovaTarefa()" id="btn-nova-tarefa">+ Nova tarefa</button>
+    </div>
   </div>
   <!-- Scrollbar topo (sincronizada com kanban) -->
   <div id="kanban-scroll-top" style="overflow-x:scroll;overflow-y:hidden;height:14px;margin-bottom:4px"><div id="kanban-scroll-inner" style="height:1px"></div></div>
@@ -6163,6 +6166,41 @@ updateDynamicField('foto');
 </div>
 
 <!-- Modal: Editar Link (bonito) -->
+<!-- Modal: Gerenciar Colunas -->
+<div class="modal-overlay" id="modal-gerenciar-colunas">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <div class="modal-title" style="display:flex;align-items:center;gap:8px">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#f3e8ff;color:#7c3aed;font-size:16px">⚙</span>
+        Gerenciar Colunas
+      </div>
+      <button class="modal-close" onclick="closeModal('gerenciar-colunas')">×</button>
+    </div>
+
+    <!-- Criar nova coluna -->
+    <div style="margin-bottom:16px;padding:12px;background:var(--surface2);border-radius:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Nova Coluna</div>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="new-col-nome" class="input" placeholder="Nome da coluna" style="flex:1" onkeydown="if(event.key==='Enter')criarColuna()">
+        <input type="color" id="new-col-cor" class="input" value="#1a4fa0" style="width:50px;padding:3px;cursor:pointer" title="Cor">
+        <button class="btn btn-primary btn-sm" onclick="criarColuna()">+ Criar</button>
+      </div>
+    </div>
+
+    <!-- Lista de colunas -->
+    <div>
+      <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Colunas Existentes</div>
+      <div id="gc-lista" style="max-height:400px;overflow-y:auto">
+        <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <button class="btn btn-ghost" onclick="closeModal('gerenciar-colunas')" style="width:100%">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-editar-link">
   <div class="modal" style="max-width:440px">
     <div class="modal-header">
@@ -6201,6 +6239,24 @@ updateDynamicField('foto');
       <div><label class="label">Prazo</label><input class="input" type="date" id="vt-prazo"></div>
     </div>
     <div id="vt-links" style="margin-bottom:12px"></div>
+
+    <!-- Adicionar imagem/link na tarefa existente -->
+    <div id="vt-add-anexo" style="margin-bottom:12px;display:none">
+      <label class="label">Adicionar Anexo</label>
+      <div style="display:flex;gap:8px;margin-bottom:6px">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('vt-file-input').click()" style="flex:1">📷 Imagem</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="vt_togglePasteUrl()" style="flex:1">🔗 Link</button>
+      </div>
+      <input type="file" id="vt-file-input" accept="image/*" multiple style="display:none" onchange="vt_uploadFiles(this.files)">
+      <div id="vt-paste-url" style="display:none;margin-top:6px">
+        <div style="display:flex;gap:6px">
+          <input class="input" type="url" id="vt-url-input" placeholder="https://..." style="flex:1">
+          <button type="button" class="btn btn-primary btn-sm" onclick="vt_addUrl()">Adicionar</button>
+        </div>
+      </div>
+      <div id="vt-upload-status" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
+    </div>
+
     <div id="vt-checklist" style="margin-bottom:12px"></div>
     <div style="display:flex;gap:8px" id="vt-botoes">
       <button class="btn btn-primary" onclick="salvarTarefaEdit()" style="flex:1" id="vt-btn-salvar">Salvar</button>
@@ -7054,6 +7110,108 @@ function abrirNovaTarefa() {
   openModal('nova-tarefa');
 }
 
+// ── GERENCIADOR DE COLUNAS ──
+let _colunasCustom = []; // { coluna, label, cor }
+
+async function loadColunasCustom() {
+  try {
+    const { data } = await sb.from('kanban_colunas').select('*').order('ordem');
+    _colunasCustom = data || [];
+    // Mergear no COL_LABELS e COL_COLORS
+    _colunasCustom.forEach(c => {
+      COL_LABELS[c.coluna] = c.label;
+      COL_COLORS[c.coluna] = c.cor || '#1a4fa0';
+    });
+  } catch(e) { console.warn('Colunas error:', e.message); }
+}
+
+function abrirGerenciarColunas() {
+  if (!podeCriarTarefa()) { showToast('Voce nao tem permissao'); return; }
+  renderGerenciarColunas();
+  openModal('gerenciar-colunas');
+}
+
+function renderGerenciarColunas() {
+  const el = document.getElementById('gc-lista');
+  if (!el) return;
+  // Todas as colunas atuais (com contagem)
+  const counts = {};
+  _tarefasCache.forEach(t => { counts[t.coluna] = (counts[t.coluna] || 0) + 1; });
+  const allCols = [...new Set([...Object.keys(COL_LABELS), ...Object.keys(counts)])].filter(c => c !== 'arquivo');
+  // Ordenar: custom primeiro, padrão depois
+  const customKeys = _colunasCustom.map(c => c.coluna);
+
+  if (allCols.length === 0) { el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhuma coluna</div>'; return; }
+
+  el.innerHTML = allCols.map(col => {
+    const count = counts[col] || 0;
+    const label = COL_LABELS[col] || col;
+    const cor = COL_COLORS[col] || '#1a4fa0';
+    const isCustom = customKeys.includes(col);
+    const isDefault = ['backlog','doing','review','done'].includes(col);
+
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+      <div style="width:14px;height:14px;border-radius:50%;background:${cor};flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--black)">${esc(label)}</div>
+        <div style="font-size:10px;color:var(--text3)">${count} tarefa(s) · ${isCustom ? 'Personalizada' : (isDefault ? 'Padrão' : 'Importada do Trello')}</div>
+      </div>
+      <button onclick="excluirColuna('${col}')" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;color:var(--red)" title="Excluir">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+async function criarColuna() {
+  if (!podeCriarTarefa()) { showToast('Sem permissao'); return; }
+  const nome = document.getElementById('new-col-nome')?.value?.trim();
+  const cor = document.getElementById('new-col-cor')?.value || '#1a4fa0';
+  if (!nome) { showToast('Digite o nome da coluna'); return; }
+  const colKey = nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').substring(0,30);
+  if (!colKey) { showToast('Nome inválido'); return; }
+  if (COL_LABELS[colKey]) { showToast('Já existe uma coluna com esse nome'); return; }
+
+  try {
+    await sb.from('kanban_colunas').insert({ coluna: colKey, label: nome, cor, ordem: _colunasCustom.length });
+    COL_LABELS[colKey] = nome;
+    COL_COLORS[colKey] = cor;
+    _colunasCustom.push({ coluna: colKey, label: nome, cor });
+    document.getElementById('new-col-nome').value = '';
+    showToast('Coluna criada!');
+    logActivity('criou_coluna', nome, 'tarefas');
+    renderGerenciarColunas();
+    loadTarefas();
+  } catch(e) {
+    showToast('Erro: ' + e.message);
+    console.error(e);
+  }
+}
+
+async function excluirColuna(coluna) {
+  if (!podeCriarTarefa()) { showToast('Sem permissao'); return; }
+  const count = _tarefasCache.filter(t => t.coluna === coluna).length;
+  let mensagem = 'Excluir a coluna "' + (COL_LABELS[coluna] || coluna) + '"?';
+  if (count > 0) mensagem += '\n\nATENÇÃO: As ' + count + ' tarefa(s) desta coluna serão movidas para "Arquivo".';
+  if (!confirm(mensagem)) return;
+
+  try {
+    // Mover tarefas para arquivo
+    if (count > 0) {
+      await sb.from('tarefas').update({ coluna: 'arquivo' }).eq('coluna', coluna);
+    }
+    // Tentar excluir do banco (se era custom)
+    await sb.from('kanban_colunas').delete().eq('coluna', coluna);
+    // Remover do frontend
+    _colunasCustom = _colunasCustom.filter(c => c.coluna !== coluna);
+    showToast('Coluna excluída');
+    logActivity('excluiu_coluna', COL_LABELS[coluna] || coluna, 'tarefas');
+    renderGerenciarColunas();
+    loadTarefas();
+  } catch(e) {
+    showToast('Erro: ' + e.message);
+    console.error(e);
+  }
+}
+
 async function toggleConcluido(id, event) {
   if (event) event.stopPropagation();
   if (!podeCriarTarefa()) { showToast('Voce nao tem permissao para marcar tarefas'); return; }
@@ -7340,9 +7498,11 @@ function openTarefa(id) {
   const btnSalvar = document.getElementById('vt-btn-salvar');
   const btnExcluir = document.getElementById('vt-btn-excluir');
   const btnFechar = document.getElementById('vt-btn-fechar');
+  const addAnexoBox = document.getElementById('vt-add-anexo');
   if (btnSalvar) btnSalvar.style.display = canEdit ? '' : 'none';
   if (btnExcluir) btnExcluir.style.display = canDelete ? '' : 'none';
   if (btnFechar) btnFechar.style.display = (!canEdit && !canDelete) ? '' : 'none';
+  if (addAnexoBox) addAnexoBox.style.display = canEdit ? '' : 'none';
 
   // Tornar campos read-only se não pode editar
   ['vt-tag','vt-prio','vt-resp','vt-prazo'].forEach(id => {
@@ -7378,6 +7538,59 @@ function vtEditDesc() {
   view.style.display = 'none';
   edit.style.display = '';
   edit.focus();
+}
+
+// ── UPLOAD DE ANEXOS NO MODAL VER TAREFA ──
+function vt_togglePasteUrl() {
+  const el = document.getElementById('vt-paste-url');
+  if (el) { el.style.display = el.style.display === 'none' ? '' : 'none'; el.querySelector('input')?.focus(); }
+}
+
+async function vt_addUrl() {
+  if (!podeCriarTarefa()) { showToast('Voce nao tem permissao'); return; }
+  const input = document.getElementById('vt-url-input');
+  const url = input?.value?.trim();
+  if (!url || !/^https?:\/\//.test(url)) { showToast('URL inválida'); return; }
+  await vt_appendLinks([url]);
+  input.value = '';
+  document.getElementById('vt-paste-url').style.display = 'none';
+}
+
+async function vt_uploadFiles(files) {
+  if (!files || !files.length || !_editingTaskId) return;
+  if (!podeCriarTarefa()) { showToast('Voce nao tem permissao'); return; }
+  const statusEl = document.getElementById('vt-upload-status');
+  statusEl.textContent = 'Enviando ' + files.length + ' arquivo(s)...';
+  const novasUrls = [];
+
+  for (const file of files) {
+    try {
+      const ext = file.name.split('.').pop() || 'png';
+      const filename = Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
+      const { error } = await sb.storage.from('kanban').upload(filename, file, { cacheControl: '3600', upsert: false });
+      if (error) throw error;
+      const { data: urlData } = sb.storage.from('kanban').getPublicUrl(filename);
+      novasUrls.push(urlData.publicUrl);
+    } catch(e) {
+      console.error('Upload error:', e);
+      showToast('Erro: ' + (e.message || 'falha no upload'));
+    }
+  }
+  statusEl.textContent = '';
+  document.getElementById('vt-file-input').value = '';
+  if (novasUrls.length) await vt_appendLinks(novasUrls);
+}
+
+async function vt_appendLinks(novasUrls) {
+  if (!_editingTaskId) return;
+  const t = _tarefasCache.find(x => x.id === _editingTaskId);
+  const currentLinks = t?.links || [];
+  const newLinks = [...currentLinks, ...novasUrls];
+  await sb.from('tarefas').update({ links: newLinks }).eq('id', _editingTaskId);
+  if (t) t.links = newLinks;
+  openTarefa(_editingTaskId); // Re-renderizar
+  showToast('Anexo adicionado');
+  logActivity('editou_tarefa', 'Adicionou ' + novasUrls.length + ' anexo(s)', 'tarefas');
 }
 
 // ── MENU DE 3 PONTINHOS NAS IMAGENS ──
@@ -9467,6 +9680,8 @@ async function criarUsuario() {
 async function initUpgradeFeatures() {
   setupRealtimeSubscriptions();
   loadAlertas();
+  // Carregar colunas custom ANTES de loadTarefas (para que os labels apareçam certos)
+  await loadColunasCustom();
   loadTarefas();
   initCalendario();
   loadPrevisaoReceita();
