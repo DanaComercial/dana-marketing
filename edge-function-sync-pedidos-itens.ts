@@ -124,7 +124,10 @@ Deno.serve(async (req) => {
             const resp = await blingFetch(`pedidos/vendas/${pedidoId}`, token)
             const pedido = resp.data
 
-            if (!pedido || !pedido.itens || pedido.itens.length === 0) return []
+            if (!pedido || !pedido.itens || pedido.itens.length === 0) {
+              // Marcar como processado (sem itens) para não re-tentar
+              return [{ pedido_id: pedidoId, produto_id: 'sem_itens_0', codigo: '', descricao: '(sem itens)', quantidade: 0, valor_unitario: 0, valor_total: 0, unidade: 'UN' }]
+            }
 
             return pedido.itens.map((item: any, idx: number) => ({
               pedido_id: pedidoId,
@@ -145,7 +148,7 @@ Deno.serve(async (req) => {
       )
 
       // Flatten e inserir
-      const todosItens = results.flat().filter(i => i.descricao)
+      const todosItens = results.flat().filter(i => i.pedido_id)
       if (todosItens.length > 0) {
         const { error } = await supabase.from('pedidos_itens').upsert(todosItens, {
           onConflict: 'pedido_id,produto_id',
