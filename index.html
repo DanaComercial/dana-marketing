@@ -5749,7 +5749,7 @@ updateDynamicField('foto');
 <div style="padding:24px 28px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
     <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">Tarefas e Kanban</div><div style="font-size:12.5px;color:var(--text3);margin-top:3px">Arraste os cards entre colunas · scroll horizontal para ver mais</div></div>
-    <button class="btn btn-primary btn-sm" onclick="openModal('nova-tarefa')">+ Nova tarefa</button>
+    <button class="btn btn-primary btn-sm" onclick="abrirNovaTarefa()" id="btn-nova-tarefa">+ Nova tarefa</button>
   </div>
   <!-- Scrollbar topo (sincronizada com kanban) -->
   <div id="kanban-scroll-top" style="overflow-x:scroll;overflow-y:hidden;height:14px;margin-bottom:4px"><div id="kanban-scroll-inner" style="height:1px"></div></div>
@@ -6779,6 +6779,7 @@ async function loadTarefas() {
     const board = document.getElementById('kanban-board');
     if (!board) return;
 
+    const canCreate = podeCriarTarefa();
     board.innerHTML = cols.map(col => {
       const cards = _tarefasCache.filter(t => t.coluna === col);
       const color = COL_COLORS[col] || 'var(--grey5)';
@@ -6786,9 +6787,13 @@ async function loadTarefas() {
       return `<div class="kanban-col" data-col="${col}" ondragover="dragOver(event)" ondrop="drop(event,'${col}')">
         <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:${color}"></div>${esc(label)}</div><div class="kanban-count">${cards.length}</div></div>
         <div class="kanban-body" id="col-${col}">${cards.map(t => renderKanbanCard(t)).join('')}</div>
-        <div class="kanban-add" onclick="addCard('${col}')">+ Adicionar</div>
+        ${canCreate ? '<div class="kanban-add" onclick="addCard(\''+col+'\')">+ Adicionar</div>' : ''}
       </div>`;
     }).join('');
+
+    // Botão Nova Tarefa — mostra/esconde conforme permissão
+    const btnNova = document.getElementById('btn-nova-tarefa');
+    if (btnNova) btnNova.style.display = canCreate ? '' : 'none';
 
     // Popular select de colunas
     populateColSelect();
@@ -6866,15 +6871,39 @@ function renderKanbanCard(t) {
     } catch {}
   }
 
+  // Status de conclusão / atraso (só se tem prazo)
+  const concluido = !!t.concluido;
+  const atrasado = prazo && !concluido && new Date(prazo) < new Date();
+  let statusBadge = '';
+  if (prazo) {
+    if (concluido) {
+      statusBadge = '<span style="font-size:9.5px;padding:2px 7px;background:#dcfce7;color:#15803d;border-radius:4px;font-weight:700">✓ Concluído</span>';
+    } else if (atrasado) {
+      statusBadge = '<span style="font-size:9.5px;padding:2px 7px;background:#fee2e2;color:#dc2626;border-radius:4px;font-weight:700">⚠ Em Atraso</span>';
+    }
+  }
+
+  // Botão de conclusão (só se tem prazo)
+  const checkBtn = prazo
+    ? `<div onclick="toggleConcluido('${t.id}',event)" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:2px solid ${concluido ? '#15803d' : 'var(--border2)'};background:${concluido ? '#15803d' : 'transparent'};color:white;cursor:pointer;font-size:10px;flex-shrink:0;margin-right:6px;vertical-align:middle" title="${concluido ? 'Marcar como pendente' : 'Marcar como concluído'}">${concluido ? '✓' : ''}</div>`
+    : '';
+
+  const titleStyle = concluido ? 'text-decoration:line-through;color:var(--text4)' : '';
+  const delBtn = podeExcluirTarefa() ? '<div class="k-del" onclick="event.stopPropagation();deleteTarefa(\''+t.id+'\')" style="margin-left:auto;cursor:pointer;font-size:11px;color:var(--text4);padding:2px 4px" title="Excluir">&times;</div>' : '';
+
   return `<div class="k-card" draggable="true" ondragstart="drag(event)" id="task-${t.id}" data-id="${t.id}" onclick="openTarefa('${t.id}')" style="cursor:pointer">
-    <div class="k-card-title" style="overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc(t.titulo)}</div>
+    <div style="display:flex;align-items:flex-start">
+      ${checkBtn}
+      <div class="k-card-title" style="overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;flex:1;${titleStyle}">${esc(t.titulo)}</div>
+    </div>
+    ${statusBadge ? '<div style="margin-top:5px">'+statusBadge+'</div>' : ''}
     ${badges ? '<div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">'+badges+'</div>' : ''}
     <div class="k-meta">
       ${t.tag ? '<div class="k-tag">'+esc(t.tag)+'</div>' : ''}
       <div class="k-prio ${prioClass}">${prioLabel}</div>
       ${pessoa ? '<div class="k-person">'+pessoa+'</div>' : ''}
       ${prazoStr ? '<div class="k-due'+late+'">'+prazoStr+'</div>' : ''}
-      <div class="k-del" onclick="event.stopPropagation();deleteTarefa('${t.id}')" style="margin-left:auto;cursor:pointer;font-size:11px;color:var(--text4);padding:2px 4px" title="Excluir">&times;</div>
+      ${delBtn}
     </div>
   </div>`;
 }
@@ -6914,6 +6943,27 @@ function autoFillLinkTitle() {
     else if (host.includes('canva')) titleEl.placeholder = 'Ex: Design Canva';
     else titleEl.placeholder = 'Ex: ' + host;
   } catch {}
+}
+
+function abrirNovaTarefa() {
+  if (!podeCriarTarefa()) {
+    showToast('Voce nao tem permissao para criar tarefas');
+    return;
+  }
+  openModal('nova-tarefa');
+}
+
+async function toggleConcluido(id, event) {
+  if (event) event.stopPropagation();
+  const t = _tarefasCache.find(x => x.id === id);
+  if (!t) return;
+  const novoStatus = !t.concluido;
+  // Atualizar no cache primeiro (UI instantânea)
+  t.concluido = novoStatus;
+  t.concluido_em = novoStatus ? new Date().toISOString() : null;
+  await sb.from('tarefas').update({ concluido: novoStatus, concluido_em: t.concluido_em }).eq('id', id);
+  loadTarefas();
+  logActivity(novoStatus ? 'concluiu_tarefa' : 'reabriu_tarefa', t.titulo, 'tarefas');
 }
 
 async function createTask() {
@@ -7714,6 +7764,12 @@ function podeCriarEvento() {
 }
 function podeExcluirEvento() {
   return userPermissoes['calendario_excluir'] !== false || currentProfile?.cargo === 'admin';
+}
+function podeCriarTarefa() {
+  return userPermissoes['tarefas_criar'] !== false || currentProfile?.cargo === 'admin';
+}
+function podeExcluirTarefa() {
+  return userPermissoes['tarefas_excluir'] !== false || currentProfile?.cargo === 'admin';
 }
 
 function abrirNovoEvento() {
@@ -9023,10 +9079,12 @@ async function loadAdminPermissoes() {
   const cargos = [...new Set(_permData.map(p => p.cargo))].filter(c => c !== 'admin');
   let secoes = [...new Set(_permData.map(p => p.secao))].filter(s => s !== 'admin');
   // Garantir que permissoes de ações existem
-  ['calendario_criar','calendario_excluir'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
+  ['calendario_criar','calendario_excluir','tarefas_criar','tarefas_excluir'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
   const secaoLabels = {...VIEW_META,
     calendario_criar: { title: '✏️ Criar Eventos (Calendário)' },
     calendario_excluir: { title: '🗑 Excluir Eventos (Calendário)' },
+    tarefas_criar: { title: '✏️ Criar Tarefas (Kanban)' },
+    tarefas_excluir: { title: '🗑 Excluir Tarefas (Kanban)' },
   };
   const map = {};
   _permData.forEach(p => { map[p.cargo+'_'+p.secao] = p; });
