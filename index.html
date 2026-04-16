@@ -119,6 +119,10 @@ async function loadSupabaseData() {
       syncEl.style.color = 'rgba(255,255,255,0.5)';
     }
 
+    // Atualizar indicador de dados
+    const saveEl = document.getElementById('save-indicator');
+    if (saveEl) { saveEl.className = 'save-badge saved'; saveEl.innerHTML = '<div class="save-dot"></div>Dados carregados'; }
+
   } catch (err) {
     console.warn('Supabase load error:', err.message, err);
     const syncEl = document.getElementById('last-sync-time');
@@ -126,6 +130,8 @@ async function loadSupabaseData() {
       syncEl.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#dc2626;margin-right:5px"></span>Supabase · erro';
       syncEl.style.color = 'rgba(255,255,255,0.4)';
     }
+    const saveEl = document.getElementById('save-indicator');
+    if (saveEl) { saveEl.className = 'save-badge'; saveEl.innerHTML = '<div class="save-dot" style="background:#dc2626"></div>Erro ao carregar'; saveEl.style.color = '#f87171'; }
   }
 }
 
@@ -1673,8 +1679,8 @@ select.input { cursor: pointer; }
   </div>
 
   <div class="sidebar-footer">
-    <div class="save-badge saved" id="save-indicator">
-      <div class="save-dot"></div>Dados salvos
+    <div class="save-badge saving" id="save-indicator">
+      <div class="save-dot"></div>Conectando...
     </div>
     <div class="save-badge" id="last-sync-time" style="color:rgba(255,255,255,0.2);font-size:9px">
       Supabase · conectando...
