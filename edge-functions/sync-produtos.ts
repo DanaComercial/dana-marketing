@@ -1,7 +1,8 @@
 // ══════════════════════════════════════════════════════════
 // Edge Function: sync-produtos
 // Sincroniza TODOS os produtos ativos
-// Duração esperada: ~25-35s
+// OTIMIZADA: páginas em paralelo (batches de 5)
+// Duração esperada: ~15-25s
 // ══════════════════════════════════════════════════════════
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -19,11 +20,11 @@ async function blingFetch(path: string, token: string): Promise<any> {
       const res = await fetch(`https://api.bling.com.br/Api/v3/${path}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       })
-      if (res.status === 429) { await new Promise(r => setTimeout(r, 8000)); continue }
+      if (res.status === 429) { await new Promise(r => setTimeout(r, 5000)); continue }
       const text = await res.text()
-      if (text.startsWith('<')) { await new Promise(r => setTimeout(r, 5000)); continue }
+      if (text.startsWith('<')) { await new Promise(r => setTimeout(r, 3000)); continue }
       return JSON.parse(text)
-    } catch { await new Promise(r => setTimeout(r, 3000)) }
+    } catch { await new Promise(r => setTimeout(r, 2000)) }
   }
   return { data: [] }
 }
@@ -53,18 +54,33 @@ Deno.serve(async () => {
   try {
     const token = await getToken()
     let total = 0
+    let pageStart = 1
+    const pageBatch = 5
 
-    for (let page = 1; page <= 50; page++) {
-      const data = await blingFetch(`produtos?pagina=${page}&limite=100&tipo=P&situacao=A`, token)
-      if (!data.data?.length) break
-      const rows = data.data.map((p: any) => ({
-        id: p.id, nome: p.nome, codigo: p.codigo || '', preco: p.preco || 0,
-        preco_custo: p.precoCusto || 0, estoque_virtual: p.estoque?.saldoVirtualTotal || 0,
-        tipo: p.tipo, situacao: p.situacao, formato: p.formato, imagem_url: p.imagemURL || '',
-      }))
-      await supabase.from('produtos').upsert(rows, { onConflict: 'id' })
-      total += rows.length
-      await new Promise(r => setTimeout(r, 300))
+    while (pageStart <= 50) {
+      const pages = Array.from({length: pageBatch}, (_, i) => pageStart + i)
+      const results = await Promise.all(
+        pages.map(p => blingFetch(`produtos?pagina=${p}&limite=100&tipo=P&situacao=A`, token))
+      )
+
+      const todasLinhas: any[] = []
+      for (const r of results) {
+        if (r.data?.length) {
+          todasLinhas.push(...r.data.map((p: any) => ({
+            id: p.id, nome: p.nome, codigo: p.codigo || '', preco: p.preco || 0,
+            preco_custo: p.precoCusto || 0, estoque_virtual: p.estoque?.saldoVirtualTotal || 0,
+            tipo: p.tipo, situacao: p.situacao, formato: p.formato, imagem_url: p.imagemURL || '',
+          })))
+        }
+      }
+
+      if (todasLinhas.length > 0) {
+        await supabase.from('produtos').upsert(todasLinhas, { onConflict: 'id' })
+        total += todasLinhas.length
+      }
+
+      if (!results[results.length - 1].data?.length) break
+      pageStart += pageBatch
     }
 
     const duracao = Math.round((Date.now() - inicio) / 1000)

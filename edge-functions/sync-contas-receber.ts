@@ -1,7 +1,8 @@
 // ══════════════════════════════════════════════════════════
 // Edge Function: sync-contas-receber
 // Sincroniza TODAS as situações (aberto, recebido, atrasado)
-// Duração esperada: ~40-50s
+// OTIMIZADA: busca páginas em PARALELO (batches de 5)
+// Duração esperada: ~15-25s
 // ══════════════════════════════════════════════════════════
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -19,11 +20,11 @@ async function blingFetch(path: string, token: string): Promise<any> {
       const res = await fetch(`https://api.bling.com.br/Api/v3/${path}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       })
-      if (res.status === 429) { await new Promise(r => setTimeout(r, 8000)); continue }
+      if (res.status === 429) { await new Promise(r => setTimeout(r, 5000)); continue }
       const text = await res.text()
-      if (text.startsWith('<')) { await new Promise(r => setTimeout(r, 5000)); continue }
+      if (text.startsWith('<')) { await new Promise(r => setTimeout(r, 3000)); continue }
       return JSON.parse(text)
-    } catch { await new Promise(r => setTimeout(r, 3000)) }
+    } catch { await new Promise(r => setTimeout(r, 2000)) }
   }
   return { data: [] }
 }
@@ -54,20 +55,38 @@ Deno.serve(async () => {
     const token = await getToken()
     let total = 0
 
+    // Para cada situação, buscar páginas em PARALELO (batches de 5)
     for (const sit of [1, 2, 3]) {
-      for (let page = 1; page <= 20; page++) {
-        const data = await blingFetch(`contas/receber?pagina=${page}&limite=100&situacao=${sit}`, token)
-        if (!data.data?.length) break
-        const rows = data.data.map((c: any) => ({
-          id: c.id, situacao: c.situacao, vencimento: c.vencimento, valor: c.valor || 0,
-          data_emissao: c.dataEmissao && c.dataEmissao !== '0000-00-00' ? c.dataEmissao : null,
-          contato_nome: c.contato?.nome || '', contato_tipo: c.contato?.tipo || '',
-          origem_tipo: c.origem?.tipoOrigem || '', origem_numero: c.origem?.numero || '',
-          conta_contabil: c.contaContabil?.descricao || '',
-        }))
-        await supabase.from('contas_receber').upsert(rows, { onConflict: 'id' })
-        total += rows.length
-        await new Promise(r => setTimeout(r, 300))
+      let pageStart = 1
+      const pageBatch = 5
+
+      while (pageStart <= 20) {
+        const pages = Array.from({length: pageBatch}, (_, i) => pageStart + i)
+        const results = await Promise.all(
+          pages.map(p => blingFetch(`contas/receber?pagina=${p}&limite=100&situacao=${sit}`, token))
+        )
+
+        const todasLinhas: any[] = []
+        for (const r of results) {
+          if (r.data?.length) {
+            todasLinhas.push(...r.data.map((c: any) => ({
+              id: c.id, situacao: c.situacao, vencimento: c.vencimento, valor: c.valor || 0,
+              data_emissao: c.dataEmissao && c.dataEmissao !== '0000-00-00' ? c.dataEmissao : null,
+              contato_nome: c.contato?.nome || '', contato_tipo: c.contato?.tipo || '',
+              origem_tipo: c.origem?.tipoOrigem || '', origem_numero: c.origem?.numero || '',
+              conta_contabil: c.contaContabil?.descricao || '',
+            })))
+          }
+        }
+
+        if (todasLinhas.length > 0) {
+          await supabase.from('contas_receber').upsert(todasLinhas, { onConflict: 'id' })
+          total += todasLinhas.length
+        }
+
+        // Se a última página veio vazia, para
+        if (!results[results.length - 1].data?.length) break
+        pageStart += pageBatch
       }
     }
 
