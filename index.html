@@ -9002,18 +9002,7 @@ function filterRefs(el, type, canal) {
     card.style.display = card.dataset.type === type ? '' : 'none';
   });
 }
-function openRefModal(type, canal) {
-  const id = type === 'link' ? 'modal-ref-link' : 'modal-ref-upload';
-  const modal = document.getElementById(id);
-  if(modal) {
-    modal.classList.add('open');
-    if(canal) { const sel = document.getElementById('ref-canal') || document.getElementById('quick-link-canal'); if(sel) sel.value = canal.charAt(0).toUpperCase()+canal.slice(1); }
-  }
-}
-function closeRefModal(type) {
-  const id = type === 'link' ? 'modal-ref-link' : 'modal-ref-upload';
-  document.getElementById(id)?.classList.remove('open');
-}
+// openRefModal/closeRefModal definidas no bloco REFERÊNCIAS
 function selectRefType(el, type) {
   document.querySelectorAll('.ref-type-btn').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
