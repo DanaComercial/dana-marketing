@@ -6782,12 +6782,13 @@ function renderKanbanCard(t) {
         else label = '🔗 ' + u.hostname.replace('www.','');
       } catch {}
     }
-    return `<div class="k-card k-card-link" draggable="true" ondragstart="drag(event)" id="task-${t.id}" data-id="${t.id}" onclick="openTarefa('${t.id}')" style="cursor:pointer;background:linear-gradient(135deg,var(--surface2) 0%,var(--white) 100%);border-left:3px solid var(--blue)">
+    return `<div class="k-card k-card-link" draggable="true" ondragstart="drag(event)" id="task-${t.id}" data-id="${t.id}" onclick="openTarefa('${t.id}')" style="cursor:pointer;background:linear-gradient(135deg,var(--surface2) 0%,var(--white) 100%);border-left:3px solid var(--blue);position:relative">
       <div class="k-card-title" style="overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12.5px">${esc(label)}</div>
       ${host ? '<div style="font-size:10px;color:var(--text4);margin-top:3px">'+esc(host)+'</div>' : ''}
       <div class="k-meta" style="margin-top:6px">
         ${t.tag && t.tag.toLowerCase() !== 'link' ? '<div class="k-tag">'+esc(t.tag)+'</div>' : '<div class="k-tag" style="background:#dbeafe;color:#1d4ed8">🔗 Link</div>'}
-        <div class="k-del" onclick="event.stopPropagation();deleteTarefa('${t.id}')" style="margin-left:auto;cursor:pointer;font-size:11px;color:var(--text4);padding:2px 4px" title="Excluir">&times;</div>
+        <div onclick="event.stopPropagation();renomearLink('${t.id}')" style="margin-left:auto;cursor:pointer;font-size:11px;color:var(--text4);padding:2px 4px" title="Renomear">✏️</div>
+        <div class="k-del" onclick="event.stopPropagation();deleteTarefa('${t.id}')" style="cursor:pointer;font-size:11px;color:var(--text4);padding:2px 4px" title="Excluir">&times;</div>
       </div>
     </div>`;
   }
@@ -6900,6 +6901,28 @@ async function createTask() {
 
 // ── ABRIR TAREFA (modal detalhes) ──
 let _editingTaskId = null;
+
+async function renomearLink(id) {
+  const t = _tarefasCache.find(x => x.id === id);
+  if (!t) return;
+  const currentTitle = /^https?:\/\//.test((t.titulo || '').trim()) ? '' : t.titulo;
+  const novo = prompt('Qual o nome deste link?', currentTitle);
+  if (novo === null) return;
+  const trimmed = novo.trim();
+  if (!trimmed) return;
+
+  // Se o título original era a URL, preserva no campo links
+  let links = t.links || [];
+  if (/^https?:\/\//.test((t.titulo || '').trim())) {
+    const origUrl = t.titulo.trim();
+    if (!links.includes(origUrl)) links = [origUrl, ...links];
+  }
+
+  await sb.from('tarefas').update({ titulo: trimmed, tag: 'link', links }).eq('id', id);
+  logActivity('renomeou_link', trimmed, 'tarefas');
+  loadTarefas();
+  showToast('Renomeado!');
+}
 
 function isLinkOnlyCard(t) {
   // Card "só link": título é uma URL OU tag é 'link' e tem URL no título/desc/links
