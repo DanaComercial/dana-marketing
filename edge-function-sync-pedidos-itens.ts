@@ -69,35 +69,47 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log('STEP 1: Getting token...')
     const token = await getToken()
+    console.log('STEP 2: Token OK')
 
-    // Pegar os pedidos dos últimos 14 dias que AINDA NÃO TÊM itens sincronizados
+    // Pegar os pedidos dos últimos 14 dias
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() - 14)
+    const cutoffStr = cutoff.toISOString().split('T')[0]
+    console.log('STEP 3: Querying pedidos since', cutoffStr)
 
-    const { data: pedidos } = await supabase
+    const pedidosResult = await supabase
       .from('pedidos')
       .select('id')
-      .gte('data', cutoff.toISOString().split('T')[0])
+      .gte('data', cutoffStr)
       .gt('total_produtos', 0)
       .order('data', { ascending: false })
-      .limit(500)
+      .limit(200)
+
+    const pedidos = pedidosResult?.data
+    const pedidosError = pedidosResult?.error
+    if (pedidosError) console.error('Pedidos query error:', pedidosError.message)
 
     if (!pedidos || pedidos.length === 0) {
-      return jsonResponse({ ok: true, message: 'Nenhum pedido recente para sincronizar', itens_sincronizados: 0 })
+      return jsonResponse({ ok: true, message: 'Nenhum pedido recente para sincronizar', itens_sincronizados: 0, debug: pedidosError?.message || 'no pedidos' })
     }
+    console.log('STEP 4: Found', pedidos.length, 'pedidos')
 
     // Verificar quais já têm itens
     const pedidoIds = pedidos.map(p => p.id)
-    const { data: existentes } = await supabase
+    const existResult = await supabase
       .from('pedidos_itens')
       .select('pedido_id')
-      .in('pedido_id', pedidoIds)
+      .in('pedido_id', pedidoIds.slice(0, 100))
 
-    const jaTemItens = new Set((existentes || []).map(e => e.pedido_id))
+    const existentes = existResult?.data || []
+    if (existResult?.error) console.warn('Exist check error:', existResult.error.message)
+
+    const jaTemItens = new Set(existentes.map(e => e.pedido_id))
     const faltam = pedidoIds.filter(id => !jaTemItens.has(id))
 
-    console.log(`Pedidos recentes: ${pedidos.length}, já sincronizados: ${jaTemItens.size}, faltam: ${faltam.length}`)
+    console.log(`STEP 5: Pedidos: ${pedidos.length}, já sincronizados: ${jaTemItens.size}, faltam: ${faltam.length}`)
 
     let totalItens = 0
     let erros = 0
