@@ -8225,6 +8225,7 @@ function applyNavPermissions() {
 function showApp() {
   document.getElementById('login-screen').style.display = 'none';
   logActivity('login', 'Entrou no sistema');
+  populateDesignerSelects();
 }
 
 // ── LOGIN / LOGOUT ──
@@ -8285,6 +8286,21 @@ async function saveProfileName() {
   document.getElementById('perfil-avatar').textContent = nome.charAt(0).toUpperCase();
   logActivity('alterou_nome', 'Nome alterado para ' + nome);
   if (typeof showToast === 'function') showToast('Nome atualizado!');
+}
+
+// ── POPULAR SELECTS DE DESIGNER COM USUARIOS REAIS ──
+async function populateDesignerSelects() {
+  try {
+    const { data } = await sb.from('profiles').select('nome, cargo').order('nome');
+    if (!data || data.length === 0) return;
+    const options = data.map(u => `<option value="${esc(u.nome)}">${esc(u.nome)} (${CARGO_LABELS[u.cargo] || u.cargo})</option>`).join('');
+    document.querySelectorAll('select').forEach(sel => {
+      const label = sel.previousElementSibling?.textContent || sel.closest('div')?.querySelector('label')?.textContent || '';
+      if (/designer|responsável|responsavel/i.test(label) || sel.id === 'qtodo-designer' || sel.id === 'upload-designer') {
+        sel.innerHTML = options;
+      }
+    });
+  } catch {}
 }
 
 async function doLogout() {
