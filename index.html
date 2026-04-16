@@ -6087,7 +6087,7 @@ updateDynamicField('foto');
   <div class="modal" style="max-width:550px">
     <div class="modal-header"><div class="modal-title" id="vt-title">Tarefa</div><button class="modal-close" onclick="closeModal('ver-tarefa')">×</button></div>
     <div id="vt-coluna-badge" style="display:inline-block;font-size:10px;font-weight:700;padding:3px 10px;border-radius:6px;background:var(--surface2);color:var(--text2);margin-bottom:12px"></div>
-    <div style="margin-bottom:12px"><label class="label">Descrição</label><textarea class="input" id="vt-desc" rows="4"></textarea></div>
+    <div style="margin-bottom:12px"><label class="label">Descrição <span style="font-size:10px;color:var(--text4)">(clique para editar)</span></label><div id="vt-desc"></div></div>
     <div class="form-row-2" style="margin-bottom:12px">
       <div><label class="label">Tag</label><input class="input" id="vt-tag"></div>
       <div><label class="label">Prioridade</label><select class="input" id="vt-prio"><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select></div>
@@ -6781,18 +6781,68 @@ function openTarefa(id) {
   document.getElementById('vt-coluna-badge').textContent = COL_LABELS[t.coluna] || t.coluna;
   document.getElementById('vt-coluna-badge').style.background = (COL_COLORS[t.coluna] || '#999') + '20';
   document.getElementById('vt-coluna-badge').style.color = COL_COLORS[t.coluna] || '#999';
-  document.getElementById('vt-desc').value = t.descricao || '';
+  // Renderizar descrição com links clicáveis e imagens
+  const descRaw = t.descricao || '';
+  const descEl = document.getElementById('vt-desc');
+
+  // Converter markdown links [text](url) e URLs soltas em HTML
+  function renderDesc(text) {
+    let html = esc(text);
+    // Converter [texto](url) em links clicáveis
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--blue);font-weight:600;text-decoration:none">📎 $1</a>');
+    // Converter URLs soltas em links
+    html = html.replace(/(https?:\/\/[^\s<"]+)/g, (url) => {
+      // Verificar se é imagem
+      if (/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url)) {
+        return '<div style="margin:8px 0"><img src="' + url + '" style="max-width:100%;border-radius:8px;border:1px solid var(--border)" onerror="this.style.display=\'none\'"></div>';
+      }
+      // Nome amigável do link
+      let label = url;
+      try {
+        const u = new URL(url);
+        if (u.hostname.includes('drive.google')) label = '📁 Google Drive';
+        else if (u.hostname.includes('pinterest')) label = '📌 Pinterest';
+        else if (u.hostname.includes('instagram')) label = '📸 Instagram';
+        else if (u.hostname.includes('tiktok')) label = '🎵 TikTok';
+        else if (u.hostname.includes('youtube') || u.hostname.includes('youtu.be')) label = '▶ YouTube';
+        else if (u.hostname.includes('trello')) label = '📋 Trello';
+        else label = '🔗 ' + u.hostname.replace('www.','');
+      } catch {}
+      return '<a href="' + url + '" target="_blank" style="display:inline-block;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--blue);font-weight:600;text-decoration:none;margin:3px 2px">' + label + '</a>';
+    });
+    // Quebras de linha
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
+  const descRendered = renderDesc(descRaw);
+  descEl.innerHTML = '<div id="vt-desc-view" style="font-size:13px;color:var(--text2);line-height:1.6;min-height:40px;cursor:pointer" onclick="this.style.display=\'none\';document.getElementById(\'vt-desc-edit\').style.display=\'\'" title="Clique para editar">' +
+    (descRendered || '<span style="color:var(--text4);font-style:italic">Sem descrição — clique para adicionar</span>') +
+    '</div><textarea id="vt-desc-edit" class="input" rows="4" style="display:none;width:100%" onblur="this.style.display=\'none\';document.getElementById(\'vt-desc-view\').style.display=\'\'">' + esc(descRaw).replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>') + '</textarea>';
+
   document.getElementById('vt-tag').value = t.tag || '';
   document.getElementById('vt-prio').value = t.prioridade || 'media';
   document.getElementById('vt-resp').value = t.responsavel || '';
   document.getElementById('vt-prazo').value = t.prazo || t.data_fim || '';
 
-  // Links
+  // Links/anexos
   const linksEl = document.getElementById('vt-links');
   if (t.links?.length) {
-    linksEl.innerHTML = '<label class="label">Links</label>' + t.links.map(l =>
-      `<a href="${l}" target="_blank" style="display:block;font-size:12px;color:var(--blue);margin-bottom:4px;word-break:break-all">🔗 ${l}</a>`
-    ).join('');
+    const imgLinks = t.links.filter(l => /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(l));
+    const otherLinks = t.links.filter(l => !/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(l));
+    let linksHtml = '';
+    if (imgLinks.length) {
+      linksHtml += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">' +
+        imgLinks.map(l => '<img src="'+l+'" style="max-width:200px;border-radius:8px;border:1px solid var(--border)" onerror="this.style.display=\'none\'">').join('') + '</div>';
+    }
+    if (otherLinks.length) {
+      linksHtml += '<label class="label">Anexos</label>' + otherLinks.map(l => {
+        let label = l;
+        try { const u = new URL(l); label = u.hostname.includes('drive.google') ? '📁 Google Drive' : u.hostname.includes('trello') ? '📋 Trello' : '🔗 ' + u.hostname.replace('www.',''); } catch {}
+        return `<a href="${l}" target="_blank" style="display:inline-block;padding:5px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--blue);font-weight:600;text-decoration:none;margin:3px 2px">${label}</a>`;
+      }).join('');
+    }
+    linksEl.innerHTML = linksHtml;
   } else { linksEl.innerHTML = ''; }
 
   // Checklist
@@ -6826,8 +6876,9 @@ function toggleCheckItem(idx, checked) {
 
 async function salvarTarefaEdit() {
   if (!_editingTaskId) return;
+  const descEdit = document.getElementById('vt-desc-edit');
   const updates = {
-    descricao: document.getElementById('vt-desc').value,
+    descricao: descEdit ? descEdit.value : '',
     tag: document.getElementById('vt-tag').value,
     prioridade: document.getElementById('vt-prio').value,
     responsavel: document.getElementById('vt-resp').value,
