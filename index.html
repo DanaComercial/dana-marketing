@@ -7010,7 +7010,8 @@ async function nt_uploadFiles(files) {
   for (const file of files) {
     try {
       const ext = file.name.split('.').pop() || 'png';
-      const filename = 'kanban/' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
+      // Nome sem prefixo de pasta (já estamos no bucket kanban)
+      const filename = Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
       const { error } = await sb.storage.from('kanban').upload(filename, file, { cacheControl: '3600', upsert: false });
       if (error) throw error;
       const { data: urlData } = sb.storage.from('kanban').getPublicUrl(filename);
@@ -7424,8 +7425,13 @@ async function removerAnexo(idx) {
   // Se for do nosso Storage, deletar o arquivo também
   if (url && url.includes('/storage/v1/object/public/kanban/')) {
     try {
-      const path = url.split('/storage/v1/object/public/kanban/')[1];
-      if (path) await sb.storage.from('kanban').remove([path]);
+      let path = url.split('/storage/v1/object/public/kanban/')[1] || '';
+      path = decodeURIComponent(path.split('?')[0]);
+      if (path) {
+        const { error } = await sb.storage.from('kanban').remove([path]);
+        if (error) console.error('Delete anexo error:', error);
+        else console.log('Deletado do Storage:', path);
+      }
     } catch(e) { console.warn('Delete storage error:', e); }
   }
 
@@ -7493,11 +7499,18 @@ async function deleteTarefa(id) {
   if (tarefa?.links?.length) {
     const storagePaths = tarefa.links
       .filter(l => l && l.includes('/storage/v1/object/public/kanban/'))
-      .map(l => l.split('/storage/v1/object/public/kanban/')[1])
+      .map(l => {
+        let path = l.split('/storage/v1/object/public/kanban/')[1] || '';
+        // Remover query strings
+        path = path.split('?')[0];
+        return decodeURIComponent(path);
+      })
       .filter(Boolean);
     if (storagePaths.length) {
-      try { await sb.storage.from('kanban').remove(storagePaths); }
-      catch(e) { console.warn('Delete storage files error:', e); }
+      console.log('Removendo do Storage:', storagePaths);
+      const { data, error } = await sb.storage.from('kanban').remove(storagePaths);
+      if (error) console.error('Delete storage error:', error);
+      else console.log('Deletados do Storage:', data);
     }
   }
 
