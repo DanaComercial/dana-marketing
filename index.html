@@ -8277,7 +8277,11 @@ async function doLogout() {
   logActivity('logout', 'Saiu do sistema');
   await sb.auth.signOut();
   currentUser = null; currentProfile = null; userPermissoes = {};
+  try { localStorage.removeItem('dms-active-view'); } catch {}
   document.getElementById('login-screen').style.display = 'flex';
+  // Voltar para home ao relogar
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-home')?.classList.add('active');
 }
 
 // ── LOG ATIVIDADES ──
