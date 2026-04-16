@@ -1656,7 +1656,7 @@ select.input { cursor: pointer; }
     <div class="nav-label">Produtividade</div>
     <div class="nav-item" onclick="go(this,'tarefas')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="1" width="14" height="14" rx="2"/><path d="M5 8l2 2 4-4"/></svg></div>Tarefas e Kanban
-      <span class="nav-badge alert">5</span>
+      <span class="nav-badge alert" id="nav-tarefas-badge" style="display:none">0</span>
     </div>
     <div class="nav-item" onclick="go(this,'roi')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 14V6l4-4h8v12z"/><path d="M6 2v4H2M5 9h6M5 12h4"/></svg></div>Calculadora ROI
@@ -6794,6 +6794,25 @@ async function loadTarefas() {
     // Botão Nova Tarefa — mostra/esconde conforme permissão
     const btnNova = document.getElementById('btn-nova-tarefa');
     if (btnNova) btnNova.style.display = canCreate ? '' : 'none';
+
+    // Badge no sidebar: conta tarefas pendentes (com prazo e não concluídas)
+    // + tarefas em atraso têm prioridade vermelha
+    const badge = document.getElementById('nav-tarefas-badge');
+    if (badge) {
+      const hoje = new Date().toISOString().substring(0,10);
+      const comPrazo = _tarefasCache.filter(t => {
+        const prazo = t.prazo || t.data_fim;
+        return prazo && !t.concluido && t.coluna !== 'arquivo';
+      });
+      const atrasadas = comPrazo.filter(t => (t.prazo || t.data_fim) < hoje);
+      if (comPrazo.length > 0) {
+        badge.style.display = '';
+        badge.textContent = comPrazo.length;
+        badge.title = atrasadas.length + ' em atraso · ' + (comPrazo.length - atrasadas.length) + ' pendentes';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
 
     // Popular select de colunas
     populateColSelect();
