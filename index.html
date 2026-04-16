@@ -1526,6 +1526,30 @@ select.input { cursor: pointer; }
 <body>
 
 <!-- ════════════════════════
+     TELA DE LOGIN
+════════════════════════ -->
+<div id="login-screen" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--surface);position:fixed;inset:0;z-index:9999">
+  <div style="background:var(--white);border:1.5px solid var(--border);border-radius:16px;padding:40px 36px;width:100%;max-width:380px;box-shadow:0 8px 30px rgba(0,0,0,0.08)">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-family:'Syne',sans-serif;font-weight:900;font-size:22px;letter-spacing:2px;color:var(--black)">DANA</div>
+      <div style="font-size:10px;letter-spacing:3px;color:var(--text3);margin-top:2px">JALECOS EXCLUSIVOS</div>
+      <div style="font-size:11px;color:var(--text4);margin-top:12px">Marketing System</div>
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:5px">E-mail</label>
+      <input type="email" id="login-email" class="input" placeholder="seu@email.com" style="width:100%">
+    </div>
+    <div style="margin-bottom:20px">
+      <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:5px">Senha</label>
+      <input type="password" id="login-senha" class="input" placeholder="Sua senha" style="width:100%" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()" id="login-btn" style="width:100%;padding:11px;font-size:14px;font-weight:700;border-radius:10px">Entrar</button>
+    <div id="login-error" style="display:none;margin-top:12px;text-align:center;font-size:12px;color:var(--red);font-weight:600"></div>
+    <div style="text-align:center;margin-top:16px;font-size:10.5px;color:var(--text4)">Acesso restrito ao time Dana Jalecos</div>
+  </div>
+</div>
+
+<!-- ════════════════════════
      SIDEBAR
 ════════════════════════ -->
 <nav class="sidebar">
@@ -1630,6 +1654,14 @@ select.input { cursor: pointer; }
     </div>
   </div>
 
+  <div class="nav-section" id="nav-admin-section" style="display:none">
+    <div class="nav-label">Sistema</div>
+    <div class="nav-item" onclick="go(this,'admin')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1a3 3 0 00-3 3v2H4a1 1 0 00-1 1v6a1 1 0 001 1h8a1 1 0 001-1V7a1 1 0 00-1-1h-1V4a3 3 0 00-3-3zm-1 3a1 1 0 112 0v2H7V4z"/></svg></div>Administrador
+      <span style="font-size:9px;padding:1px 6px;background:var(--red);color:white;border-radius:4px;margin-left:auto">Admin</span>
+    </div>
+  </div>
+
   <div class="sidebar-footer">
     <div class="save-badge saved" id="save-indicator">
       <div class="save-dot"></div>Dados salvos
@@ -1637,12 +1669,13 @@ select.input { cursor: pointer; }
     <div class="save-badge" id="last-sync-time" style="color:rgba(255,255,255,0.2);font-size:9px">
       Supabase · conectando...
     </div>
-    <div class="user-card">
-      <div class="user-avatar">M</div>
+    <div class="user-card" style="cursor:pointer" onclick="doLogout()">
+      <div class="user-avatar" id="user-avatar-el">?</div>
       <div>
-        <span class="user-name">Manu</span>
-        <span class="user-role">Diretora Estratégica</span>
+        <span class="user-name" id="user-name-el">Carregando...</span>
+        <span class="user-role" id="user-role-el">...</span>
       </div>
+      <span style="margin-left:auto;font-size:10px;color:rgba(255,255,255,0.3)" title="Sair">⏻</span>
     </div>
   </div>
 </nav>
@@ -5376,6 +5409,88 @@ updateDynamicField('foto');
 
 <div class="view" id="view-briefingvisual"><div style="padding:24px 28px"><div class="card"><div class="card-title">Briefing Visual</div><div class="card-sub" style="margin-top:6px">Documento gerado pelo Construtor de Campanha, pronto para impressão.</div></div></div></div>
 
+<!-- ════════ ADMINISTRADOR ════════ -->
+<div class="view" id="view-admin"><div style="padding:24px 28px">
+  <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;margin-bottom:4px">Administrador</div>
+  <div style="font-size:12.5px;color:var(--text3);margin-bottom:20px">Gerenciar usuarios, permissoes e monitorar atividades</div>
+
+  <div class="mkt-tabs" style="margin-bottom:20px">
+    <div class="mkt-tab active" onclick="switchAdminTab(this,'usuarios')">Usuarios</div>
+    <div class="mkt-tab" onclick="switchAdminTab(this,'permissoes')">Permissoes por Cargo</div>
+    <div class="mkt-tab" onclick="switchAdminTab(this,'atividades')">Relatorio de Atividades</div>
+  </div>
+
+  <!-- ABA USUARIOS -->
+  <div class="mkt-panel active" id="admin-usuarios">
+    <div class="card mb20">
+      <div class="card-header">
+        <div><div class="card-title">Usuarios do Sistema</div><div class="card-sub">Gerencie cargos e acessos</div></div>
+        <button class="btn btn-primary btn-sm" onclick="openModal('criar-usuario')">+ Novo Usuario</button>
+      </div>
+      <div id="admin-users-table"><div style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Carregando...</div></div>
+    </div>
+  </div>
+
+  <!-- ABA PERMISSOES -->
+  <div class="mkt-panel" id="admin-permissoes">
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title">Permissoes por Cargo</div><div class="card-sub">Marque/desmarque para controlar acesso a cada secao</div></div>
+        <button class="btn btn-primary btn-sm" onclick="savePermissoes()">Salvar Alteracoes</button>
+      </div>
+      <div id="admin-perm-grid" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Carregando...</div></div>
+    </div>
+  </div>
+
+  <!-- ABA ATIVIDADES -->
+  <div class="mkt-panel" id="admin-atividades">
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title">Relatorio de Atividades</div><div class="card-sub">Ultimas acoes dos usuarios no sistema</div></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <select id="admin-log-filter" class="input" style="width:auto;font-size:12px" onchange="loadActivityLog()">
+          <option value="">Todos os usuarios</option>
+        </select>
+        <select id="admin-log-periodo" class="input" style="width:auto;font-size:12px" onchange="loadActivityLog()">
+          <option value="7">Ultimos 7 dias</option>
+          <option value="30">Ultimos 30 dias</option>
+          <option value="90">Ultimos 90 dias</option>
+        </select>
+      </div>
+      <div id="admin-log-table" style="max-height:500px;overflow-y:auto"><div style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Carregando...</div></div>
+    </div>
+  </div>
+</div></div>
+
+<!-- MODAL: Criar usuario -->
+<div class="modal-overlay" id="modal-criar-usuario">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title">Criar Novo Usuario</div>
+      <button class="modal-close" onclick="closeModal('criar-usuario')">x</button>
+    </div>
+    <div style="margin-bottom:12px"><label class="label">Nome completo</label><input type="text" id="new-user-nome" class="input" placeholder="Nome do colaborador"></div>
+    <div style="margin-bottom:12px"><label class="label">E-mail</label><input type="email" id="new-user-email" class="input" placeholder="email@danajalecos.com.br"></div>
+    <div style="margin-bottom:12px"><label class="label">Senha inicial</label><input type="text" id="new-user-senha" class="input" placeholder="Min. 6 caracteres" value="Dana2026!"></div>
+    <div style="margin-bottom:16px"><label class="label">Cargo</label>
+      <select class="input" id="new-user-cargo">
+        <option value="vendedor">Vendedor</option>
+        <option value="expedicao">Expedicao</option>
+        <option value="trafego_pago">Trafego Pago</option>
+        <option value="producao_conteudo">Producao de Conteudo</option>
+        <option value="analista_marketplace">Analista de Marketplace</option>
+        <option value="gerente_comercial">Gerente Comercial</option>
+        <option value="gerente_financeiro">Gerente Financeiro</option>
+        <option value="gerente_marketing">Gerente de Marketing</option>
+        <option value="admin">Administrador</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="criarUsuario()" id="btn-criar-user" style="width:100%">Criar Usuario</button>
+    <div id="criar-user-msg" style="display:none;margin-top:10px;font-size:12px;text-align:center"></div>
+  </div>
+</div>
+
 <!-- ════════ CALENDARIO ════════ -->
 <div class="view" id="view-calendario">
 <div style="padding:24px 28px">
@@ -5961,11 +6076,17 @@ const VIEW_META = {
   keywords: { title: 'Palavras-Chave', sub: 'Google Suggest — descubra o que as pessoas buscam', action: '' },
   financeiro: { title: 'Financeiro', sub: 'Contas a pagar/receber, DRE e fluxo · Bling', action: '' },
   projecoes: { title: 'Projeções', sub: '2025 vs 2026 — real + projetado', action: '' },
-  canaisvendas: { title: 'Canais e Vendas', sub: 'Clientes, canais de venda, revendas e eventos', action: '' }
+  canaisvendas: { title: 'Canais e Vendas', sub: 'Clientes, canais de venda, revendas e eventos', action: '' },
+  admin: { title: 'Administrador', sub: 'Usuarios, permissoes e atividades', action: '' }
 };
 
 // ── NAVIGATION ──
 function go(el, viewId) {
+  // Verificar permissao
+  if (userPermissoes[viewId] === false) {
+    if (typeof showToast === 'function') showToast('Voce nao tem acesso a esta secao');
+    return;
+  }
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   if(el) el.classList.add('active');
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -5977,6 +6098,10 @@ function go(el, viewId) {
   const btn = document.getElementById('topbar-action');
   if(meta.action) { btn.textContent = meta.action; btn.style.display=''; } else btn.style.display='none';
   try { localStorage.setItem('dms-active-view', viewId); } catch(e) {}
+  // Log navegacao
+  logActivity('visualizou', meta.title || viewId, viewId);
+  // Carregar dados admin se necessario
+  if (viewId === 'admin') loadAdminUsers();
 }
 
 function topbarAction() {
@@ -6330,6 +6455,8 @@ window.addEventListener('load', () => {
   calcMetrics();
   loadData();
   updateNotifDot();
+  // Auth check (mostra login se nao logado)
+  if (typeof checkAuth === 'function') checkAuth();
   // Carregar dados do Supabase
   if (typeof loadSupabaseData === 'function') loadSupabaseData();
   // Carregar features upgrade
@@ -7943,6 +8070,288 @@ async function loadMarketplacesExtras() {
       </tbody></table>`;
     }
   } catch (e) { console.warn('Top clientes error:', e); }
+}
+
+// ══════════════════════════════════════════════════════════
+// AUTH + LOGIN + PERMISSOES + ADMIN
+// ══════════════════════════════════════════════════════════
+
+let currentUser = null;
+let currentProfile = null;
+let userPermissoes = {};
+
+const CARGO_LABELS = {
+  admin: 'Administrador',
+  gerente_marketing: 'Gerente de Marketing',
+  gerente_comercial: 'Gerente Comercial',
+  gerente_financeiro: 'Gerente Financeiro',
+  trafego_pago: 'Trafego Pago',
+  producao_conteudo: 'Producao de Conteudo',
+  analista_marketplace: 'Analista de Marketplace',
+  vendedor: 'Vendedor',
+  expedicao: 'Expedicao',
+};
+
+// ── CHECK AUTH ON LOAD ──
+async function checkAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    document.getElementById('login-screen').style.display = 'flex';
+    return;
+  }
+  currentUser = session.user;
+  await loadProfile();
+  showApp();
+}
+
+async function loadProfile() {
+  if (!currentUser) return;
+  const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  if (data) {
+    currentProfile = data;
+  } else {
+    // Profile nao existe (usuario antigo) — criar
+    await sb.from('profiles').insert({ id: currentUser.id, nome: currentUser.email.split('@')[0], cargo: 'vendedor' });
+    currentProfile = { id: currentUser.id, nome: currentUser.email.split('@')[0], cargo: 'vendedor' };
+  }
+
+  // Carregar permissoes do cargo
+  const { data: perms } = await sb.from('cargo_permissoes').select('*').eq('cargo', currentProfile.cargo);
+  userPermissoes = {};
+  (perms || []).forEach(p => { userPermissoes[p.secao] = p.permitido; });
+
+  // Atualizar sidebar
+  const avatar = document.getElementById('user-avatar-el');
+  const name = document.getElementById('user-name-el');
+  const role = document.getElementById('user-role-el');
+  if (avatar) avatar.textContent = (currentProfile.nome || '?').charAt(0).toUpperCase();
+  if (name) name.textContent = currentProfile.nome || currentUser.email;
+  if (role) role.textContent = CARGO_LABELS[currentProfile.cargo] || currentProfile.cargo;
+
+  // Mostrar seção admin no sidebar se for admin
+  const adminNav = document.getElementById('nav-admin-section');
+  if (adminNav) adminNav.style.display = currentProfile.cargo === 'admin' ? '' : 'none';
+
+  // Esconder itens do sidebar sem permissao
+  applyNavPermissions();
+
+  // Atualizar last_login
+  await sb.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', currentUser.id);
+}
+
+function applyNavPermissions() {
+  document.querySelectorAll('.nav-item[onclick]').forEach(item => {
+    const match = item.getAttribute('onclick')?.match(/go\(this,'(\w+)'\)/);
+    if (!match) return;
+    const secao = match[1];
+    if (userPermissoes[secao] === false) {
+      item.style.display = 'none';
+    } else {
+      item.style.display = '';
+    }
+  });
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  logActivity('login', 'Entrou no sistema');
+}
+
+// ── LOGIN / LOGOUT ──
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const senha = document.getElementById('login-senha').value;
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+  if (!email || !senha) { errEl.textContent = 'Preencha email e senha'; errEl.style.display = 'block'; return; }
+
+  btn.textContent = 'Entrando...'; btn.disabled = true;
+  errEl.style.display = 'none';
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
+  if (error) {
+    errEl.textContent = error.message === 'Invalid login credentials' ? 'Email ou senha incorretos' : error.message;
+    errEl.style.display = 'block';
+    btn.textContent = 'Entrar'; btn.disabled = false;
+    return;
+  }
+
+  currentUser = data.user;
+  await loadProfile();
+  showApp();
+  btn.textContent = 'Entrar'; btn.disabled = false;
+}
+
+async function doLogout() {
+  if (!confirm('Deseja sair do sistema?')) return;
+  logActivity('logout', 'Saiu do sistema');
+  await sb.auth.signOut();
+  currentUser = null; currentProfile = null; userPermissoes = {};
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+// ── LOG ATIVIDADES ──
+async function logActivity(acao, detalhes, secao) {
+  if (!currentUser) return;
+  try {
+    await sb.from('activity_log').insert({
+      user_id: currentUser.id,
+      user_nome: currentProfile?.nome || '',
+      user_cargo: currentProfile?.cargo || '',
+      acao, detalhes, secao: secao || '',
+    });
+  } catch {}
+}
+
+// ── ADMIN: switch tabs ──
+function switchAdminTab(tab, id) {
+  document.querySelectorAll('#view-admin .mkt-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#view-admin .mkt-panel').forEach(p => p.classList.remove('active'));
+  tab.classList.add('active');
+  document.getElementById('admin-'+id)?.classList.add('active');
+  if (id === 'usuarios') loadAdminUsers();
+  if (id === 'permissoes') loadAdminPermissoes();
+  if (id === 'atividades') loadActivityLog();
+}
+
+// ── ADMIN: listar usuarios ──
+async function loadAdminUsers() {
+  const container = document.getElementById('admin-users-table');
+  if (!container) return;
+  const { data } = await sb.from('profiles').select('*').order('created_at');
+  if (!data || data.length === 0) { container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">Nenhum usuario</div>'; return; }
+
+  container.innerHTML = `<table style="width:100%"><thead><tr><th>Nome</th><th>Cargo</th><th>Ultimo Login</th><th>Acao</th></tr></thead><tbody>
+    ${data.map(u => `<tr>
+      <td class="em">${esc(u.nome)}</td>
+      <td><select class="input" style="font-size:11px;padding:4px 8px;width:auto" onchange="updateUserCargo('${u.id}',this.value)" ${currentProfile?.cargo!=='admin'?'disabled':''}>
+        ${Object.entries(CARGO_LABELS).map(([k,v]) => `<option value="${k}" ${u.cargo===k?'selected':''}>${v}</option>`).join('')}
+      </select></td>
+      <td style="font-size:11px;color:var(--text3)">${u.last_login ? new Date(u.last_login).toLocaleString('pt-BR') : 'Nunca'}</td>
+      <td style="font-size:11px">${u.id === currentUser?.id ? '<span style="color:var(--green)">Voce</span>' : ''}</td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+async function updateUserCargo(userId, novoCargo) {
+  await sb.from('profiles').update({ cargo: novoCargo }).eq('id', userId);
+  logActivity('alterou_cargo', 'Alterou cargo para ' + novoCargo, 'admin');
+  if (typeof showToast === 'function') showToast('Cargo atualizado');
+}
+
+// ── ADMIN: grid de permissoes ──
+let _permData = [];
+async function loadAdminPermissoes() {
+  const container = document.getElementById('admin-perm-grid');
+  if (!container) return;
+  const { data } = await sb.from('cargo_permissoes').select('*').order('cargo').order('secao');
+  _permData = data || [];
+  if (!_permData.length) { container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">Nenhuma permissao configurada</div>'; return; }
+
+  const cargos = [...new Set(_permData.map(p => p.cargo))].filter(c => c !== 'admin');
+  const secoes = [...new Set(_permData.map(p => p.secao))].filter(s => s !== 'admin');
+  const secaoLabels = {...VIEW_META};
+  const map = {};
+  _permData.forEach(p => { map[p.cargo+'_'+p.secao] = p; });
+
+  container.innerHTML = `<table style="width:100%;font-size:11px"><thead><tr><th style="text-align:left;min-width:120px">Secao</th>
+    ${cargos.map(c => `<th style="text-align:center;writing-mode:vertical-lr;transform:rotate(180deg);padding:8px 4px;font-size:10px">${CARGO_LABELS[c]||c}</th>`).join('')}
+  </tr></thead><tbody>
+    ${secoes.map(s => `<tr>
+      <td class="em">${secaoLabels[s]?.title || s}</td>
+      ${cargos.map(c => {
+        const p = map[c+'_'+s];
+        const checked = p ? p.permitido : true;
+        return `<td style="text-align:center"><input type="checkbox" ${checked?'checked':''} data-cargo="${c}" data-secao="${s}" style="cursor:pointer"></td>`;
+      }).join('')}
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+async function savePermissoes() {
+  const checks = document.querySelectorAll('#admin-perm-grid input[type="checkbox"]');
+  const updates = [];
+  checks.forEach(ch => {
+    updates.push({ cargo: ch.dataset.cargo, secao: ch.dataset.secao, permitido: ch.checked });
+  });
+  for (const u of updates) {
+    await sb.from('cargo_permissoes').upsert(u, { onConflict: 'cargo,secao' });
+  }
+  logActivity('alterou_permissoes', updates.length + ' permissoes atualizadas', 'admin');
+  if (typeof showToast === 'function') showToast('Permissoes salvas!');
+}
+
+// ── ADMIN: log de atividades ──
+async function loadActivityLog() {
+  const container = document.getElementById('admin-log-table');
+  if (!container) return;
+  const filtro = document.getElementById('admin-log-filter')?.value || '';
+  const dias = parseInt(document.getElementById('admin-log-periodo')?.value || '7');
+  const desde = new Date(); desde.setDate(desde.getDate() - dias);
+
+  let query = sb.from('activity_log').select('*').gte('created_at', desde.toISOString()).order('created_at', { ascending: false }).limit(100);
+  if (filtro) query = query.eq('user_id', filtro);
+  const { data } = await query;
+
+  if (!data || data.length === 0) { container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">Nenhuma atividade no periodo</div>'; return; }
+
+  // Popular filtro de usuarios
+  const filterEl = document.getElementById('admin-log-filter');
+  if (filterEl && filterEl.options.length <= 1) {
+    const nomes = [...new Set(data.map(d => JSON.stringify({ id: d.user_id, nome: d.user_nome })))].map(j => JSON.parse(j));
+    nomes.forEach(n => { const opt = document.createElement('option'); opt.value = n.id; opt.textContent = n.nome; filterEl.appendChild(opt); });
+  }
+
+  container.innerHTML = `<table style="width:100%;font-size:12px"><thead><tr><th>Data</th><th>Usuario</th><th>Cargo</th><th>Acao</th><th>Detalhes</th></tr></thead><tbody>
+    ${data.map(d => `<tr>
+      <td style="font-size:11px;color:var(--text3);white-space:nowrap">${new Date(d.created_at).toLocaleString('pt-BR')}</td>
+      <td class="em">${esc(d.user_nome)}</td>
+      <td style="font-size:10px">${CARGO_LABELS[d.user_cargo]||d.user_cargo}</td>
+      <td><span style="font-size:10px;padding:2px 6px;background:var(--surface2);border-radius:4px;font-weight:600">${esc(d.acao)}</span></td>
+      <td style="font-size:11px;color:var(--text2)">${esc(d.detalhes||'')}</td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+// ── ADMIN: criar usuario (via Edge Function) ──
+async function criarUsuario() {
+  const nome = document.getElementById('new-user-nome')?.value?.trim();
+  const email = document.getElementById('new-user-email')?.value?.trim();
+  const senha = document.getElementById('new-user-senha')?.value;
+  const cargo = document.getElementById('new-user-cargo')?.value;
+  const btn = document.getElementById('btn-criar-user');
+  const msg = document.getElementById('criar-user-msg');
+
+  if (!nome || !email || !senha || senha.length < 6) {
+    msg.textContent = 'Preencha todos os campos (senha min. 6 caracteres)';
+    msg.style.color = 'var(--red)'; msg.style.display = 'block'; return;
+  }
+
+  btn.textContent = 'Criando...'; btn.disabled = true;
+  try {
+    const res = await fetch(SUPABASE_URL + '/functions/v1/criar-usuario', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + (await sb.auth.getSession()).data.session.access_token,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ nome, email, senha, cargo }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      msg.textContent = 'Usuario criado com sucesso!';
+      msg.style.color = 'var(--green)'; msg.style.display = 'block';
+      logActivity('criou_usuario', nome + ' (' + cargo + ')', 'admin');
+      setTimeout(() => { closeModal('criar-usuario'); loadAdminUsers(); }, 1500);
+    } else {
+      msg.textContent = data.error || 'Erro ao criar usuario';
+      msg.style.color = 'var(--red)'; msg.style.display = 'block';
+    }
+  } catch (e) {
+    msg.textContent = 'Erro: ' + e.message;
+    msg.style.color = 'var(--red)'; msg.style.display = 'block';
+  }
+  btn.textContent = 'Criar Usuario'; btn.disabled = false;
 }
 
 // ── INIT UPGRADE ──
