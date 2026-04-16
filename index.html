@@ -4006,9 +4006,12 @@ window.addEventListener('load', () => {
   <!-- TABS por canal -->
   <div class="ref-tabs">
     <div class="ref-tab active" onclick="switchRef(this,'instagram')"><span class="ref-tab-icon">📸</span>Instagram</div>
+    <div class="ref-tab" onclick="switchRef(this,'facebook')"><span class="ref-tab-icon">📘</span>Facebook</div>
     <div class="ref-tab" onclick="switchRef(this,'tiktok')"><span class="ref-tab-icon">🎵</span>TikTok</div>
     <div class="ref-tab" onclick="switchRef(this,'youtube')"><span class="ref-tab-icon">▶</span>YouTube</div>
-    <div class="ref-tab" onclick="switchRef(this,'geral')"><span class="ref-tab-icon">🗂</span>Geral</div>
+    <div class="ref-tab" onclick="switchRef(this,'pinterest')"><span class="ref-tab-icon">📌</span>Pinterest</div>
+    <div class="ref-tab" onclick="switchRef(this,'linkedin')"><span class="ref-tab-icon">💼</span>LinkedIn</div>
+    <div class="ref-tab" onclick="switchRef(this,'blog')"><span class="ref-tab-icon">📝</span>Blog Dana</div>
   </div>
 
   <!-- ══════════ INSTAGRAM ══════════ -->
@@ -4016,135 +4019,29 @@ window.addEventListener('load', () => {
     <div class="ref-filter-bar">
       <div class="ref-filter active" onclick="filterRef(this,'ref-instagram','todas')">Todos</div>
       <div class="ref-filter" onclick="filterRef(this,'ref-instagram','foto')">📷 Fotos</div>
-      <div class="ref-filter" onclick="filterRef(this,'ref-instagram','video')">🎥 Vídeos/Reels</div>
+      <div class="ref-filter" onclick="filterRef(this,'ref-instagram','video')">🎥 Reels</div>
       <div class="ref-filter" onclick="filterRef(this,'ref-instagram','link')">🔗 Links</div>
       <div class="ref-filter" onclick="filterRef(this,'ref-instagram','copy')">✍ Copies</div>
-      <div style="margin-left:auto">
-        <div class="ref-stats">
-          <div class="ref-stat"><div class="ref-stat-num" id="cnt-ig">8</div><div class="ref-stat-label">referências</div></div>
-        </div>
-      </div>
+      <div style="margin-left:auto"><div class="ref-stats"><div class="ref-stat"><div class="ref-stat-num" id="cnt-ig">0</div><div class="ref-stat-label">referências</div></div></div></div>
     </div>
     <div class="ref-masonry" id="masonry-instagram">
+      <div class="ref-add-card" onclick="openRefModal()"><div class="ref-add-icon">+</div><div class="ref-add-title">Adicionar referência Instagram</div><div class="ref-add-sub">Foto, reels, link ou copy</div></div>
+    </div>
+  </div>
 
-      <div class="ref-card" data-type="foto">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-instagram','cnt-ig')">✕</button>
-        <div class="ref-card-img tall" style="background:linear-gradient(135deg,#e8e8e8,#d4d4d4)">🖼</div>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-foto">📷 Foto</div>
-          <div class="ref-card-title">Editorial preto e branco — jaleco slim</div>
-          <div class="ref-card-desc">Referência de iluminação e composição para fotos de produto. Fundo clean, modelo de perfil, jaleco Isabel.</div>
-          <div class="ref-card-meta"><span class="ref-card-source">@modamedica</span><span class="ref-card-tag">Iluminação</span><span class="ref-card-date">2 abr</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px" onclick="copyRef('Editorial preto e branco — jaleco slim')">Copiar título</button>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="video">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-instagram','cnt-ig')">✕</button>
-        <div class="ref-card-img medium" style="background:linear-gradient(135deg,#dbeafe,#bfdbfe)">🎥</div>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-video">🎥 Reels</div>
-          <div class="ref-card-title">Transição "chegou no trabalho" — tendência de Reels</div>
-          <div class="ref-card-desc">Formato viral: câmera lenta ao vestir o jaleco, com música motivacional. 4.2M de views. Alta taxa de salvamento.</div>
-          <div class="ref-card-url">instagram.com/reel/C8xABC123</div>
-          <div class="ref-card-meta"><span class="ref-card-source">@dra.rafaela</span><span class="ref-card-tag">Viral</span><span class="ref-card-date">28 mar</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px">🔗 Abrir link</button>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="copy">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-instagram','cnt-ig')">✕</button>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-copy">✍ Copy</div>
-          <div class="ref-card-title">Gancho emocional — antes e depois</div>
-          <div class="ref-card-copy-text">"Antes eu usava qualquer jaleco. Hoje eu uso o jaleco que me representa. Porque minha imagem é parte do meu atendimento. 🩺 #vempradana"</div>
-          <div class="ref-card-meta"><span class="ref-card-source">Criado internamente</span><span class="ref-card-tag">Gancho</span><span class="ref-card-date">25 mar</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-primary btn-sm" style="flex:1;font-size:11px" onclick="copyText('Antes eu usava qualquer jaleco...')">📋 Copiar texto</button>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="link">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-instagram','cnt-ig')">✕</button>
-        <div class="ref-card-img short" style="background:linear-gradient(135deg,#dcfce7,#bbf7d0)">🔗</div>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-link">🔗 Link</div>
-          <div class="ref-card-title">Tendência: Scrub aesthetic no Pinterest</div>
-          <div class="ref-card-url">pinterest.com/search/pins/?q=scrub+aesthetic</div>
-          <div class="ref-card-desc">Board com 200+ pins de referências internacionais de scrubs e jalecos estilosos.</div>
-          <div class="ref-card-meta"><span class="ref-card-source">Pinterest</span><span class="ref-card-date">20 mar</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px">🔗 Abrir</button>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="foto">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-instagram','cnt-ig')">✕</button>
-        <div class="ref-card-img medium" style="background:linear-gradient(135deg,#fef3c7,#fde68a)">🖼</div>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-foto">📷 Foto</div>
-          <div class="ref-card-title">Paleta de cores para fotos outono/inverno</div>
-          <div class="ref-card-desc">Tons quentes, iluminação lateral, fundo off-white. Excelente para campanha Jaleco Isabel na temporada frio.</div>
-          <div class="ref-card-meta"><span class="ref-card-source">@fotografamoda</span><span class="ref-card-tag">Inverno</span><span class="ref-card-date">18 mar</span></div>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="copy">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-instagram','cnt-ig')">✕</button>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-copy">✍ Copy</div>
-          <div class="ref-card-title">CTA de conversão — Instagram Bio</div>
-          <div class="ref-card-copy-text">"Jalecos exclusivos para profissionais de saúde que sabem que a imagem é parte do cuidado. ↓ Acesse o link e use o provador virtual."</div>
-          <div class="ref-card-meta"><span class="ref-card-source">Bio @danajalecos</span><span class="ref-card-tag">Bio</span><span class="ref-card-date">15 mar</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-primary btn-sm" style="flex:1;font-size:11px" onclick="copyText('Jalecos exclusivos para profissionais...')">📋 Copiar</button>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="video">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-instagram','cnt-ig')">✕</button>
-        <div class="ref-card-img short" style="background:linear-gradient(135deg,#ede9fe,#ddd6fe)">🎬</div>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-video">🎥 Vídeo</div>
-          <div class="ref-card-title">Carrossel animado — produto + preço + CTA</div>
-          <div class="ref-card-desc">Formato de carrossel com animação suave entre slides. CTR 18% acima da média.</div>
-          <div class="ref-card-url">instagram.com/p/C7xDEF456</div>
-          <div class="ref-card-meta"><span class="ref-card-source">@marcapremium</span><span class="ref-card-date">10 mar</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px">🔗 Abrir link</button>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="link">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-instagram','cnt-ig')">✕</button>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-link">🔗 Link</div>
-          <div class="ref-card-title">Calendário de conteúdo para saúde 2025</div>
-          <div class="ref-card-url">notionhq.com/template/calendar-saude-2025</div>
-          <div class="ref-card-desc">Template de planejamento mensal para perfis de saúde e medicina no Instagram.</div>
-          <div class="ref-card-meta"><span class="ref-card-source">Notion</span><span class="ref-card-date">5 mar</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px">🔗 Abrir</button>
-        </div>
-      </div>
-
-      <!-- Add slot -->
-      <div class="ref-add-card" onclick="openRefModal()">
-        <div class="ref-add-icon">+</div>
-        <div class="ref-add-title">Adicionar referência</div>
-        <div class="ref-add-sub">Foto, link, copy ou arquivo</div>
-      </div>
-
-    </div><!-- /masonry-instagram -->
+  <!-- ══════════ FACEBOOK ══════════ -->
+  <div class="ref-panel" id="ref-facebook">
+    <div class="ref-filter-bar">
+      <div class="ref-filter active" onclick="filterRef(this,'ref-facebook','todas')">Todos</div>
+      <div class="ref-filter" onclick="filterRef(this,'ref-facebook','foto')">📷 Fotos</div>
+      <div class="ref-filter" onclick="filterRef(this,'ref-facebook','video')">🎥 Vídeos</div>
+      <div class="ref-filter" onclick="filterRef(this,'ref-facebook','link')">🔗 Links</div>
+      <div class="ref-filter" onclick="filterRef(this,'ref-facebook','copy')">✍ Copies</div>
+      <div style="margin-left:auto"><div class="ref-stats"><div class="ref-stat"><div class="ref-stat-num" id="cnt-fb">0</div><div class="ref-stat-label">referências</div></div></div></div>
+    </div>
+    <div class="ref-masonry" id="masonry-facebook">
+      <div class="ref-add-card" onclick="openRefModal()"><div class="ref-add-icon">+</div><div class="ref-add-title">Adicionar referência Facebook</div><div class="ref-add-sub">Post, vídeo, link ou copy</div></div>
+    </div>
   </div>
 
   <!-- ══════════ TIKTOK ══════════ -->
@@ -4154,73 +4051,11 @@ window.addEventListener('load', () => {
       <div class="ref-filter" onclick="filterRef(this,'ref-tiktok','video')">🎥 Vídeos</div>
       <div class="ref-filter" onclick="filterRef(this,'ref-tiktok','link')">🔗 Links</div>
       <div class="ref-filter" onclick="filterRef(this,'ref-tiktok','copy')">✍ Copies</div>
-      <div style="margin-left:auto">
-        <div class="ref-stats"><div class="ref-stat"><div class="ref-stat-num" id="cnt-tt">4</div><div class="ref-stat-label">referências</div></div></div>
-      </div>
+      <div style="margin-left:auto"><div class="ref-stats"><div class="ref-stat"><div class="ref-stat-num" id="cnt-tt">0</div><div class="ref-stat-label">referências</div></div></div></div>
     </div>
     <div class="ref-masonry" id="masonry-tiktok">
-
-      <div class="ref-card" data-type="video">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-tiktok','cnt-tt')">✕</button>
-        <div class="ref-card-img tall" style="background:linear-gradient(135deg,#1a1a2e,#16213e)"><div style="font-size:36px">🎵</div></div>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-video">🎵 TikTok</div>
-          <div class="ref-card-title">POV: primeiro jaleco na faculdade — 2.8M views</div>
-          <div class="ref-card-desc">Formato POV com legenda emocional. Estudante vestindo jaleco pela 1ª vez. Alta taxa de compartilhamento e salvamento.</div>
-          <div class="ref-card-url">tiktok.com/@estudantemedicina/video/123</div>
-          <div class="ref-card-meta"><span class="ref-card-source">@estudantemedicina</span><span class="ref-card-tag">2.8M views</span><span class="ref-card-date">1 abr</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px">🔗 Abrir no TikTok</button>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="copy">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-tiktok','cnt-tt')">✕</button>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-copy">✍ Copy</div>
-          <div class="ref-card-title">Gancho TikTok — curiosidade + dor</div>
-          <div class="ref-card-copy-text">"Você sabia que o jaleco que você usa manda uma mensagem antes de você abrir a boca? 👩‍⚕️ Deixa eu te mostrar o que o seu jaleco diz sobre você..."</div>
-          <div class="ref-card-meta"><span class="ref-card-source">Inspiração TikTok</span><span class="ref-card-tag">Gancho</span><span class="ref-card-date">28 mar</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-primary btn-sm" style="flex:1;font-size:11px" onclick="copyText('Você sabia que o jaleco...')">📋 Copiar</button>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="video">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-tiktok','cnt-tt')">✕</button>
-        <div class="ref-card-img medium" style="background:linear-gradient(135deg,#1a1a2e,#0f3460)"><div style="font-size:32px">📱</div></div>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-video">🎵 TikTok</div>
-          <div class="ref-card-title">Get Ready With Me — odontologia</div>
-          <div class="ref-card-desc">GRWM de dentista mostrando a rotina matinal incluindo a escolha do scrub. Tendência com alta taxa de conversão para marcas de uniforme.</div>
-          <div class="ref-card-url">tiktok.com/@dra.dentista/video/456</div>
-          <div class="ref-card-meta"><span class="ref-card-source">@dra.dentista</span><span class="ref-card-tag">GRWM</span><span class="ref-card-date">20 mar</span></div>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="link">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-tiktok','cnt-tt')">✕</button>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-link">🔗 Link</div>
-          <div class="ref-card-title">Tendências TikTok para saúde Q2 2025</div>
-          <div class="ref-card-url">tiktok.com/business/trends-report-q2-2025</div>
-          <div class="ref-card-desc">Relatório oficial TikTok for Business com tendências de conteúdo para o segmento de saúde e bem-estar.</div>
-          <div class="ref-card-meta"><span class="ref-card-source">TikTok for Business</span><span class="ref-card-date">10 abr</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px">🔗 Abrir</button>
-        </div>
-      </div>
-
-      <div class="ref-add-card" onclick="openRefModal()">
-        <div class="ref-add-icon">+</div>
-        <div class="ref-add-title">Adicionar referência TikTok</div>
-        <div class="ref-add-sub">Vídeo, link ou copy</div>
-      </div>
-
-    </div><!-- /masonry-tiktok -->
+      <div class="ref-add-card" onclick="openRefModal()"><div class="ref-add-icon">+</div><div class="ref-add-title">Adicionar referência TikTok</div><div class="ref-add-sub">Vídeo, link ou copy</div></div>
+    </div>
   </div>
 
   <!-- ══════════ YOUTUBE ══════════ -->
@@ -4229,152 +4064,51 @@ window.addEventListener('load', () => {
       <div class="ref-filter active" onclick="filterRef(this,'ref-youtube','todas')">Todos</div>
       <div class="ref-filter" onclick="filterRef(this,'ref-youtube','video')">▶ Vídeos</div>
       <div class="ref-filter" onclick="filterRef(this,'ref-youtube','link')">🔗 Links</div>
-      <div style="margin-left:auto">
-        <div class="ref-stats"><div class="ref-stat"><div class="ref-stat-num" id="cnt-yt">3</div><div class="ref-stat-label">referências</div></div></div>
-      </div>
+      <div style="margin-left:auto"><div class="ref-stats"><div class="ref-stat"><div class="ref-stat-num" id="cnt-yt">0</div><div class="ref-stat-label">referências</div></div></div></div>
     </div>
     <div class="ref-masonry" id="masonry-youtube">
-
-      <div class="ref-card" data-type="video">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-youtube','cnt-yt')">✕</button>
-        <div class="ref-card-img tall" style="background:linear-gradient(135deg,#dc2626,#b91c1c)"><div style="font-size:36px">▶</div></div>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-video">▶ YouTube</div>
-          <div class="ref-card-title">Rotina de médica residente — 1 dia real</div>
-          <div class="ref-card-desc">Vlog autêntico com 890k views. Mostra o scrub como parte integral da identidade profissional. Alta taxa de comentários sobre a peça.</div>
-          <div class="ref-card-url">youtube.com/watch?v=xABC123</div>
-          <div class="ref-card-meta"><span class="ref-card-source">Canal Medicina Real</span><span class="ref-card-tag">890k views</span><span class="ref-card-date">15 mar</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px">▶ Assistir</button>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="video">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-youtube','cnt-yt')">✕</button>
-        <div class="ref-card-img medium" style="background:linear-gradient(135deg,#dc2626,#7f1d1d)"><div style="font-size:32px">🎬</div></div>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-video">▶ YouTube</div>
-          <div class="ref-card-title">Como criar conteúdo para profissional de saúde — tutorial</div>
-          <div class="ref-card-desc">Guia completo de produção de conteúdo para médicos e enfermeiros no YouTube. Inclui dicas de iluminação e roteiro.</div>
-          <div class="ref-card-url">youtube.com/watch?v=yDEF456</div>
-          <div class="ref-card-meta"><span class="ref-card-source">Marketing Médico</span><span class="ref-card-date">8 mar</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px">▶ Assistir</button>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="link">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-youtube','cnt-yt')">✕</button>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-link">🔗 Link</div>
-          <div class="ref-card-title">Canal de referência: Moda Profissional Saúde</div>
-          <div class="ref-card-url">youtube.com/@modaprofissionalhealth</div>
-          <div class="ref-card-desc">Canal com 120k inscritos focado em moda médica. Ótima referência de posicionamento e conteúdo educativo.</div>
-          <div class="ref-card-meta"><span class="ref-card-source">YouTube</span><span class="ref-card-tag">Canal</span><span class="ref-card-date">1 mar</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px">▶ Acessar canal</button>
-        </div>
-      </div>
-
-      <div class="ref-add-card" onclick="openRefModal()">
-        <div class="ref-add-icon">+</div>
-        <div class="ref-add-title">Adicionar referência YouTube</div>
-        <div class="ref-add-sub">Vídeo ou link de canal</div>
-      </div>
-
-    </div><!-- /masonry-youtube -->
+      <div class="ref-add-card" onclick="openRefModal()"><div class="ref-add-icon">+</div><div class="ref-add-title">Adicionar referência YouTube</div><div class="ref-add-sub">Vídeo ou link de canal</div></div>
+    </div>
   </div>
 
-  <!-- ══════════ GERAL ══════════ -->
-  <div class="ref-panel" id="ref-geral">
+  <!-- ══════════ PINTEREST ══════════ -->
+  <div class="ref-panel" id="ref-pinterest">
     <div class="ref-filter-bar">
-      <div class="ref-filter active" onclick="filterRef(this,'ref-geral','todas')">Todos</div>
-      <div class="ref-filter" onclick="filterRef(this,'ref-geral','foto')">📷 Fotos</div>
-      <div class="ref-filter" onclick="filterRef(this,'ref-geral','link')">🔗 Links</div>
-      <div class="ref-filter" onclick="filterRef(this,'ref-geral','copy')">✍ Copies</div>
-      <div class="ref-filter" onclick="filterRef(this,'ref-geral','arquivo')">📁 Arquivos</div>
-      <div style="margin-left:auto">
-        <div class="ref-stats"><div class="ref-stat"><div class="ref-stat-num" id="cnt-ge">5</div><div class="ref-stat-label">referências</div></div></div>
-      </div>
+      <div class="ref-filter active" onclick="filterRef(this,'ref-pinterest','todas')">Todos</div>
+      <div class="ref-filter" onclick="filterRef(this,'ref-pinterest','foto')">📷 Pins</div>
+      <div class="ref-filter" onclick="filterRef(this,'ref-pinterest','link')">🔗 Boards</div>
+      <div style="margin-left:auto"><div class="ref-stats"><div class="ref-stat"><div class="ref-stat-num" id="cnt-pi">0</div><div class="ref-stat-label">referências</div></div></div></div>
     </div>
-    <div class="ref-masonry" id="masonry-geral">
+    <div class="ref-masonry" id="masonry-pinterest">
+      <div class="ref-add-card" onclick="openRefModal()"><div class="ref-add-icon">+</div><div class="ref-add-title">Adicionar referência Pinterest</div><div class="ref-add-sub">Pin, board ou moodboard</div></div>
+    </div>
+  </div>
 
-      <div class="ref-card" data-type="arquivo">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-geral','cnt-ge')">✕</button>
-        <div class="ref-card-img short" style="background:linear-gradient(135deg,#f1f5f9,#e2e8f0)"><div style="font-size:36px">📋</div></div>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-arquivo">📁 Arquivo</div>
-          <div class="ref-card-title">Guia de identidade visual Dana 2025 — PDF</div>
-          <div class="ref-card-desc">Manual interno com cores, tipografia, espaçamento, tom de voz e exemplos de aplicação da marca Dana.</div>
-          <div class="ref-card-meta"><span class="ref-card-source">Interno Dana</span><span class="ref-card-tag">Branding</span><span class="ref-card-date">Jan 2025</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-primary btn-sm" style="flex:1;font-size:11px">⬇ Baixar PDF</button>
-        </div>
-      </div>
+  <!-- ══════════ LINKEDIN ══════════ -->
+  <div class="ref-panel" id="ref-linkedin">
+    <div class="ref-filter-bar">
+      <div class="ref-filter active" onclick="filterRef(this,'ref-linkedin','todas')">Todos</div>
+      <div class="ref-filter" onclick="filterRef(this,'ref-linkedin','link')">🔗 Posts</div>
+      <div class="ref-filter" onclick="filterRef(this,'ref-linkedin','copy')">✍ Copies</div>
+      <div style="margin-left:auto"><div class="ref-stats"><div class="ref-stat"><div class="ref-stat-num" id="cnt-li">0</div><div class="ref-stat-label">referências</div></div></div></div>
+    </div>
+    <div class="ref-masonry" id="masonry-linkedin">
+      <div class="ref-add-card" onclick="openRefModal()"><div class="ref-add-icon">+</div><div class="ref-add-title">Adicionar referência LinkedIn</div><div class="ref-add-sub">Post, artigo ou copy</div></div>
+    </div>
+  </div>
 
-      <div class="ref-card" data-type="link">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-geral','cnt-ge')">✕</button>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-link">🔗 Link</div>
-          <div class="ref-card-title">Referências de packaging premium — Behance</div>
-          <div class="ref-card-url">behance.net/search/projects/medical+packaging</div>
-          <div class="ref-card-desc">Coleção de projetos de embalagem premium para marcas de saúde e bem-estar. Referência para embalagem reciclável Dana.</div>
-          <div class="ref-card-meta"><span class="ref-card-source">Behance</span><span class="ref-card-tag">Packaging</span><span class="ref-card-date">20 fev</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px">🔗 Abrir</button>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="copy">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-geral','cnt-ge')">✕</button>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-copy">✍ Copy</div>
-          <div class="ref-card-title">Email de pós-venda — sequência 3 mensagens</div>
-          <div class="ref-card-copy-text">D+1: "Seu jaleco Dana está a caminho! 📦"<br>D+3: "Chegou? Conta como foi o unboxing 🎁"<br>D+15: "Já usou no trabalho? Adoraríamos ver sua foto 📸"</div>
-          <div class="ref-card-meta"><span class="ref-card-source">CRM Dana</span><span class="ref-card-tag">Email</span><span class="ref-card-date">15 fev</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-primary btn-sm" style="flex:1;font-size:11px" onclick="copyText('D+1: Seu jaleco Dana está a caminho...')">📋 Copiar</button>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="foto">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-geral','cnt-ge')">✕</button>
-        <div class="ref-card-img medium" style="background:linear-gradient(135deg,#f9fafb,#e5e7eb)"><div style="font-size:36px">🖼</div></div>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-foto">📷 Foto</div>
-          <div class="ref-card-title">Moodboard campanha inverno — tons quentes</div>
-          <div class="ref-card-desc">Coleção de referências visuais para a campanha de inverno. Tons caramelo, bordô e preto com fundos texturizados.</div>
-          <div class="ref-card-meta"><span class="ref-card-source">Moodboard interno</span><span class="ref-card-tag">Inverno 2025</span><span class="ref-card-date">10 fev</span></div>
-        </div>
-      </div>
-
-      <div class="ref-card" data-type="arquivo">
-        <button class="ref-del-btn" onclick="delRef(this,'masonry-geral','cnt-ge')">✕</button>
-        <div class="ref-card-img short" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5)"><div style="font-size:36px">📊</div></div>
-        <div class="ref-card-body">
-          <div class="ref-card-type ref-type-arquivo">📁 Arquivo</div>
-          <div class="ref-card-title">Planilha de benchmarking — concorrentes Q1</div>
-          <div class="ref-card-desc">Análise comparativa de preços, produtos, posicionamento e estratégia de conteúdo dos principais concorrentes.</div>
-          <div class="ref-card-meta"><span class="ref-card-source">Interno Dana</span><span class="ref-card-tag">Análise</span><span class="ref-card-date">5 fev</span></div>
-        </div>
-        <div class="ref-card-actions">
-          <button class="btn btn-primary btn-sm" style="flex:1;font-size:11px">⬇ Baixar XLS</button>
-        </div>
-      </div>
-
-      <div class="ref-add-card" onclick="openRefModal()">
-        <div class="ref-add-icon">+</div>
-        <div class="ref-add-title">Adicionar referência geral</div>
-        <div class="ref-add-sub">Foto, link, copy ou arquivo</div>
-      </div>
-
-    </div><!-- /masonry-geral -->
+  <!-- ══════════ BLOG DANA ══════════ -->
+  <div class="ref-panel" id="ref-blog">
+    <div class="ref-filter-bar">
+      <div class="ref-filter active" onclick="filterRef(this,'ref-blog','todas')">Todos</div>
+      <div class="ref-filter" onclick="filterRef(this,'ref-blog','link')">🔗 Artigos</div>
+      <div class="ref-filter" onclick="filterRef(this,'ref-blog','copy')">✍ Rascunhos</div>
+      <div class="ref-filter" onclick="filterRef(this,'ref-blog','arquivo')">📁 Materiais</div>
+      <div style="margin-left:auto"><div class="ref-stats"><div class="ref-stat"><div class="ref-stat-num" id="cnt-bl">0</div><div class="ref-stat-label">referências</div></div></div></div>
+    </div>
+    <div class="ref-masonry" id="masonry-blog">
+      <div class="ref-add-card" onclick="openRefModal()"><div class="ref-add-icon">+</div><div class="ref-add-title">Adicionar referência Blog</div><div class="ref-add-sub">Artigo, rascunho ou material</div></div>
+    </div>
   </div>
 
 </div><!-- /padding -->
