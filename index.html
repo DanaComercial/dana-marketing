@@ -6871,10 +6871,11 @@ async function loadTarefas() {
       const cards = _tarefasCache.filter(t => t.coluna === col);
       const color = COL_COLORS[col] || 'var(--grey5)';
       const label = COL_LABELS[col] || col;
-      const dragCol = canCreate ? `draggable="true" ondragstart="dragColStart(event,'${col}')" ondragover="dragColOver(event)" ondrop="dragColDrop(event,'${col}')" style="cursor:grab"` : '';
-      return `<div class="kanban-col" data-col="${col}" ondragover="dragOver(event)" ondrop="drop(event,'${col}')">
-        <div class="kanban-col-head" ${dragCol} title="${canCreate ? 'Arraste para reordenar' : ''}"><div class="kanban-col-title"><div class="k-dot" style="background:${color}"></div>${esc(label)}</div><div class="kanban-count">${cards.length}</div></div>
-        <div class="kanban-body" id="col-${col}">${cards.map(t => renderKanbanCard(t)).join('')}</div>
+      const colDrag = canCreate ? `ondragover="dragColOver(event,'${col}')" ondragleave="dragColLeave(event)" ondrop="dragColDrop(event,'${col}')"` : `ondragover="dragOver(event)" ondrop="drop(event,'${col}')"`;
+      const headDrag = canCreate ? `draggable="true" ondragstart="dragColStart(event,'${col}')" ondragend="dragColEnd()" style="cursor:grab;user-select:none"` : '';
+      return `<div class="kanban-col" data-col="${col}" ${colDrag}>
+        <div class="kanban-col-head" ${headDrag} title="${canCreate ? 'Arraste a coluna para reordenar' : ''}"><div class="kanban-col-title"><div class="k-dot" style="background:${color}"></div>${esc(label)}</div><div class="kanban-count">${cards.length}</div></div>
+        <div class="kanban-body" id="col-${col}" ondragover="dragOver(event);event.stopPropagation()" ondrop="drop(event,'${col}');event.stopPropagation()">${cards.map(t => renderKanbanCard(t)).join('')}</div>
         ${canCreate ? '<div class="kanban-add" onclick="addCard(\''+col+'\')">+ Adicionar</div>' : ''}
       </div>`;
     }).join('');
@@ -7256,7 +7257,7 @@ async function criarColuna() {
   }
 }
 
-// ── DRAG & DROP DE COLUNAS ──
+// ── DRAG & DROP DE COLUNAS (com atualização otimista) ──
 let _dragColKey = null;
 
 function dragColStart(e, coluna) {
@@ -7264,23 +7265,47 @@ function dragColStart(e, coluna) {
   _dragColKey = coluna;
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/col', coluna);
-  // Evitar que o drag seja de card
-  e.stopPropagation();
+  // Visual feedback
+  const colEl = document.querySelector('[data-col="'+coluna+'"]');
+  if (colEl) colEl.style.opacity = '0.5';
 }
 
-function dragColOver(e) {
-  if (_dragColKey) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.stopPropagation(); }
+function dragColEnd() {
+  document.querySelectorAll('.kanban-col').forEach(el => { el.style.opacity = ''; el.style.borderColor = ''; });
+  _dragColKey = null;
+}
+
+function dragColOver(e, coluna) {
+  if (!_dragColKey) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  // Destacar coluna alvo
+  const colEl = e.currentTarget;
+  if (colEl && colEl.classList.contains('kanban-col') && coluna !== _dragColKey) {
+    document.querySelectorAll('.kanban-col').forEach(el => {
+      if (el !== colEl) el.style.borderColor = '';
+    });
+    colEl.style.borderColor = 'var(--blue)';
+  }
+}
+
+function dragColLeave(e) {
+  // Só limpar se saiu mesmo da coluna (não foi pra dentro de um filho)
+  const colEl = e.currentTarget;
+  const toEl = e.relatedTarget;
+  if (colEl && (!toEl || !colEl.contains(toEl))) {
+    colEl.style.borderColor = '';
+  }
 }
 
 async function dragColDrop(e, colunaDestino) {
   e.preventDefault();
-  e.stopPropagation();
-  if (!_dragColKey || _dragColKey === colunaDestino) { _dragColKey = null; return; }
-  if (!podeCriarTarefa()) return;
+  if (!_dragColKey || _dragColKey === colunaDestino) { dragColEnd(); return; }
+  if (!podeCriarTarefa()) { dragColEnd(); return; }
   const origem = _dragColKey;
-  _dragColKey = null;
+  dragColEnd();
 
-  // Pegar ordem atual de todas as colunas visíveis
+  // Pegar ordem atual no DOM
   const visCols = [];
   document.querySelectorAll('#kanban-board .kanban-col').forEach(el => {
     const c = el.getAttribute('data-col');
@@ -7288,31 +7313,39 @@ async function dragColDrop(e, colunaDestino) {
   });
 
   const idxOrigem = visCols.indexOf(origem);
-  const idxDestino = visCols.indexOf(colunaDestino);
-  if (idxOrigem === -1 || idxDestino === -1) return;
-
-  // Remover origem e inserir antes do destino
+  if (idxOrigem === -1) return;
   visCols.splice(idxOrigem, 1);
   const newDestIdx = visCols.indexOf(colunaDestino);
+  if (newDestIdx === -1) return;
   visCols.splice(newDestIdx, 0, origem);
 
-  // Salvar ordens no banco (garantindo que todas existam na tabela)
-  for (let i = 0; i < visCols.length; i++) {
-    const col = visCols[i];
-    const existing = _colunasCustom.find(c => c.coluna === col);
+  // ATUALIZAÇÃO OTIMISTA: reorganizar o DOM na hora sem esperar DB
+  const board = document.getElementById('kanban-board');
+  const colElements = {};
+  board.querySelectorAll('.kanban-col').forEach(el => {
+    const c = el.getAttribute('data-col');
+    if (c) colElements[c] = el;
+  });
+  // Remover todos e re-anexar na nova ordem
+  visCols.forEach(c => { if (colElements[c]) board.appendChild(colElements[c]); });
+
+  // Atualizar cache local
+  visCols.forEach((col, i) => {
+    let existing = _colunasCustom.find(c => c.coluna === col);
     if (existing) {
       existing.ordem = i;
-      await sb.from('kanban_colunas').update({ ordem: i }).eq('coluna', col);
     } else {
-      // Criar entrada para coluna padrão/Trello para poder reordenar
-      const label = COL_LABELS[col] || col;
-      const cor = COL_COLORS[col] || '#1a4fa0';
-      await sb.from('kanban_colunas').upsert({ coluna: col, label, cor, ordem: i, escondida: false }, { onConflict: 'coluna' });
-      _colunasCustom.push({ coluna: col, label, cor, ordem: i, escondida: false });
+      _colunasCustom.push({ coluna: col, label: COL_LABELS[col] || col, cor: COL_COLORS[col] || '#1a4fa0', ordem: i, escondida: false });
     }
-  }
+  });
 
-  loadTarefas();
+  // Persistir em paralelo no banco (sem bloquear UI)
+  const promises = visCols.map((col, i) => {
+    const label = COL_LABELS[col] || col;
+    const cor = COL_COLORS[col] || '#1a4fa0';
+    return sb.from('kanban_colunas').upsert({ coluna: col, label, cor, ordem: i, escondida: false }, { onConflict: 'coluna' });
+  });
+  try { await Promise.all(promises); } catch(err) { console.error('Reorder error:', err); }
 }
 
 async function moverColuna(coluna, direcao) {
