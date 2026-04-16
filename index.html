@@ -4364,6 +4364,7 @@ function submitRef() {
 
   closeRefModal();
   showRefToast('Referência adicionada! ✓', 'success');
+  logActivity('criou_referencia', titulo + ' (' + canal + ')', 'referencias');
 
   // Reset form
   document.getElementById('ref-titulo').value = '';
@@ -4375,6 +4376,8 @@ function submitRef() {
 function delRef(btn, masonryId, cntId) {
   const card = btn.closest('.ref-card');
   if(!card) return;
+  const title = card.querySelector('.ref-card-title')?.textContent || '';
+  logActivity('excluiu_referencia', title, 'referencias');
   card.style.transition = 'all .25s ease';
   card.style.opacity = '0';
   card.style.transform = 'scale(0.95)';
@@ -6624,6 +6627,7 @@ async function loadAlertas() {
 }
 
 async function marcarAlertaLido(id, el) {
+  logActivity('leu_alerta', 'Alerta #' + id, 'alertas');
   if(el) el.classList.remove('unread');
   await sb.from('alertas').update({ lido: true }).eq('id', id);
   const countLabel = document.getElementById('alertas-count-label');
@@ -6690,13 +6694,16 @@ async function createTask() {
   if(document.getElementById('task-title')) document.getElementById('task-title').value = '';
   loadTarefas();
   showToast('Tarefa criada');
+  logActivity('criou_tarefa', titulo, 'tarefas');
 }
 
 async function deleteTarefa(id) {
   if(!confirm('Excluir esta tarefa?')) return;
+  const tarefa = _tarefasCache.find(t => t.id === id);
   await sb.from('tarefas').delete().eq('id', id);
   loadTarefas();
   showToast('Tarefa excluída');
+  logActivity('excluiu_tarefa', tarefa?.titulo || id, 'tarefas');
 }
 
 function drag(e) {
@@ -7099,6 +7106,7 @@ async function salvarEvento() {
   document.getElementById('evt-desc').value = '';
   loadCalendario();
   showToast('Evento criado');
+  logActivity('criou_evento', titulo + ' (' + tipo + ')', 'calendario');
 }
 
 // ── KEYWORD DISCOVERY (estilo AnswerThePublic) ──
@@ -9439,6 +9447,7 @@ function approveArt(btn) {
   const abadge = document.getElementById('badge-aprovados');
   if(abadge) abadge.textContent = apCount;
   showToastDMS('✅ Arte aprovada com sucesso!', 'success');
+  logActivity('aprovou_arte', card?.querySelector('.cr-title')?.textContent || '', 'criativos');
 }
 function reproveArt(btn) {
   const card = btn.closest('.cr-card');
@@ -9453,6 +9462,7 @@ function sendFeedback(btn) {
   const badge = document.getElementById('badge-pendentes');
   if(badge) badge.textContent = Math.max(0, parseInt(badge.textContent||'0') - 1);
   showToastDMS('💬 Feedback enviado ao designer!', '');
+  logActivity('enviou_feedback', txt?.substring(0,50) || '', 'criativos');
 }
 function scheduleArt(btn) {
   const date = prompt('Data e hora de publicação (Ex: 15/04 18:00):');
@@ -9460,6 +9470,7 @@ function scheduleArt(btn) {
     const row = btn.closest('.cr-pub-row');
     if(row) { btn.remove(); const info = row.querySelector('div'); if(info) { info.textContent='Agendado · ' + date; info.style.color='var(--amber)'; info.style.fontWeight='700'; } }
     showToastDMS('📅 Arte agendada para ' + date, 'success');
+  logActivity('agendou_arte', 'Agendada para ' + date, 'criativos');
   }
 }
 function unscheduleArt(btn) {
@@ -9478,6 +9489,7 @@ function closeCrModal(type) {
 function submitArt() {
   closeCrModal('upload');
   showToastDMS('🎨 Arte enviada para aprovação!', 'success');
+  logActivity('enviou_arte', 'Arte enviada para aprovação', 'criativos');
 }
 function completeTodo(checkEl) {
   const item = checkEl.closest('.todo-item');
