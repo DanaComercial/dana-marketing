@@ -6183,9 +6183,10 @@ updateDynamicField('foto');
     </div>
     <div id="vt-links" style="margin-bottom:12px"></div>
     <div id="vt-checklist" style="margin-bottom:12px"></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-primary" onclick="salvarTarefaEdit()" style="flex:1">Salvar</button>
-      <button class="btn btn-ghost" onclick="deleteTarefaFromModal()" style="color:var(--red);border-color:var(--red)">Excluir</button>
+    <div style="display:flex;gap:8px" id="vt-botoes">
+      <button class="btn btn-primary" onclick="salvarTarefaEdit()" style="flex:1" id="vt-btn-salvar">Salvar</button>
+      <button class="btn btn-ghost" onclick="closeModal('ver-tarefa')" id="vt-btn-fechar" style="display:none;flex:1">Fechar</button>
+      <button class="btn btn-ghost" onclick="deleteTarefaFromModal()" style="color:var(--red);border-color:var(--red)" id="vt-btn-excluir">Excluir</button>
     </div>
   </div>
 </div>
@@ -6974,6 +6975,7 @@ function abrirNovaTarefa() {
 
 async function toggleConcluido(id, event) {
   if (event) event.stopPropagation();
+  if (!podeCriarTarefa()) { showToast('Voce nao tem permissao para marcar tarefas'); return; }
   const t = _tarefasCache.find(x => x.id === id);
   if (!t) return;
   const novoStatus = !t.concluido;
@@ -7033,6 +7035,7 @@ let _editingTaskId = null;
 let _editingLinkId = null;
 
 function renomearLink(id) {
+  if (!podeCriarTarefa()) { showToast('Voce nao tem permissao para editar'); return; }
   const t = _tarefasCache.find(x => x.id === id);
   if (!t) return;
   _editingLinkId = id;
@@ -7223,6 +7226,29 @@ function openTarefa(id) {
       ).join('')}</div>`;
   } else { checkEl.innerHTML = ''; }
 
+  // Aplicar permissões nos botões e campos
+  const canEdit = podeCriarTarefa();
+  const canDelete = podeExcluirTarefa();
+  const btnSalvar = document.getElementById('vt-btn-salvar');
+  const btnExcluir = document.getElementById('vt-btn-excluir');
+  const btnFechar = document.getElementById('vt-btn-fechar');
+  if (btnSalvar) btnSalvar.style.display = canEdit ? '' : 'none';
+  if (btnExcluir) btnExcluir.style.display = canDelete ? '' : 'none';
+  if (btnFechar) btnFechar.style.display = (!canEdit && !canDelete) ? '' : 'none';
+
+  // Tornar campos read-only se não pode editar
+  ['vt-tag','vt-prio','vt-resp','vt-prazo'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.disabled = !canEdit; el.style.opacity = canEdit ? '1' : '0.7'; el.style.cursor = canEdit ? '' : 'not-allowed'; }
+  });
+  // Descrição só é editável se tem permissão
+  const descView = document.getElementById('vt-desc-view');
+  if (descView) {
+    descView.style.cursor = canEdit ? 'pointer' : 'default';
+    descView.title = canEdit ? 'Clique para editar' : '';
+    descView.onclick = canEdit ? vtEditDesc : null;
+  }
+
   openModal('ver-tarefa');
 }
 
@@ -7248,6 +7274,7 @@ function vtEditDesc() {
 
 async function salvarTarefaEdit() {
   if (!_editingTaskId) return;
+  if (!podeCriarTarefa()) { showToast('Voce nao tem permissao para editar tarefas'); return; }
   const descEdit = document.getElementById('vt-desc-edit');
   const updates = {
     descricao: descEdit ? descEdit.value : '',
@@ -7264,10 +7291,17 @@ async function salvarTarefaEdit() {
 }
 
 async function deleteTarefaFromModal() {
-  if (!_editingTaskId || !confirm('Excluir esta tarefa?')) return;
-  await deleteTarefa(_editingTaskId);
+  if (!_editingTaskId) return;
+  if (!podeExcluirTarefa()) { showToast('Voce nao tem permissao para excluir tarefas'); return; }
+  if (!confirm('Excluir esta tarefa?')) return;
+  const id = _editingTaskId;
+  const tarefa = _tarefasCache.find(t => t.id === id);
+  await sb.from('tarefas').delete().eq('id', id);
   closeModal('ver-tarefa');
   _editingTaskId = null;
+  loadTarefas();
+  showToast('Tarefa excluída');
+  logActivity('excluiu_tarefa', tarefa?.titulo || id, 'tarefas');
 }
 
 // Popular select de colunas no modal nova tarefa
@@ -7287,6 +7321,7 @@ function populateColSelect() {
 }
 
 async function deleteTarefa(id) {
+  if (!podeExcluirTarefa()) { showToast('Voce nao tem permissao para excluir tarefas'); return; }
   if(!confirm('Excluir esta tarefa?')) return;
   const tarefa = _tarefasCache.find(t => t.id === id);
   await sb.from('tarefas').delete().eq('id', id);
@@ -7296,11 +7331,13 @@ async function deleteTarefa(id) {
 }
 
 function drag(e) {
+  if (!podeCriarTarefa()) { e.preventDefault(); return; }
   e.dataTransfer.setData('text/plain', e.target.dataset?.id || e.target.id);
 }
 function dragOver(e) { e.preventDefault(); }
 async function drop(e, colId) {
   e.preventDefault();
+  if (!podeCriarTarefa()) { showToast('Voce nao tem permissao para mover tarefas'); return; }
   const taskId = e.dataTransfer.getData('text/plain');
   if(!taskId) return;
   const realId = taskId.replace('task-','');
