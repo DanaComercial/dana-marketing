@@ -5572,7 +5572,7 @@ updateDynamicField('foto');
 <div style="padding:24px 28px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
     <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">Calendário de Campanhas</div><div style="font-size:12.5px;color:var(--text3);margin-top:3px">Planeje promoções, lançamentos e eventos</div></div>
-    <button class="btn btn-primary btn-sm" onclick="openModal('novo-evento')">+ Novo Evento</button>
+    <button class="btn btn-primary btn-sm" onclick="abrirNovoEvento()" id="btn-novo-evento">+ Novo Evento</button>
   </div>
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
@@ -6115,6 +6115,34 @@ updateDynamicField('foto');
 </div>
 
 <!-- Modal: Ver/Editar Tarefa -->
+<!-- Modal: Ver Evento (bonito) -->
+<div class="modal-overlay" id="modal-ver-evento">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <div class="modal-title" style="display:flex;align-items:center;gap:8px">
+        <span id="ve-icon" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#dcfce7;color:#15803d;font-size:16px">📅</span>
+        <span id="ve-titulo">Evento</span>
+      </div>
+      <button class="modal-close" onclick="closeModal('ver-evento')">×</button>
+    </div>
+    <div style="margin-bottom:14px">
+      <span id="ve-tipo-badge" style="display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--surface2);color:var(--text2)"></span>
+    </div>
+    <div style="margin-bottom:14px" id="ve-datas-container">
+      <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Data</label>
+      <div id="ve-datas" style="font-size:13px;color:var(--text2)"></div>
+    </div>
+    <div style="margin-bottom:16px" id="ve-desc-container">
+      <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Descrição</label>
+      <div id="ve-desc" style="font-size:13px;color:var(--text2);line-height:1.6;padding:10px;background:var(--surface2);border-radius:8px;max-height:200px;overflow-y:auto"></div>
+    </div>
+    <div style="display:flex;gap:8px" id="ve-actions">
+      <button class="btn btn-ghost" onclick="closeModal('ver-evento')" style="flex:1">Fechar</button>
+      <button class="btn btn-ghost" id="ve-delete-btn" onclick="excluirEventoAtual()" style="color:var(--red);border-color:var(--red);display:none">Excluir</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Editar Link (bonito) -->
 <div class="modal-overlay" id="modal-editar-link">
   <div class="modal" style="max-width:440px">
@@ -7535,6 +7563,9 @@ async function loadCalendario() {
     const { data } = await sb.from('calendario').select('*').order('data_inicio');
     _eventosCache = data || [];
     renderCalendario();
+    // Mostrar/esconder botão Novo Evento conforme permissão
+    const btn = document.getElementById('btn-novo-evento');
+    if (btn) btn.style.display = podeCriarEvento() ? '' : 'none';
   } catch(e) { console.warn('Calendario error:', e.message); }
 }
 
@@ -7600,11 +7631,72 @@ function renderCalendario() {
   grid.innerHTML = html;
 }
 
-async function editarEvento(id) {
+let _viewingEventoId = null;
+
+function editarEvento(id) {
   const evt = _eventosCache.find(e => e.id === id);
   if (!evt) return;
+  _viewingEventoId = id;
+
+  const tiposConfig = {
+    campanha:  { icon: '📣', cor: '#0a0a0a', bg: '#f3f4f6', label: 'Campanha' },
+    promocao:  { icon: '🎁', cor: '#15803d', bg: '#dcfce7', label: 'Promoção' },
+    lancamento:{ icon: '🚀', cor: '#1d4ed8', bg: '#dbeafe', label: 'Lançamento' },
+    evento:    { icon: '🎪', cor: '#b45309', bg: '#fef3c7', label: 'Evento' },
+    deadline:  { icon: '⏰', cor: '#dc2626', bg: '#fee2e2', label: 'Deadline' },
+    feriado:   { icon: '🎉', cor: '#6b7280', bg: '#f3f4f6', label: 'Feriado' },
+  };
+  const cfg = tiposConfig[evt.tipo] || tiposConfig.evento;
+
+  const iconEl = document.getElementById('ve-icon');
+  iconEl.textContent = cfg.icon;
+  iconEl.style.background = cfg.bg;
+  iconEl.style.color = cfg.cor;
+  document.getElementById('ve-titulo').textContent = evt.titulo;
+
+  const badge = document.getElementById('ve-tipo-badge');
+  badge.textContent = cfg.icon + ' ' + cfg.label;
+  badge.style.background = cfg.bg;
+  badge.style.color = cfg.cor;
+
+  // Datas
+  const fmtData = (d) => {
+    if (!d) return '';
+    const dt = new Date(d + 'T12:00:00');
+    return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  };
+  const datasEl = document.getElementById('ve-datas');
+  if (evt.data_fim && evt.data_fim !== evt.data_inicio) {
+    datasEl.innerHTML = fmtData(evt.data_inicio) + ' <span style="color:var(--text4)">até</span> ' + fmtData(evt.data_fim);
+  } else {
+    datasEl.innerHTML = fmtData(evt.data_inicio);
+  }
+
+  // Descrição
+  const descCont = document.getElementById('ve-desc-container');
+  const descEl = document.getElementById('ve-desc');
+  if (evt.descricao && evt.descricao.trim()) {
+    descCont.style.display = '';
+    descEl.innerHTML = evt.descricao.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color:var(--blue)">$1</a>');
+  } else {
+    descCont.style.display = 'none';
+  }
+
+  // Botão excluir só para quem tem permissão
+  const canDelete = userPermissoes['calendario_excluir'] !== false || currentProfile?.cargo === 'admin';
+  document.getElementById('ve-delete-btn').style.display = canDelete ? '' : 'none';
+
+  openModal('ver-evento');
+}
+
+async function excluirEventoAtual() {
+  if (!_viewingEventoId) return;
+  const evt = _eventosCache.find(e => e.id === _viewingEventoId);
+  if (!evt) return;
   if (!confirm('Deseja excluir o evento "' + evt.titulo + '"?')) return;
-  await sb.from('calendario').delete().eq('id', id);
+  await sb.from('calendario').delete().eq('id', _viewingEventoId);
+  closeModal('ver-evento');
+  _viewingEventoId = null;
   loadCalendario();
   showToast('Evento excluído');
   logActivity('excluiu_evento', evt.titulo, 'calendario');
@@ -7617,7 +7709,24 @@ function navegarMes(dir) {
   renderCalendario();
 }
 
+function podeCriarEvento() {
+  return userPermissoes['calendario_criar'] !== false || currentProfile?.cargo === 'admin';
+}
+function podeExcluirEvento() {
+  return userPermissoes['calendario_excluir'] !== false || currentProfile?.cargo === 'admin';
+}
+
+function abrirNovoEvento() {
+  if (!podeCriarEvento()) {
+    showToast('Voce nao tem permissao para criar eventos');
+    return;
+  }
+  document.getElementById('evt-inicio').value = '';
+  openModal('novo-evento');
+}
+
 function calDiaClick(dateStr) {
+  if (!podeCriarEvento()) return; // Clicar no dia não faz nada se não tem permissão
   document.getElementById('evt-inicio').value = dateStr;
   openModal('novo-evento');
 }
@@ -8912,8 +9021,13 @@ async function loadAdminPermissoes() {
   if (!_permData.length) { container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">Nenhuma permissao configurada</div>'; return; }
 
   const cargos = [...new Set(_permData.map(p => p.cargo))].filter(c => c !== 'admin');
-  const secoes = [...new Set(_permData.map(p => p.secao))].filter(s => s !== 'admin');
-  const secaoLabels = {...VIEW_META};
+  let secoes = [...new Set(_permData.map(p => p.secao))].filter(s => s !== 'admin');
+  // Garantir que permissoes de ações existem
+  ['calendario_criar','calendario_excluir'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
+  const secaoLabels = {...VIEW_META,
+    calendario_criar: { title: '✏️ Criar Eventos (Calendário)' },
+    calendario_excluir: { title: '🗑 Excluir Eventos (Calendário)' },
+  };
   const map = {};
   _permData.forEach(p => { map[p.cargo+'_'+p.secao] = p; });
 
