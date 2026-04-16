@@ -6090,6 +6090,25 @@ updateDynamicField('foto');
     <div id="nt-task-fields">
       <div class="form-row"><label class="label">Título da tarefa</label><input class="input" id="new-task-title" placeholder="Descreva a tarefa..."></div>
       <div class="form-row"><label class="label">Descrição</label><textarea class="input" id="new-task-desc" rows="3" placeholder="Detalhes, links, observações..."></textarea></div>
+
+      <!-- Anexos (imagens + links) -->
+      <div class="form-row">
+        <label class="label">Imagens e Anexos <span style="font-size:10px;color:var(--text4)">(opcional)</span></label>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('nt-file-input').click()" style="flex:1">📷 Escolher imagem</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="nt_togglePasteUrl()" style="flex:1">🔗 Colar link</button>
+        </div>
+        <input type="file" id="nt-file-input" accept="image/*" multiple style="display:none" onchange="nt_uploadFiles(this.files)">
+        <div id="nt-paste-url" style="display:none;margin-bottom:8px">
+          <div style="display:flex;gap:6px">
+            <input class="input" type="url" id="nt-url-input" placeholder="https://..." style="flex:1">
+            <button type="button" class="btn btn-primary btn-sm" onclick="nt_addUrl()">Adicionar</button>
+          </div>
+        </div>
+        <div id="nt-preview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px"></div>
+        <div id="nt-upload-status" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
+      </div>
+
       <div class="form-row-2">
         <div><label class="label">Coluna</label><select class="input" id="new-task-col"></select></div>
         <div><label class="label">Prioridade</label><select class="input" id="new-task-prio"><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select></div>
@@ -6965,11 +6984,72 @@ function autoFillLinkTitle() {
   } catch {}
 }
 
+// ── UPLOADS E ANEXOS (Nova Tarefa) ──
+let _ntAttachments = []; // URLs de imagens/anexos a adicionar na nova tarefa
+
+function nt_togglePasteUrl() {
+  const el = document.getElementById('nt-paste-url');
+  if (el) { el.style.display = el.style.display === 'none' ? '' : 'none'; el.querySelector('input')?.focus(); }
+}
+
+async function nt_addUrl() {
+  const input = document.getElementById('nt-url-input');
+  const url = input?.value?.trim();
+  if (!url || !/^https?:\/\//.test(url)) { showToast('Cole uma URL válida (http://...)'); return; }
+  _ntAttachments.push(url);
+  input.value = '';
+  document.getElementById('nt-paste-url').style.display = 'none';
+  nt_renderPreview();
+}
+
+async function nt_uploadFiles(files) {
+  if (!files || !files.length) return;
+  const statusEl = document.getElementById('nt-upload-status');
+  statusEl.textContent = 'Enviando ' + files.length + ' arquivo(s)...';
+
+  for (const file of files) {
+    try {
+      const ext = file.name.split('.').pop() || 'png';
+      const filename = 'kanban/' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
+      const { error } = await sb.storage.from('kanban').upload(filename, file, { cacheControl: '3600', upsert: false });
+      if (error) throw error;
+      const { data: urlData } = sb.storage.from('kanban').getPublicUrl(filename);
+      _ntAttachments.push(urlData.publicUrl);
+    } catch(e) {
+      console.error('Upload error:', e);
+      showToast('Erro: ' + (e.message || 'falha no upload'));
+    }
+  }
+  statusEl.textContent = '';
+  document.getElementById('nt-file-input').value = '';
+  nt_renderPreview();
+}
+
+function nt_renderPreview() {
+  const el = document.getElementById('nt-preview');
+  if (!el) return;
+  el.innerHTML = _ntAttachments.map((url, i) => {
+    const isImg = /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url);
+    if (isImg) {
+      return `<div style="position:relative;width:80px;height:80px;border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+        <img src="${url.replace(/"/g,'&quot;')}" style="width:100%;height:100%;object-fit:cover">
+        <button type="button" onclick="_ntAttachments.splice(${i},1);nt_renderPreview()" style="position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,0.7);color:white;border:none;cursor:pointer;font-size:11px;line-height:1">×</button>
+      </div>`;
+    }
+    return `<div style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:11px">
+      🔗 <span style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(url)}</span>
+      <button type="button" onclick="_ntAttachments.splice(${i},1);nt_renderPreview()" style="margin-left:4px;background:none;border:none;cursor:pointer;color:var(--red)">×</button>
+    </div>`;
+  }).join('');
+}
+
 function abrirNovaTarefa() {
   if (!podeCriarTarefa()) {
     showToast('Voce nao tem permissao para criar tarefas');
     return;
   }
+  _ntAttachments = [];
+  nt_renderPreview();
   openModal('nova-tarefa');
 }
 
@@ -7019,11 +7099,14 @@ async function createTask() {
   const prazo = document.getElementById('new-task-due')?.value || null;
 
   await sb.from('tarefas').insert({
-    titulo, descricao: desc, tag, prioridade: prio, prazo, coluna, posicao: _tarefasCache.length
+    titulo, descricao: desc, tag, prioridade: prio, prazo, coluna,
+    posicao: _tarefasCache.length,
+    links: _ntAttachments.length ? _ntAttachments : null,
   });
   closeModal('nova-tarefa');
   document.getElementById('new-task-title').value = '';
   document.getElementById('new-task-desc').value = '';
+  _ntAttachments = [];
   loadTarefas();
   showToast('Tarefa criada');
   logActivity('criou_tarefa', titulo, 'tarefas');
@@ -7191,22 +7274,46 @@ function openTarefa(id) {
   document.getElementById('vt-resp').value = t.responsavel || '';
   document.getElementById('vt-prazo').value = t.prazo || t.data_fim || '';
 
-  // Links/anexos
+  // Links/anexos com menu de 3 pontinhos
   const linksEl = document.getElementById('vt-links');
+  const canEditAttach = podeCriarTarefa();
   if (t.links?.length) {
     const imgLinks = t.links.filter(l => /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(l));
     const otherLinks = t.links.filter(l => !/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(l));
     let linksHtml = '';
     if (imgLinks.length) {
-      linksHtml += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">' +
-        imgLinks.map(l => '<img src="'+l+'" style="max-width:200px;border-radius:8px;border:1px solid var(--border)" onerror="this.style.display=\'none\'">').join('') + '</div>';
+      linksHtml += '<label class="label">Imagens</label><div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">' +
+        imgLinks.map((l, i) => {
+          const idx = t.links.indexOf(l);
+          return `<div style="position:relative;width:140px;height:140px;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--surface2)">
+            <img src="${l.replace(/"/g,'&quot;')}" style="width:100%;height:100%;object-fit:cover;cursor:pointer" onclick="window.open('${l.replace(/'/g,"\\'")}','_blank')" onerror="this.style.display='none'">
+            <div style="position:absolute;top:5px;right:5px">
+              <button onclick="event.stopPropagation();toggleImgMenu(${idx})" style="width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,0.6);color:white;border:none;cursor:pointer;font-size:14px;font-weight:700;line-height:1">⋯</button>
+              <div id="img-menu-${idx}" style="display:none;position:absolute;top:30px;right:0;background:var(--white);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.15);min-width:120px;z-index:100;overflow:hidden">
+                <div onclick="event.stopPropagation();baixarAnexo('${l.replace(/'/g,"\\'")}');toggleImgMenu(${idx})" style="padding:8px 14px;cursor:pointer;font-size:12px;color:var(--text2);border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">⬇️ Baixar</div>
+                ${canEditAttach ? `<div onclick="event.stopPropagation();removerAnexo(${idx});toggleImgMenu(${idx})" style="padding:8px 14px;cursor:pointer;font-size:12px;color:var(--red)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">🗑 Remover</div>` : ''}
+              </div>
+            </div>
+          </div>`;
+        }).join('') + '</div>';
     }
     if (otherLinks.length) {
-      linksHtml += '<label class="label">Anexos</label>' + otherLinks.map(l => {
+      linksHtml += '<label class="label">Anexos / Links</label><div>' + otherLinks.map(l => {
+        const idx = t.links.indexOf(l);
         let label = l;
-        try { const u = new URL(l); label = u.hostname.includes('drive.google') ? '📁 Google Drive' : u.hostname.includes('trello') ? '📋 Trello' : '🔗 ' + u.hostname.replace('www.',''); } catch {}
-        return `<a href="${l}" target="_blank" style="display:inline-block;padding:5px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--blue);font-weight:600;text-decoration:none;margin:3px 2px">${label}</a>`;
-      }).join('');
+        try {
+          const u = new URL(l);
+          if (u.hostname.includes('drive.google')) label = '📁 Google Drive';
+          else if (u.hostname.includes('pinterest') || u.hostname.includes('pin.it')) label = '📌 Pinterest';
+          else if (u.hostname.includes('youtube')) label = '▶ YouTube';
+          else if (u.hostname.includes('canva')) label = '🎨 Canva';
+          else label = '🔗 ' + u.hostname.replace('www.','');
+        } catch {}
+        return `<div style="display:inline-flex;align-items:center;gap:4px;margin:3px 3px;position:relative">
+          <a href="${l.replace(/"/g,'&quot;')}" target="_blank" style="padding:5px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--blue);font-weight:600;text-decoration:none">${label}</a>
+          ${canEditAttach ? `<button onclick="event.stopPropagation();removerAnexo(${idx})" style="padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;color:var(--red)" title="Remover">×</button>` : ''}
+        </div>`;
+      }).join('') + '</div>';
     }
     linksEl.innerHTML = linksHtml;
   } else { linksEl.innerHTML = ''; }
@@ -7270,6 +7377,63 @@ function vtEditDesc() {
   view.style.display = 'none';
   edit.style.display = '';
   edit.focus();
+}
+
+// ── MENU DE 3 PONTINHOS NAS IMAGENS ──
+function toggleImgMenu(idx) {
+  // Fechar outros menus
+  document.querySelectorAll('[id^="img-menu-"]').forEach(m => { if (m.id !== 'img-menu-'+idx) m.style.display = 'none'; });
+  const m = document.getElementById('img-menu-' + idx);
+  if (m) m.style.display = m.style.display === 'none' ? '' : 'none';
+}
+
+// Fechar menu ao clicar fora
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[id^="img-menu-"]') && !e.target.textContent?.includes('⋯')) {
+    document.querySelectorAll('[id^="img-menu-"]').forEach(m => m.style.display = 'none');
+  }
+});
+
+async function baixarAnexo(url) {
+  try {
+    // Tentar fetch + blob para download direto
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const filename = url.split('/').pop().split('?')[0] || 'arquivo';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    logActivity('baixou_anexo', filename, 'tarefas');
+  } catch(e) {
+    // Fallback: abrir em nova aba
+    window.open(url, '_blank');
+  }
+}
+
+async function removerAnexo(idx) {
+  if (!_editingTaskId) return;
+  if (!podeCriarTarefa()) { showToast('Sem permissao'); return; }
+  if (!confirm('Remover este anexo?')) return;
+  const t = _tarefasCache.find(x => x.id === _editingTaskId);
+  if (!t) return;
+  const url = t.links?.[idx];
+  const newLinks = (t.links || []).filter((_, i) => i !== idx);
+
+  // Se for do nosso Storage, deletar o arquivo também
+  if (url && url.includes('/storage/v1/object/public/kanban/')) {
+    try {
+      const path = url.split('/storage/v1/object/public/kanban/')[1];
+      if (path) await sb.storage.from('kanban').remove([path]);
+    } catch(e) { console.warn('Delete storage error:', e); }
+  }
+
+  await sb.from('tarefas').update({ links: newLinks.length ? newLinks : null }).eq('id', _editingTaskId);
+  t.links = newLinks;
+  openTarefa(_editingTaskId); // Re-renderizar modal
+  loadTarefas();
+  showToast('Anexo removido');
 }
 
 async function salvarTarefaEdit() {
