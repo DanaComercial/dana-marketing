@@ -6847,8 +6847,16 @@ async function loadTarefas() {
     // Descobrir colunas únicas (preservar ordem)
     const colOrder = ['backlog','doing','review','done','referencias','materiais','campanhas','producao','cronograma','crono_abril','todo','roteiros','campanhas_ativas','todo_reuniao','black_friday','info_jaleco_box','10_anos','campanhas_q1'];
     const usedCols = new Set(_tarefasCache.map(t => t.coluna));
-    // Só mostrar colunas que TÊM cards (remove vazias, arquivo e escondidas)
-    const cols = colOrder.filter(c => usedCols.has(c) && c !== 'arquivo' && !_colunasEscondidas?.has(c));
+    // Colunas customizadas (novas criadas pelo usuario) aparecem PRIMEIRO
+    const customCols = _colunasCustom
+      .filter(c => !c.escondida)
+      .sort((a, b) => (a.ordem||0) - (b.ordem||0))
+      .map(c => c.coluna);
+
+    // Depois colunas padrão (Trello) que tem cards
+    const trelloCols = colOrder.filter(c => usedCols.has(c) && c !== 'arquivo' && !_colunasEscondidas?.has(c) && !customCols.includes(c));
+
+    const cols = [...customCols, ...trelloCols];
     // Adicionar qualquer coluna desconhecida (exceto arquivo e escondidas)
     usedCols.forEach(c => { if (!cols.includes(c) && c !== 'arquivo' && !_colunasEscondidas?.has(c)) cols.push(c); });
 
@@ -7148,19 +7156,23 @@ function renderGerenciarColunas() {
   if (visiveis.length === 0) {
     html += '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhuma coluna visível</div>';
   } else {
-    html += visiveis.map(col => {
+    html += visiveis.map((col, i) => {
       const count = counts[col] || 0;
       const label = COL_LABELS[col] || col;
       const cor = COL_COLORS[col] || '#1a4fa0';
       const isCustom = customKeys.includes(col);
       const isDefault = ['backlog','doing','review','done'].includes(col);
-      return `<div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+      const isFirst = i === 0;
+      const isLast = i === visiveis.length - 1;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
         <div style="width:14px;height:14px;border-radius:50%;background:${cor};flex-shrink:0"></div>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600;color:var(--black)">${esc(label)}</div>
           <div style="font-size:10px;color:var(--text3)">${count} tarefa(s) · ${isCustom ? 'Personalizada' : (isDefault ? 'Padrão' : 'Importada do Trello')}</div>
         </div>
-        <button onclick="excluirColuna('${col}')" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;color:var(--red)" title="Excluir">🗑</button>
+        <button onclick="moverColuna('${col}','up')" ${isFirst?'disabled':''} style="padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:${isFirst?'not-allowed':'pointer'};font-size:11px;opacity:${isFirst?0.3:1}" title="Mover para cima">↑</button>
+        <button onclick="moverColuna('${col}','down')" ${isLast?'disabled':''} style="padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:${isLast?'not-allowed':'pointer'};font-size:11px;opacity:${isLast?0.3:1}" title="Mover para baixo">↓</button>
+        <button onclick="excluirColuna('${col}')" style="padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;color:var(--red)" title="Excluir">🗑</button>
       </div>`;
     }).join('');
   }
@@ -7213,13 +7225,22 @@ async function criarColuna() {
   if (!nome) { showToast('Digite o nome da coluna'); return; }
   const colKey = nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').substring(0,30);
   if (!colKey) { showToast('Nome inválido'); return; }
-  if (COL_LABELS[colKey]) { showToast('Já existe uma coluna com esse nome'); return; }
+  if (COL_LABELS[colKey] && !_colunasEscondidas.has(colKey)) { showToast('Já existe uma coluna com esse nome'); return; }
+
+  // Menor ordem atual - 1 (para aparecer PRIMEIRO)
+  const minOrdem = Math.min(0, ..._colunasCustom.filter(c => !c.escondida).map(c => c.ordem || 0));
+  const novaOrdem = minOrdem - 1;
 
   try {
-    await sb.from('kanban_colunas').insert({ coluna: colKey, label: nome, cor, ordem: _colunasCustom.length });
+    await sb.from('kanban_colunas').upsert({
+      coluna: colKey, label: nome, cor, ordem: novaOrdem, escondida: false
+    }, { onConflict: 'coluna' });
     COL_LABELS[colKey] = nome;
     COL_COLORS[colKey] = cor;
-    _colunasCustom.push({ coluna: colKey, label: nome, cor });
+    // Remover qualquer entrada antiga e adicionar nova
+    _colunasCustom = _colunasCustom.filter(c => c.coluna !== colKey);
+    _colunasCustom.push({ coluna: colKey, label: nome, cor, ordem: novaOrdem, escondida: false });
+    _colunasEscondidas.delete(colKey);
     document.getElementById('new-col-nome').value = '';
     showToast('Coluna criada!');
     logActivity('criou_coluna', nome, 'tarefas');
@@ -7229,6 +7250,33 @@ async function criarColuna() {
     showToast('Erro: ' + e.message);
     console.error(e);
   }
+}
+
+async function moverColuna(coluna, direcao) {
+  if (!podeCriarTarefa()) { showToast('Sem permissao'); return; }
+  // Lista de colunas visíveis na ordem atual
+  const cols = [..._colunasCustom.filter(c => !c.escondida).sort((a,b) => (a.ordem||0)-(b.ordem||0)).map(c => c.coluna)];
+  const idx = cols.indexOf(coluna);
+  if (idx === -1) {
+    // Não é custom — adicionar como custom primeiro
+    const label = COL_LABELS[coluna] || coluna;
+    const cor = COL_COLORS[coluna] || '#1a4fa0';
+    await sb.from('kanban_colunas').upsert({ coluna, label, cor, ordem: cols.length, escondida: false }, { onConflict: 'coluna' });
+    _colunasCustom.push({ coluna, label, cor, ordem: cols.length, escondida: false });
+    cols.push(coluna);
+  }
+  const newIdx = direcao === 'up' ? idx - 1 : idx + 1;
+  if (newIdx < 0 || newIdx >= cols.length) return;
+  // Trocar ordens
+  [cols[idx], cols[newIdx]] = [cols[newIdx], cols[idx]];
+  // Reatribuir ordens sequenciais
+  for (let i = 0; i < cols.length; i++) {
+    await sb.from('kanban_colunas').update({ ordem: i }).eq('coluna', cols[i]);
+    const c = _colunasCustom.find(x => x.coluna === cols[i]);
+    if (c) c.ordem = i;
+  }
+  renderGerenciarColunas();
+  loadTarefas();
 }
 
 async function excluirColuna(coluna) {
