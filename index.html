@@ -1024,15 +1024,15 @@ select.input { cursor: pointer; }
 .inf-revenue { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 13px; color: var(--black); }
 
 /* ── KANBAN ── */
-.kanban { display: flex; gap: 12px; align-items: start; overflow-x: auto; padding-bottom: 12px; min-height: 500px; }
+.kanban { display: flex; gap: 12px; align-items: start; overflow-x: auto; padding-bottom: 12px; max-height: 70vh; }
 .kanban-col {
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 12px;
-  min-width: 280px;
-  max-width: 300px;
+  min-width: 270px;
+  max-width: 280px;
   flex-shrink: 0;
-  min-height: 360px;
+  max-height: 65vh;
   display: flex; flex-direction: column;
 }
 .kanban-col-head {
@@ -1047,10 +1047,11 @@ select.input { cursor: pointer; }
   background: var(--grey8); color: var(--grey4);
   padding: 1px 8px; border-radius: 10px;
 }
-.kanban-body { padding: 10px; display: flex; flex-direction: column; gap: 7px; flex: 1; }
+.kanban-body { padding: 10px; display: flex; flex-direction: column; gap: 7px; flex: 1; overflow-y: auto; }
 .k-card {
   background: var(--white);
   border: 1px solid var(--border);
+  flex-shrink: 0;
   border-radius: 8px;
   padding: 11px 13px;
   cursor: grab;
@@ -5745,8 +5746,8 @@ updateDynamicField('foto');
     <button class="btn btn-primary btn-sm" onclick="openModal('nova-tarefa')">+ Nova tarefa</button>
   </div>
   <!-- Scrollbar topo (sincronizada com kanban) -->
-  <div id="kanban-scroll-top" style="overflow-x:scroll;overflow-y:hidden;height:18px;margin-bottom:6px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)"><div id="kanban-scroll-inner" style="height:1px"></div></div>
-  <div class="kanban" id="kanban-board" onscroll="document.getElementById('kanban-scroll-top').scrollLeft=this.scrollLeft">
+  <div id="kanban-scroll-top" style="overflow-x:scroll;overflow-y:hidden;height:14px;margin-bottom:4px"><div id="kanban-scroll-inner" style="height:1px"></div></div>
+  <div class="kanban" id="kanban-board">
     <div style="text-align:center;color:var(--text3);padding:40px;font-size:13px">Carregando quadro...</div>
   </div>
 </div>
@@ -6680,10 +6681,10 @@ async function loadTarefas() {
     // Descobrir colunas únicas (preservar ordem)
     const colOrder = ['backlog','doing','review','done','referencias','materiais','campanhas','producao','cronograma','crono_abril','todo','roteiros','campanhas_ativas','todo_reuniao','black_friday','info_jaleco_box','10_anos','campanhas_q1'];
     const usedCols = new Set(_tarefasCache.map(t => t.coluna));
-    // Só mostrar colunas que TÊM cards (remove vazias)
-    const cols = colOrder.filter(c => usedCols.has(c));
-    // Adicionar qualquer coluna desconhecida
-    usedCols.forEach(c => { if (!cols.includes(c)) cols.push(c); });
+    // Só mostrar colunas que TÊM cards (remove vazias e unknown)
+    const cols = colOrder.filter(c => usedCols.has(c) && c !== 'unknown');
+    // Adicionar qualquer coluna desconhecida (exceto unknown)
+    usedCols.forEach(c => { if (!cols.includes(c) && c !== 'unknown') cols.push(c); });
 
     const board = document.getElementById('kanban-board');
     if (!board) return;
@@ -6701,13 +6702,16 @@ async function loadTarefas() {
 
     // Popular select de colunas
     populateColSelect();
-    // Sincronizar scrollbar topo
-    const scrollTop = document.getElementById('kanban-scroll-top');
-    const scrollInner = document.getElementById('kanban-scroll-inner');
-    if (scrollTop && scrollInner) {
-      scrollInner.style.width = board.scrollWidth + 'px';
-      scrollTop.onscroll = () => { board.scrollLeft = scrollTop.scrollLeft; };
-    }
+    // Sincronizar scrollbar topo <-> kanban
+    setTimeout(() => {
+      const scrollTop = document.getElementById('kanban-scroll-top');
+      const scrollInner = document.getElementById('kanban-scroll-inner');
+      if (scrollTop && scrollInner && board) {
+        scrollInner.style.width = board.scrollWidth + 'px';
+        scrollTop.onscroll = () => { board.scrollLeft = scrollTop.scrollLeft; };
+        board.onscroll = () => { scrollTop.scrollLeft = board.scrollLeft; };
+      }
+    }, 200);
   } catch(e) { console.warn('Tarefas error:', e.message); }
 }
 
@@ -6718,11 +6722,16 @@ function renderKanbanCard(t) {
   const prazoStr = prazo ? new Date(prazo+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}) : '';
   const late = prazo && new Date(prazo) < new Date() && t.coluna !== 'done' ? ' late' : '';
   const pessoa = t.responsavel ? t.responsavel.charAt(0).toUpperCase() : '';
-  const desc = t.descricao ? '<div style="font-size:11px;color:var(--text3);margin:4px 0;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+esc(t.descricao)+'</div>' : '';
-  const links = t.links?.length ? '<div style="font-size:10px;color:var(--blue);margin-top:3px">🔗 '+t.links.length+' link(s)</div>' : '';
+  const hasDesc = t.descricao && t.descricao.length > 0;
+  const hasLinks = t.links?.length > 0;
+  const hasCheck = t.checklist && JSON.stringify(t.checklist) !== '[]';
+  let badges = '';
+  if (hasDesc) badges += '<span style="font-size:10px;color:var(--text4)" title="Tem descrição">📝</span>';
+  if (hasLinks) badges += '<span style="font-size:10px;color:var(--blue)">🔗'+t.links.length+'</span>';
+  if (hasCheck) badges += '<span style="font-size:10px;color:var(--green)">☑</span>';
   return `<div class="k-card" draggable="true" ondragstart="drag(event)" id="task-${t.id}" data-id="${t.id}" onclick="openTarefa('${t.id}')" style="cursor:pointer">
-    <div class="k-card-title">${esc(t.titulo)}</div>
-    ${desc}${links}
+    <div class="k-card-title" style="overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc(t.titulo)}</div>
+    ${badges ? '<div style="display:flex;gap:6px;margin-top:3px">'+badges+'</div>' : ''}
     <div class="k-meta">
       ${t.tag ? '<div class="k-tag">'+esc(t.tag)+'</div>' : ''}
       <div class="k-prio ${prioClass}">${prioLabel}</div>
