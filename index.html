@@ -7428,9 +7428,12 @@ async function removerAnexo(idx) {
       let path = url.split('/storage/v1/object/public/kanban/')[1] || '';
       path = decodeURIComponent(path.split('?')[0]);
       if (path) {
-        const { error } = await sb.storage.from('kanban').remove([path]);
+        // Tentar ambos formatos
+        const paths = [path];
+        if (!path.startsWith('kanban/')) paths.push('kanban/' + path);
+        const { data, error } = await sb.storage.from('kanban').remove(paths);
         if (error) console.error('Delete anexo error:', error);
-        else console.log('Deletado do Storage:', path);
+        else console.log('Deletado do Storage:', data);
       }
     } catch(e) { console.warn('Delete storage error:', e); }
   }
@@ -7497,19 +7500,23 @@ async function deleteTarefa(id) {
 
   // Apagar imagens do Supabase Storage (se existirem)
   if (tarefa?.links?.length) {
-    const storagePaths = tarefa.links
-      .filter(l => l && l.includes('/storage/v1/object/public/kanban/'))
-      .map(l => {
+    const storageUrls = tarefa.links.filter(l => l && l.includes('/storage/v1/object/public/kanban/'));
+    if (storageUrls.length) {
+      // Tentar deletar nos 2 formatos (com e sem prefixo kanban/)
+      const paths = [];
+      storageUrls.forEach(l => {
         let path = l.split('/storage/v1/object/public/kanban/')[1] || '';
-        // Remover query strings
-        path = path.split('?')[0];
-        return decodeURIComponent(path);
-      })
-      .filter(Boolean);
-    if (storagePaths.length) {
-      console.log('Removendo do Storage:', storagePaths);
-      const { data, error } = await sb.storage.from('kanban').remove(storagePaths);
-      if (error) console.error('Delete storage error:', error);
+        path = decodeURIComponent(path.split('?')[0]);
+        if (path) {
+          paths.push(path);
+          // Também tentar com prefixo se não tiver
+          if (!path.startsWith('kanban/')) paths.push('kanban/' + path);
+          else paths.push(path.replace(/^kanban\//, ''));
+        }
+      });
+      console.log('Tentando remover do Storage:', paths);
+      const { data, error } = await sb.storage.from('kanban').remove(paths);
+      if (error) { console.error('Delete storage error:', error); showToast('Aviso: imagens podem não ter sido apagadas do Storage'); }
       else console.log('Deletados do Storage:', data);
     }
   }
