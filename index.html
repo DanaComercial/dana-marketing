@@ -7466,15 +7466,11 @@ async function salvarTarefaEdit() {
 async function deleteTarefaFromModal() {
   if (!_editingTaskId) return;
   if (!podeExcluirTarefa()) { showToast('Voce nao tem permissao para excluir tarefas'); return; }
-  if (!confirm('Excluir esta tarefa?')) return;
   const id = _editingTaskId;
-  const tarefa = _tarefasCache.find(t => t.id === id);
-  await sb.from('tarefas').delete().eq('id', id);
   closeModal('ver-tarefa');
   _editingTaskId = null;
-  loadTarefas();
-  showToast('Tarefa excluída');
-  logActivity('excluiu_tarefa', tarefa?.titulo || id, 'tarefas');
+  // Delega para deleteTarefa que já faz o cleanup do Storage
+  await deleteTarefa(id);
 }
 
 // Popular select de colunas no modal nova tarefa
