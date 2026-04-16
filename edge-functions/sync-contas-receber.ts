@@ -1,8 +1,8 @@
 // ══════════════════════════════════════════════════════════
 // Edge Function: sync-contas-receber
-// Sincroniza TODAS as situações (aberto, recebido, atrasado)
-// OTIMIZADA: busca páginas em PARALELO (batches de 5)
-// Duração esperada: ~15-25s
+// Sincroniza UMA situação por chamada (usar ?situacao=1|2|3)
+// Sem param: sincroniza só situação 1 (em aberto - mais importante)
+// Duração esperada: ~20-40s por situação
 // ══════════════════════════════════════════════════════════
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -49,52 +49,56 @@ async function getToken(): Promise<string> {
   return data.access_token
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
   const inicio = Date.now()
+  const url = new URL(req.url)
+  const situacao = parseInt(url.searchParams.get('situacao') || '1')
+
   try {
     const token = await getToken()
     let total = 0
+    let pageStart = 1
+    const pageBatch = 3
 
-    // Para cada situação, buscar páginas em PARALELO (batches de 5)
-    for (const sit of [1, 2, 3]) {
-      let pageStart = 1
-      const pageBatch = 5
+    while (pageStart <= 20) {
+      const pages = Array.from({length: pageBatch}, (_, i) => pageStart + i)
+      const results = await Promise.all(
+        pages.map(p => blingFetch(`contas/receber?pagina=${p}&limite=100&situacao=${situacao}`, token))
+      )
 
-      while (pageStart <= 20) {
-        const pages = Array.from({length: pageBatch}, (_, i) => pageStart + i)
-        const results = await Promise.all(
-          pages.map(p => blingFetch(`contas/receber?pagina=${p}&limite=100&situacao=${sit}`, token))
-        )
-
-        const todasLinhas: any[] = []
-        for (const r of results) {
-          if (r.data?.length) {
-            todasLinhas.push(...r.data.map((c: any) => ({
-              id: c.id, situacao: c.situacao, vencimento: c.vencimento, valor: c.valor || 0,
-              data_emissao: c.dataEmissao && c.dataEmissao !== '0000-00-00' ? c.dataEmissao : null,
-              contato_nome: c.contato?.nome || '', contato_tipo: c.contato?.tipo || '',
-              origem_tipo: c.origem?.tipoOrigem || '', origem_numero: c.origem?.numero || '',
-              conta_contabil: c.contaContabil?.descricao || '',
-            })))
-          }
+      const todasLinhas: any[] = []
+      for (const r of results) {
+        if (r.data?.length) {
+          todasLinhas.push(...r.data.map((c: any) => ({
+            id: c.id, situacao: c.situacao, vencimento: c.vencimento, valor: c.valor || 0,
+            data_emissao: c.dataEmissao && c.dataEmissao !== '0000-00-00' ? c.dataEmissao : null,
+            contato_nome: c.contato?.nome || '', contato_tipo: c.contato?.tipo || '',
+            origem_tipo: c.origem?.tipoOrigem || '', origem_numero: c.origem?.numero || '',
+            conta_contabil: c.contaContabil?.descricao || '',
+          })))
         }
-
-        if (todasLinhas.length > 0) {
-          await supabase.from('contas_receber').upsert(todasLinhas, { onConflict: 'id' })
-          total += todasLinhas.length
-        }
-
-        // Se a última página veio vazia, para
-        if (!results[results.length - 1].data?.length) break
-        pageStart += pageBatch
       }
+
+      if (todasLinhas.length > 0) {
+        await supabase.from('contas_receber').upsert(todasLinhas, { onConflict: 'id' })
+        total += todasLinhas.length
+      }
+
+      if (!results[results.length - 1].data?.length) break
+      pageStart += pageBatch
     }
 
     const duracao = Math.round((Date.now() - inicio) / 1000)
-    await supabase.from('sync_log').insert({ tabela: 'contas_receber', registros: total, status: 'ok', detalhes: duracao + 's' })
-    return new Response(JSON.stringify({ ok: true, tabela: 'contas_receber', registros: total, duracao_seg: duracao }), { headers: { 'Content-Type': 'application/json' }})
+    await supabase.from('sync_log').insert({
+      tabela: 'contas_receber', registros: total, status: 'ok',
+      detalhes: 'sit=' + situacao + ', ' + duracao + 's'
+    })
+    return new Response(JSON.stringify({ ok: true, tabela: 'contas_receber', situacao, registros: total, duracao_seg: duracao }), { headers: { 'Content-Type': 'application/json' }})
   } catch (e: any) {
-    await supabase.from('sync_log').insert({ tabela: 'contas_receber', registros: 0, status: 'error', erro: e.message })
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' }})
+    await supabase.from('sync_log').insert({
+      tabela: 'contas_receber', registros: 0, status: 'error',
+      erro: e.message, detalhes: 'sit=' + situacao
+    })
+    return new Response(JSON.stringify({ error: e.message, situacao }), { status: 500, headers: { 'Content-Type': 'application/json' }})
   }
 })
