@@ -1797,13 +1797,17 @@ select.input { cursor: pointer; }
     <!-- Gráfico evolução -->
     <div class="card">
       <div class="card-header">
-        <div><div class="card-title">Evolução Diária — Abril 2026</div><div class="card-sub">Faturamento por dia (01 a 13 de abril) — dados Bling</div></div>
+        <div><div class="card-title">Evolução Diária — Abril 2026</div><div class="card-sub">Faturamento por dia — dados Bling</div></div>
         <div class="tabs" style="margin-bottom:0">
           <div class="tab active" onclick="switchChart(this,'fat')">Faturamento</div>
           <div class="tab" onclick="switchChart(this,'ped')">Pedidos</div>
         </div>
       </div>
-      <div class="chart-area" id="main-chart">
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:24px;color:var(--black)" id="chart-total">--</div>
+        <div style="font-size:11px;color:var(--text3)" id="chart-total-label">total no mês</div>
+      </div>
+      <div class="chart-area" id="main-chart" style="height:180px">
         <!-- bars injected by JS -->
       </div>
     </div>
@@ -6432,6 +6436,23 @@ function renderChart() {
   const labels = window._chartLabels || ['01/04','02','03','04','05','06','07','08','09','10','11','12','13/04'];
   const max = Math.max(...data);
   const isCurrency = activeChartKey === 'fat';
+
+  // Calcular e mostrar total
+  const total = data.reduce((s, v) => s + (v || 0), 0);
+  const totalEl = document.getElementById('chart-total');
+  const labelEl = document.getElementById('chart-total-label');
+  if (totalEl) {
+    if (isCurrency) {
+      // data está em "k" (milhares)
+      totalEl.textContent = 'R$ ' + Math.round(total).toLocaleString('pt-BR') + 'k';
+    } else {
+      totalEl.textContent = Math.round(total).toLocaleString('pt-BR');
+    }
+  }
+  if (labelEl) {
+    labelEl.textContent = isCurrency ? 'faturamento total no mês' : 'pedidos totais no mês';
+  }
+
   container.innerHTML = labels.map((l,i) => {
     const pct = Math.round((data[i]/max)*100);
     const val = isCurrency ? 'R$' + (data[i] >= 1 ? data[i]+'k' : data[i]) : data[i];
