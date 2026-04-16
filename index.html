@@ -7496,7 +7496,13 @@ function populateColSelect() {
 async function deleteTarefa(id) {
   if (!podeExcluirTarefa()) { showToast('Voce nao tem permissao para excluir tarefas'); return; }
   if(!confirm('Excluir esta tarefa?')) return;
-  const tarefa = _tarefasCache.find(t => t.id === id);
+
+  console.log('=== DELETE TAREFA ===', id);
+
+  // Buscar tarefa direto do banco (com links atualizados)
+  const { data: tarefa } = await sb.from('tarefas').select('*').eq('id', id).single();
+  console.log('Tarefa do banco:', tarefa);
+  console.log('Links:', tarefa?.links);
 
   // Apagar imagens do Supabase Storage (se existirem)
   if (tarefa?.links?.length) {
