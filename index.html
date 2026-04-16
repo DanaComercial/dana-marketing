@@ -4715,45 +4715,46 @@ updateDynamicField('foto');
     <div id="mp-top-clientes" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
   </div>
 
-  <!-- Canais de Venda -->
-  <div class="g2 mb20">
-    <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Canais de Venda Ativos (Bling)</div>
-      <table><thead><tr><th>Canal</th><th>Status</th></tr></thead><tbody>
-        <tr><td class="em">Site / E-commerce (Magazord)</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">Loja Física — Piçarras SC</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">Loja Física — Balneário Camboriú SC</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">Mercado Livre</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">Shopee</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">TikTok Shop</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">Magalu (2 contas)</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">WhatsApp Comercial</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">Pano Perfeito</td><td><span class="chip prod">Parceiro</span></td></tr>
-      </tbody></table>
+  <!-- Canais de Venda (full width com filtro de período) -->
+  <div class="card mb20">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap">
+      <div>
+        <div class="card-title" style="margin-bottom:2px">Canais de Venda Ativos (Bling)</div>
+        <div class="card-sub" id="cv-canais-sub">Performance por canal · últimos 30 dias</div>
+      </div>
+      <div class="tabs" style="gap:4px">
+        <div class="tab active" onclick="filterCanaisPeriodo(this,'30d')">Últimos 30 dias</div>
+        <div class="tab" onclick="filterCanaisPeriodo(this,'mes')">Mês atual</div>
+      </div>
     </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%"><thead><tr><th>Canal</th><th>Status</th><th style="text-align:right">Pedidos</th><th style="text-align:right">Faturamento</th><th style="text-align:right">% total</th><th>Último pedido</th></tr></thead><tbody id="cv-canais-tbody"><tr><td colspan="6" style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</td></tr></tbody></table>
+    </div>
+  </div>
+
+  <!-- Revendas Nacionais + Internacionais -->
+  <div class="g2 mb20">
     <div class="card">
       <div class="card-title" style="margin-bottom:12px">Revendas Nacionais (Bling)</div>
       <table><thead><tr><th>Revenda</th><th>Local</th></tr></thead><tbody id="cv-revendas-nacionais-tbody"><tr><td colspan="2" style="text-align:center;color:var(--text3);font-size:12px;padding:12px">Carregando...</td></tr></tbody></table>
     </div>
-  </div>
-
-  <!-- Revendas internacionais + Eventos -->
-  <div class="g2">
     <div class="card">
       <div class="card-title" style="margin-bottom:12px">Revendas Internacionais + Parcerias</div>
       <table><thead><tr><th>Parceiro</th><th>Tipo</th></tr></thead><tbody id="cv-revendas-intl-tbody"><tr><td colspan="2" style="text-align:center;color:var(--text3);font-size:12px;padding:12px">Carregando...</td></tr></tbody></table>
     </div>
-    <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Eventos e Feiras Presenciais</div>
-      <table><thead><tr><th>Evento</th><th>Ano</th></tr></thead><tbody>
-        <tr><td class="em">CIOSP</td><td>2022, 2023, 2024, 2025</td></tr>
-        <tr><td class="em">Full Face SP</td><td>2022, 2024</td></tr>
-        <tr><td class="em">Congrehof</td><td>2023, 2024</td></tr>
-        <tr><td class="em">SBTI</td><td>2023, 2024</td></tr>
-        <tr><td class="em">Estetika SP</td><td>2024</td></tr>
-        <tr><td class="em">Sul Beleza</td><td>Recorrente</td></tr>
-      </tbody></table>
-    </div>
+  </div>
+
+  <!-- Eventos e Feiras -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:12px">Eventos e Feiras Presenciais</div>
+    <table><thead><tr><th>Evento</th><th>Ano</th></tr></thead><tbody>
+      <tr><td class="em">CIOSP</td><td>2022, 2023, 2024, 2025</td></tr>
+      <tr><td class="em">Full Face SP</td><td>2022, 2024</td></tr>
+      <tr><td class="em">Congrehof</td><td>2023, 2024</td></tr>
+      <tr><td class="em">SBTI</td><td>2023, 2024</td></tr>
+      <tr><td class="em">Estetika SP</td><td>2024</td></tr>
+      <tr><td class="em">Sul Beleza</td><td>Recorrente</td></tr>
+    </tbody></table>
   </div>
 </div></div>
 
@@ -9234,6 +9235,108 @@ async function loadRevendasParceiros() {
   }
 }
 
+// ── CANAIS DE VENDA (performance dinâmica via pedidos + loja_id) ──
+function filterCanaisPeriodo(el, periodo) {
+  document.querySelectorAll('#view-canaisvendas .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  loadCanaisVenda(periodo);
+}
+
+function mapLojaIdCanal(lojaId) {
+  if (lojaId === null || lojaId === undefined || lojaId === 0 || lojaId === '0') return 'Site / E-commerce';
+  const id = String(lojaId);
+  if (id === '203536978') return 'Lojas Físicas + WhatsApp';
+  if (id === '205337834') return 'Mercado Livre';
+  if (id === '205430008') return 'TikTok Shop';
+  if (id === '205522474') return 'Shopee';
+  return 'Magalu';
+}
+
+async function loadCanaisVenda(periodo) {
+  periodo = periodo || '30d';
+  const tb = document.getElementById('cv-canais-tbody');
+  const subEl = document.getElementById('cv-canais-sub');
+  if (!tb) return;
+
+  // Calcular intervalo
+  const hoje = new Date();
+  let inicio, fim, label;
+  if (periodo === 'mes') {
+    inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1);
+    label = 'mês atual';
+  } else {
+    inicio = new Date(hoje);
+    inicio.setDate(inicio.getDate() - 30);
+    fim = new Date(hoje);
+    fim.setDate(fim.getDate() + 1);
+    label = 'últimos 30 dias';
+  }
+  const iso = (d) => d.toISOString().slice(0, 10);
+  if (subEl) subEl.textContent = 'Performance por canal · ' + label;
+
+  try {
+    const { data, error } = await sb.from('pedidos')
+      .select('loja_id, data, total')
+      .gte('data', iso(inicio))
+      .lt('data', iso(fim))
+      .limit(10000);
+    if (error) throw error;
+
+    const rows = data || [];
+    // Agrupar por canal
+    const agg = {};
+    let totalGeral = 0;
+    rows.forEach(p => {
+      const canal = mapLojaIdCanal(p.loja_id);
+      if (!agg[canal]) agg[canal] = { pedidos: 0, faturamento: 0, ultima: null };
+      agg[canal].pedidos += 1;
+      agg[canal].faturamento += (p.total || 0);
+      totalGeral += (p.total || 0);
+      if (!agg[canal].ultima || p.data > agg[canal].ultima) agg[canal].ultima = p.data;
+    });
+
+    // Garantir todos os canais (mesmo com 0 pedidos) pra mostrar como "Inativo"
+    ['Site / E-commerce', 'Lojas Físicas + WhatsApp', 'Mercado Livre', 'Shopee', 'TikTok Shop', 'Magalu'].forEach(c => {
+      if (!agg[c]) agg[c] = { pedidos: 0, faturamento: 0, ultima: null };
+    });
+
+    // Ordenar por faturamento desc
+    const lista = Object.entries(agg).sort((a, b) => b[1].faturamento - a[1].faturamento);
+
+    const fmt = (v) => Math.round(v).toLocaleString('pt-BR');
+    const fmtR = (v) => 'R$ ' + fmt(v);
+    const fmtData = (s) => {
+      if (!s) return '—';
+      const d = new Date(s);
+      return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+    };
+
+    tb.innerHTML = lista.map(([canal, v]) => {
+      const pct = totalGeral > 0 ? (v.faturamento / totalGeral * 100) : 0;
+      const ativo = v.pedidos > 0;
+      const chip = ativo
+        ? '<span class="chip ativo">Ativo</span>'
+        : '<span class="chip" style="background:#f0f0f0;color:#999">Inativo</span>';
+      return `<tr>
+        <td class="em">${esc(canal)}</td>
+        <td>${chip}</td>
+        <td style="text-align:right">${fmt(v.pedidos)}</td>
+        <td style="text-align:right" class="${ativo ? 'good' : ''}">${fmtR(v.faturamento)}</td>
+        <td style="text-align:right">${pct.toFixed(1)}%</td>
+        <td style="font-size:11.5px;color:var(--text3)">${fmtData(v.ultima)}</td>
+      </tr>`;
+    }).join('');
+
+    if (lista.length === 0) {
+      tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Nenhum pedido no período</td></tr>';
+    }
+  } catch (e) {
+    console.error('loadCanaisVenda:', e);
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--red);font-size:12px;padding:20px">Erro ao carregar: ' + esc(e.message || String(e)) + '</td></tr>';
+  }
+}
+
 // ── RELATÓRIO EXECUTIVO (dados reais) ──
 function loadRelatorio() {
   const s = liveData.stats;
@@ -9924,6 +10027,7 @@ async function initUpgradeFeatures() {
     loadFinanceiro();
     loadProjecoes();
     loadProvaSocial();
+    loadCanaisVenda('30d');
     loadRelatorio();
   }, 2000);
 }
