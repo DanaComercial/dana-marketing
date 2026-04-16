@@ -5745,7 +5745,7 @@ updateDynamicField('foto');
     <button class="btn btn-primary btn-sm" onclick="openModal('nova-tarefa')">+ Nova tarefa</button>
   </div>
   <!-- Scrollbar topo (sincronizada com kanban) -->
-  <div id="kanban-scroll-top" style="overflow-x:auto;overflow-y:hidden;height:12px;margin-bottom:4px"><div id="kanban-scroll-inner" style="height:1px"></div></div>
+  <div id="kanban-scroll-top" style="overflow-x:scroll;overflow-y:hidden;height:18px;margin-bottom:6px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)"><div id="kanban-scroll-inner" style="height:1px"></div></div>
   <div class="kanban" id="kanban-board" onscroll="document.getElementById('kanban-scroll-top').scrollLeft=this.scrollLeft">
     <div style="text-align:center;color:var(--text3);padding:40px;font-size:13px">Carregando quadro...</div>
   </div>
