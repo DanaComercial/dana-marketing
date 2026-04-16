@@ -108,14 +108,24 @@ async function loadSupabaseData() {
     if (el('fin-pagar')) el('fin-pagar').textContent = fmt(resumo.total_pagar) + ' em aberto';
 
     // ── ÚLTIMA SYNC ──
-    if (lastSync?.[0] && el('last-sync-time')) {
+    const syncEl = el('last-sync-time');
+    if (lastSync?.[0] && syncEl) {
       const syncDate = new Date(lastSync[0].created_at);
       const diffMin = Math.round((Date.now() - syncDate.getTime()) / 60000);
-      el('last-sync-time').textContent = 'Bling sync · ' + syncDate.toLocaleString('pt-BR') + (diffMin < 60 ? ' (há ' + diffMin + 'min)' : '');
+      syncEl.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#1a7a3a;margin-right:5px;animation:pulse 2s infinite"></span>Bling sync · ' + (diffMin < 60 ? 'há ' + diffMin + 'min' : syncDate.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}));
+      syncEl.style.color = 'rgba(255,255,255,0.5)';
+    } else if (syncEl) {
+      syncEl.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#1a7a3a;margin-right:5px;animation:pulse 2s infinite"></span>Supabase · conectado';
+      syncEl.style.color = 'rgba(255,255,255,0.5)';
     }
 
   } catch (err) {
     console.warn('Supabase load error:', err.message, err);
+    const syncEl = document.getElementById('last-sync-time');
+    if (syncEl) {
+      syncEl.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#dc2626;margin-right:5px"></span>Supabase · erro';
+      syncEl.style.color = 'rgba(255,255,255,0.4)';
+    }
   }
 }
 
@@ -6569,9 +6579,8 @@ function setupRealtimeSubscriptions() {
   // Indicador realtime ativo
   const syncEl = document.getElementById('last-sync-time');
   if(syncEl) {
-    const dot = document.createElement('span');
-    dot.style.cssText = 'display:inline-block;width:6px;height:6px;border-radius:50%;background:#1a7a3a;margin-right:5px;animation:pulse 2s infinite';
-    syncEl.prepend(dot);
+    syncEl.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#1a7a3a;margin-right:5px;animation:pulse 2s infinite"></span>Supabase · conectado';
+    syncEl.style.color = 'rgba(255,255,255,0.5)';
   }
 }
 
