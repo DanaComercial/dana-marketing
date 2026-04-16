@@ -4755,7 +4755,7 @@ updateDynamicField('foto');
       <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">Social Selling — Marketplaces</div>
       <div style="font-size:12.5px;color:var(--text3);margin-top:2px">Mercado Livre, Shopee, TikTok — dados reais Bling</div>
     </div>
-    <select id="mp-filtro-mes" onchange="loadMarketplaces()" style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-weight:600;cursor:pointer">
+    <select id="mp-filtro-mes" onchange="loadMarketplaces();loadMarketplacesExtras()" style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-weight:600;cursor:pointer">
       <option value="atual">Mês Atual</option>
       <option value="ytd">Acumulado 2026 (YTD)</option>
     </select>
@@ -4791,10 +4791,26 @@ updateDynamicField('foto');
     </div>
   </div>
 
+  <!-- Vendas por Canal Completo (dados reais) -->
+  <div class="card mb20">
+    <div class="card-header">
+      <div><div class="card-title">Desempenho por Canal — Todos os Canais</div><div class="card-sub">Receita, pedidos e ticket por canal · dados Bling</div></div>
+    </div>
+    <div id="mp-canais-completo" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+  </div>
+
+  <!-- SKU mais vendidos -->
+  <div class="card mb20">
+    <div class="card-header">
+      <div><div class="card-title">Top SKUs Mais Vendidos</div><div class="card-sub" id="mp-sku-sub">Produtos com mais pedidos no período</div></div>
+    </div>
+    <div id="mp-top-skus" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+  </div>
+
   <!-- Canais e Eventos -->
   <div class="g2">
     <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Todos os Canais (Bling)</div>
+      <div class="card-title" style="margin-bottom:12px">Canais Ativos (Bling)</div>
       <table><thead><tr><th>Canal</th><th>Status</th></tr></thead><tbody>
         <tr><td class="em">Mercado Livre</td><td><span class="chip ativo">Ativo</span></td></tr>
         <tr><td class="em">Shopee</td><td><span class="chip ativo">Ativo</span></td></tr>
@@ -4891,11 +4907,11 @@ updateDynamicField('foto');
 </div></div>
 <div class="view" id="view-provasocial"><div style="padding:24px 28px">
   <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;margin-bottom:4px">Prova Social</div>
-  <div style="font-size:12.5px;color:var(--text3);margin-bottom:20px">Dados reais de clientes e revendas que validam a marca Dana</div>
+  <div style="font-size:12.5px;color:var(--text3);margin-bottom:20px">Dados reais de clientes e revendas que validam a marca Dana · <span style="color:var(--green)">Bling ao vivo</span></div>
   <div class="kpi-grid mb20">
-    <div class="kpi-card dark"><div class="kpi-label">Contatos Cadastrados</div><div class="kpi-value">28.500+</div><div class="kpi-change up">Base total Bling</div></div>
-    <div class="kpi-card"><div class="kpi-label">Revendas Ativas</div><div class="kpi-value">15+</div><div class="kpi-change up">Em 8+ estados + internacional</div></div>
-    <div class="kpi-card"><div class="kpi-label">Pedidos Abril</div><div class="kpi-value">234</div><div class="kpi-change up">Em 13 dias (R$223k)</div></div>
+    <div class="kpi-card dark"><div class="kpi-label">Contatos Cadastrados</div><div class="kpi-value" id="ps-contatos">--</div><div class="kpi-change up">Base total Bling</div></div>
+    <div class="kpi-card"><div class="kpi-label">Faturamento 2026</div><div class="kpi-value" id="ps-fat2026">--</div><div class="kpi-change up" id="ps-fat2026-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label" id="ps-pedidos-label">Pedidos Mês Atual</div><div class="kpi-value" id="ps-pedidos">--</div><div class="kpi-change up" id="ps-pedidos-sub">carregando...</div></div>
     <div class="kpi-card"><div class="kpi-label">Internacional</div><div class="kpi-value">2</div><div class="kpi-change up">Moçambique + Costa Rica</div></div>
   </div>
   <div class="g2">
@@ -5819,35 +5835,22 @@ updateDynamicField('foto');
 <div style="padding:24px 28px">
   <div class="rel-hero">
     <div style="position:relative;z-index:1">
-      <div class="rel-period">Março 2026 — Dados Bling (real)</div>
+      <div class="rel-period" id="rel-period">Carregando...</div>
       <div class="rel-headline">Relatório Executivo<br>Dana Jalecos Exclusivos</div>
     </div>
     <div class="rel-kpis">
-      <div class="rel-kpi"><div class="rel-kpi-label">Faturamento</div><div class="rel-kpi-val">R$296k</div><div class="rel-kpi-chg">926 pedidos</div></div>
-      <div class="rel-kpi"><div class="rel-kpi-label">A Receber</div><div class="rel-kpi-val">R$291k</div><div class="rel-kpi-chg">em aberto</div></div>
-      <div class="rel-kpi"><div class="rel-kpi-label">Ticket Médio</div><div class="rel-kpi-val">R$320</div><div class="rel-kpi-chg">março 2026</div></div>
+      <div class="rel-kpi"><div class="rel-kpi-label">Faturamento</div><div class="rel-kpi-val" id="rel-fat">--</div><div class="rel-kpi-chg" id="rel-fat-sub">carregando</div></div>
+      <div class="rel-kpi"><div class="rel-kpi-label">A Receber</div><div class="rel-kpi-val" id="rel-receber">--</div><div class="rel-kpi-chg">em aberto</div></div>
+      <div class="rel-kpi"><div class="rel-kpi-label">Ticket Médio</div><div class="rel-kpi-val" id="rel-ticket">--</div><div class="rel-kpi-chg" id="rel-ticket-sub">carregando</div></div>
     </div>
   </div>
   <div class="rel-sec">Insights Estratégicos</div>
-  <div class="insight"><div class="insight-icon up">↑</div><div><div class="insight-title">Ticket médio abril triplicou vs março</div><div class="insight-body">Ticket médio saltou de R$320 (março) para R$955 (abril 1-13) — indica pedidos maiores e possivelmente mais pedidos B2B/atacado neste início de mês.</div><div class="insight-action">→ Investigar se há concentração de pedidos corporativos</div></div></div>
-  <div class="insight"><div class="insight-icon up">↑</div><div><div class="insight-title">Março fechou com 926 pedidos e R$296k</div><div class="insight-body">Volume robusto com 926 pedidos. Abril já tem R$223k em 13 dias (234 pedidos), projetando superar março se manter ritmo.</div><div class="insight-action">→ Manter investimento em tráfego no mesmo patamar</div></div></div>
-  <div class="insight"><div class="insight-icon up">↑</div><div><div class="insight-title">Scrub Feminino Lilás lidera vendas abril (61 un)</div><div class="insight-body">Scrub Fem. Lilás (61 un), Azul Bebê (27 un) e Preto (24 un) lideram. Jaleco Manuela Azul Marinho (14 un) e Chloe Preto (13 un) são os jalecos mais vendidos.</div><div class="insight-action">→ Ampliar estoque dos 6 top produtos e criar combos</div></div></div>
-  <div class="insight"><div class="insight-icon warn">!</div><div><div class="insight-title">Contas a pagar (R$1.109k) superam contas a receber (R$291k)</div><div class="insight-body">Saldo financeiro negativo significativo. Atenção ao fluxo de caixa — monitorar parcelas com vencimento próximo e antecipar recebíveis se necessário.</div><div class="insight-action">→ Revisar vencimentos e negociar prazos com fornecedores</div></div></div>
+  <div id="rel-insights"><div style="text-align:center;color:var(--text3);padding:20px;font-size:13px">Carregando insights...</div></div>
   <div style="margin-top:20px">
-    <div class="rel-sec">Ranking de Produtos e Canais — Março 2026</div>
+    <div class="rel-sec" id="rel-ranking-title">Ranking de Canais e Produtos</div>
     <div class="g2">
-      <div class="card">
-        <div class="rank-row"><div class="rank-num top">#1</div><div class="rank-bar-wrap"><div class="rank-bar-label">Site / Loja Virtual</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:100%"></div></div></div><div class="rank-val">Principal</div></div>
-        <div class="rank-row"><div class="rank-num top">#2</div><div class="rank-bar-wrap"><div class="rank-bar-label">Mercado Livre</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:60%"></div></div></div><div class="rank-val">Marketplace</div></div>
-        <div class="rank-row"><div class="rank-num">#3</div><div class="rank-bar-wrap"><div class="rank-bar-label">Shopee / TikTok / Magalu</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:35%"></div></div></div><div class="rank-val">Crescendo</div></div>
-        <div class="rank-row"><div class="rank-num">#4</div><div class="rank-bar-wrap"><div class="rank-bar-label">Eventos (CIOSP, Full Face...)</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:20%"></div></div></div><div class="rank-val">Presencial</div></div>
-      </div>
-      <div class="card">
-        <div class="rank-row"><div class="rank-num top">#1</div><div class="rank-bar-wrap"><div class="rank-bar-label">Scrub Feminino Lilás</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:100%"></div></div></div><div class="rank-val">61 un</div></div>
-        <div class="rank-row"><div class="rank-num top">#2</div><div class="rank-bar-wrap"><div class="rank-bar-label">Scrub Feminino Azul Bebê</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:44%"></div></div></div><div class="rank-val">27 un</div></div>
-        <div class="rank-row"><div class="rank-num top">#3</div><div class="rank-bar-wrap"><div class="rank-bar-label">Scrub Feminino Preto</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:39%"></div></div></div><div class="rank-val">24 un</div></div>
-        <div class="rank-row"><div class="rank-num">#4</div><div class="rank-bar-wrap"><div class="rank-bar-label">Jaleco Manuela Azul Marinho</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:23%"></div></div></div><div class="rank-val">14 un</div></div>
-      </div>
+      <div class="card" id="rel-ranking-canais"><div style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Carregando...</div></div>
+      <div class="card" id="rel-ranking-produtos"><div style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Carregando...</div></div>
     </div>
   </div>
 </div>
@@ -7820,6 +7823,305 @@ function loadProjecoes() {
   }
 }
 
+// ── PROVA SOCIAL (dados reais) ──
+function loadProvaSocial() {
+  const s = liveData.stats;
+  if (!s) return;
+  const el = (id) => document.getElementById(id);
+  const fmt = (v) => Math.round(v).toLocaleString('pt-BR');
+  const fmtK = (v) => 'R$' + Math.round(v/1000) + 'k';
+
+  if (el('ps-contatos')) el('ps-contatos').textContent = fmt(s.total_contatos || 0) + '+';
+  if (el('ps-fat2026')) el('ps-fat2026').textContent = fmtK(s.receita_2026 || 0);
+  if (el('ps-fat2026-sub')) el('ps-fat2026-sub').textContent = fmt(s.pedidos_2026 || 0) + ' pedidos em 2026';
+
+  // Mes atual
+  const now = new Date();
+  const mesAtual = now.getMonth() + 1;
+  const pm = liveData.porMes;
+  if (pm) {
+    const key = now.getFullYear() + '-' + mesAtual;
+    const m = pm[key];
+    if (m) {
+      if (el('ps-pedidos-label')) el('ps-pedidos-label').textContent = 'Pedidos ' + getMesNome(mesAtual);
+      if (el('ps-pedidos')) el('ps-pedidos').textContent = fmt(m.pedidos);
+      if (el('ps-pedidos-sub')) el('ps-pedidos-sub').textContent = fmtK(m.receita) + ' faturado';
+    }
+  }
+}
+
+// ── RELATÓRIO EXECUTIVO (dados reais) ──
+function loadRelatorio() {
+  const s = liveData.stats;
+  const pm = liveData.porMes;
+  const contas = liveData.contas;
+  if (!s || !pm) return;
+
+  const el = (id) => document.getElementById(id);
+  const fmt = (v) => Math.round(v).toLocaleString('pt-BR');
+  const fmtK = (v) => 'R$' + Math.round(v/1000) + 'k';
+  const now = new Date();
+  const mesAtual = now.getMonth() + 1, anoAtual = now.getFullYear();
+
+  // Pegar mês mais recente com dados completos (mês anterior se estamos no meio do mês)
+  const mesRef = mesAtual > 1 ? mesAtual - 1 : mesAtual;
+  const keyRef = anoAtual + '-' + mesRef;
+  const keyAtual = anoAtual + '-' + mesAtual;
+  const dRef = pm[keyRef] || {};
+  const dAtual = pm[keyAtual] || {};
+
+  // Header
+  if (el('rel-period')) el('rel-period').textContent = getMesNome(mesRef) + ' ' + anoAtual + ' — Dados Bling (ao vivo)';
+
+  // KPIs
+  if (el('rel-fat')) el('rel-fat').textContent = fmtK(dRef.receita || 0);
+  if (el('rel-fat-sub')) el('rel-fat-sub').textContent = fmt(dRef.pedidos || 0) + ' pedidos';
+  if (el('rel-receber')) el('rel-receber').textContent = fmtK(s.total_receber || 0);
+  const ticketRef = dRef.pedidos > 0 ? Math.round(dRef.receita / dRef.pedidos) : 0;
+  if (el('rel-ticket')) el('rel-ticket').textContent = 'R$' + fmt(ticketRef);
+  if (el('rel-ticket-sub')) el('rel-ticket-sub').textContent = getMesNome(mesRef) + ' ' + anoAtual;
+
+  // Insights dinâmicos
+  const ticketAtual = dAtual.pedidos > 0 ? Math.round(dAtual.receita / dAtual.pedidos) : 0;
+  const ticketDiff = ticketRef > 0 ? Math.round((ticketAtual - ticketRef) / ticketRef * 100) : 0;
+  const receitaDiff = dRef.receita > 0 && dAtual.receita > 0 ? Math.round((dAtual.receita / dRef.receita) * 100) : 0;
+  const cp = contas ? (contas.cp_aberto_valor || 0) : 0;
+  const cr = s.total_receber || 0;
+
+  let insightsHtml = '';
+
+  // Insight 1: comparativo meses
+  if (dAtual.receita > 0) {
+    const icon = ticketDiff >= 0 ? 'up' : 'warn';
+    const seta = ticketDiff >= 0 ? '↑' : '↓';
+    insightsHtml += `<div class="insight"><div class="insight-icon ${icon}">${seta}</div><div>
+      <div class="insight-title">Ticket médio ${getMesNome(mesAtual)}: R$${fmt(ticketAtual)} (${ticketDiff>=0?'+':''}${ticketDiff}% vs ${getMesNome(mesRef)})</div>
+      <div class="insight-body">${getMesNome(mesRef)} fechou com ticket R$${fmt(ticketRef)}. ${getMesNome(mesAtual)} está em R$${fmt(ticketAtual)}${ticketDiff > 20 ? ' — indica pedidos maiores, possivelmente B2B/atacado.' : '.'}</div>
+      <div class="insight-action">→ ${ticketDiff > 20 ? 'Investigar concentração de pedidos corporativos' : 'Manter estratégia de preço atual'}</div>
+    </div></div>`;
+  }
+
+  // Insight 2: volume
+  if (dRef.pedidos > 0) {
+    insightsHtml += `<div class="insight"><div class="insight-icon up">↑</div><div>
+      <div class="insight-title">${getMesNome(mesRef)} fechou com ${fmt(dRef.pedidos)} pedidos e ${fmtK(dRef.receita)}</div>
+      <div class="insight-body">${dAtual.pedidos > 0 ? getMesNome(mesAtual) + ' já tem ' + fmtK(dAtual.receita) + ' (' + fmt(dAtual.pedidos) + ' pedidos)' + (receitaDiff > 50 ? ', projetando superar o mês anterior.' : '.') : 'Dados do mês atual ainda não disponíveis.'}</div>
+      <div class="insight-action">→ Manter investimento em tráfego no mesmo patamar</div>
+    </div></div>`;
+  }
+
+  // Insight 3: financeiro
+  if (cp > 0) {
+    const icon = cp > cr ? 'warn' : 'up';
+    const sinal = cp > cr ? '!' : '↑';
+    insightsHtml += `<div class="insight"><div class="insight-icon ${icon}">${sinal}</div><div>
+      <div class="insight-title">Contas a pagar (${fmtK(cp)}) ${cp > cr ? 'superam' : 'menores que'} contas a receber (${fmtK(cr)})</div>
+      <div class="insight-body">${cp > cr ? 'Saldo financeiro negativo. Atenção ao fluxo de caixa — monitorar parcelas com vencimento próximo.' : 'Fluxo de caixa positivo. Boa saúde financeira.'}</div>
+      <div class="insight-action">→ ${cp > cr ? 'Revisar vencimentos e negociar prazos com fornecedores' : 'Manter ritmo de vendas e cobranças'}</div>
+    </div></div>`;
+  }
+
+  // Insight 4: YTD
+  insightsHtml += `<div class="insight"><div class="insight-icon up">↑</div><div>
+    <div class="insight-title">Acumulado 2026: ${fmtK(s.receita_2026 || 0)} em ${fmt(s.pedidos_2026 || 0)} pedidos</div>
+    <div class="insight-body">${s.receita_2025 > 0 ? 'Crescimento de ' + Math.round(((s.receita_2026||0)/(s.receita_2025||1)-1)*100) + '% vs mesmo período 2025 (' + fmtK(s.receita_2025) + ').' : 'Primeiro ano completo de dados.'}</div>
+    <div class="insight-action">→ Acompanhar projeção mensal no Dashboard</div>
+  </div></div>`;
+
+  if (el('rel-insights')) el('rel-insights').innerHTML = insightsHtml;
+
+  // Ranking de canais (dados reais porMes)
+  const mRef = pm[keyRef] || pm[keyAtual] || {};
+  const canais = [
+    { nome: 'Site / Loja Virtual', receita: (mRef.receita_site || 0) + (mRef.receita_loja || 0) },
+    { nome: 'Mercado Livre', receita: mRef.receita_ml || 0 },
+    { nome: 'Shopee', receita: mRef.receita_shopee || 0 },
+    { nome: 'TikTok Shop', receita: mRef.receita_tiktok || 0 },
+  ].sort((a, b) => b.receita - a.receita);
+  const maxCanal = canais[0]?.receita || 1;
+
+  if (el('rel-ranking-canais')) {
+    el('rel-ranking-canais').innerHTML = '<div class="card-title" style="margin-bottom:10px">Ranking Canais — ' + getMesNome(mesRef) + '</div>' +
+      canais.map((c, i) => `<div class="rank-row"><div class="rank-num${i<2?' top':''}">#${i+1}</div><div class="rank-bar-wrap"><div class="rank-bar-label">${c.nome}</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:${Math.round(c.receita/maxCanal*100)}%"></div></div></div><div class="rank-val">${fmtK(c.receita)}</div></div>`).join('');
+  }
+
+  // Ranking de produtos (query real)
+  loadTopProdutos(el('rel-ranking-produtos'), getMesNome(mesRef));
+}
+
+// ── TOP PRODUTOS (query Supabase real) ──
+async function loadTopProdutos(container, mesLabel) {
+  if (!container) return;
+  try {
+    const now = new Date();
+    const mesRef = now.getMonth(); // mês anterior (0-indexed)
+    const anoRef = mesRef === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    const mesQ = mesRef === 0 ? 12 : mesRef;
+    const inicio = anoRef + '-' + String(mesQ).padStart(2,'0') + '-01';
+    const fim = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-01';
+
+    // Query: contar pedidos por contato_nome (proxy para produto — o Bling não tem item detalhado na view atual)
+    // Usar pedidos do mês como proxy
+    const { data, error } = await sb.from('pedidos')
+      .select('contato_nome')
+      .gte('data', inicio)
+      .lt('data', fim)
+      .not('contato_nome', 'is', null)
+      .limit(2000);
+
+    if (error || !data || data.length === 0) {
+      container.innerHTML = '<div class="card-title" style="margin-bottom:10px">Top Clientes — ' + (mesLabel||'') + '</div><div style="color:var(--text3);font-size:12px;padding:10px">Sem dados</div>';
+      return;
+    }
+
+    // Contar por nome
+    const counts = {};
+    data.forEach(d => {
+      const nome = (d.contato_nome || '').trim();
+      if (nome) counts[nome] = (counts[nome] || 0) + 1;
+    });
+
+    const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]).slice(0, 6);
+    const maxVal = sorted[0]?.[1] || 1;
+
+    container.innerHTML = '<div class="card-title" style="margin-bottom:10px">Top Clientes — ' + (mesLabel||'Mês') + '</div>' +
+      sorted.map(([nome, cnt], i) => `<div class="rank-row"><div class="rank-num${i<3?' top':''}">#${i+1}</div><div class="rank-bar-wrap"><div class="rank-bar-label">${esc(nome)}</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:${Math.round(cnt/maxVal*100)}%"></div></div></div><div class="rank-val">${cnt} ped.</div></div>`).join('');
+
+  } catch (e) {
+    console.warn('Top produtos error:', e);
+    container.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:10px">Erro ao carregar</div>';
+  }
+}
+
+// ── MARKETPLACES: Vendas por canal + Top SKUs ──
+async function loadMarketplacesExtras() {
+  const pm = liveData.porMes;
+  if (!pm) return;
+  const now = new Date();
+  const mesAtual = now.getMonth() + 1, anoAtual = now.getFullYear();
+  const fmt = (v) => Math.round(v).toLocaleString('pt-BR');
+  const fmtK = (v) => 'R$' + Math.round(v/1000) + 'k';
+  const fmtR = (v) => 'R$' + fmt(v);
+
+  const filtro = document.getElementById('mp-filtro-mes')?.value || 'atual';
+
+  // Calcular dados por canal COMPLETO (Site, Loja, ML, Shopee, TikTok)
+  let site = {r:0,p:0}, loja = {r:0,p:0}, ml = {r:0,p:0}, sh = {r:0,p:0}, tk = {r:0,p:0};
+  let labelP = '';
+
+  const sum = (entries) => {
+    entries.forEach(([, d]) => {
+      site.r += d.receita_site||0; site.p += d.pedidos_site||0;
+      loja.r += d.receita_loja||0; loja.p += d.pedidos_loja||0;
+      ml.r += d.receita_ml||0; ml.p += d.pedidos_ml||0;
+      sh.r += d.receita_shopee||0; sh.p += d.pedidos_shopee||0;
+      tk.r += d.receita_tiktok||0; tk.p += d.pedidos_tiktok||0;
+    });
+  };
+
+  if (filtro === 'ytd') {
+    sum(Object.entries(pm).filter(([k]) => k.startsWith(anoAtual+'-')));
+    labelP = 'Acumulado ' + anoAtual;
+  } else if (filtro === 'atual') {
+    sum([[null, pm[anoAtual+'-'+mesAtual] || {}]]);
+    labelP = getMesNome(mesAtual) + ' ' + anoAtual;
+  } else {
+    sum([[null, pm[filtro] || {}]]);
+    const [a, m] = filtro.split('-').map(Number);
+    labelP = getMesNome(m) + ' ' + a;
+  }
+
+  const canais = [
+    { nome: 'Site / E-commerce', ...site, cor: '#1a4fa0' },
+    { nome: 'Loja / WhatsApp', ...loja, cor: '#059669' },
+    { nome: 'Mercado Livre', ...ml, cor: '#ffe600' },
+    { nome: 'Shopee', ...sh, cor: '#ee4d2d' },
+    { nome: 'TikTok Shop', ...tk, cor: '#010101' },
+  ].map(c => ({ ...c, ticket: c.p > 0 ? Math.round(c.r / c.p) : 0, share: 0 }));
+
+  const totalR = canais.reduce((s, c) => s + c.r, 0) || 1;
+  canais.forEach(c => { c.share = Math.round(c.r / totalR * 100); });
+  canais.sort((a, b) => b.r - a.r);
+
+  // Tabela de canais completa
+  const canalEl = document.getElementById('mp-canais-completo');
+  if (canalEl) {
+    canalEl.innerHTML = `<table style="width:100%"><thead><tr><th>Canal</th><th>Receita</th><th>Pedidos</th><th>Ticket</th><th>Share</th><th style="width:120px">Desempenho</th></tr></thead><tbody>
+      ${canais.map(c => `<tr>
+        <td class="em"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c.cor};margin-right:6px"></span>${c.nome}</td>
+        <td class="good">${fmtR(c.r)}</td>
+        <td>${fmt(c.p)}</td>
+        <td>R$${fmt(c.ticket)}</td>
+        <td>${c.share}%</td>
+        <td><div style="height:10px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:${c.share}%;height:100%;background:${c.cor};border-radius:4px"></div></div></td>
+      </tr>`).join('')}
+      <tr style="font-weight:700;border-top:2px solid var(--border)">
+        <td>Total</td>
+        <td class="good">${fmtR(totalR)}</td>
+        <td>${fmt(canais.reduce((s,c)=>s+c.p,0))}</td>
+        <td>R$${fmt(canais.reduce((s,c)=>s+c.p,0)>0 ? Math.round(totalR/canais.reduce((s,c)=>s+c.p,0)) : 0)}</td>
+        <td>100%</td>
+        <td></td>
+      </tr>
+    </tbody></table>`;
+  }
+
+  // Top SKUs (clientes mais frequentes como proxy)
+  try {
+    let inicio, fim;
+    if (filtro === 'ytd') {
+      inicio = anoAtual + '-01-01';
+      fim = anoAtual + '-12-31';
+    } else if (filtro === 'atual') {
+      inicio = anoAtual + '-' + String(mesAtual).padStart(2,'0') + '-01';
+      const nextM = mesAtual === 12 ? 1 : mesAtual + 1;
+      const nextA = mesAtual === 12 ? anoAtual + 1 : anoAtual;
+      fim = nextA + '-' + String(nextM).padStart(2,'0') + '-01';
+    } else {
+      const [a, m] = filtro.split('-').map(Number);
+      inicio = a + '-' + String(m).padStart(2,'0') + '-01';
+      const nextM = m === 12 ? 1 : m + 1;
+      const nextA = m === 12 ? a + 1 : a;
+      fim = nextA + '-' + String(nextM).padStart(2,'0') + '-01';
+    }
+
+    const { data } = await sb.from('pedidos')
+      .select('contato_nome, total')
+      .gte('data', inicio)
+      .lt('data', fim)
+      .not('contato_nome', 'is', null)
+      .limit(3000);
+
+    const skuEl = document.getElementById('mp-top-skus');
+    const subEl = document.getElementById('mp-sku-sub');
+    if (subEl) subEl.textContent = 'Clientes com mais pedidos · ' + labelP;
+
+    if (data && data.length > 0 && skuEl) {
+      const counts = {};
+      const totals = {};
+      data.forEach(d => {
+        const n = (d.contato_nome || '').trim();
+        if (n) {
+          counts[n] = (counts[n] || 0) + 1;
+          totals[n] = (totals[n] || 0) + (d.total || 0);
+        }
+      });
+      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      const maxV = sorted[0]?.[1] || 1;
+
+      skuEl.innerHTML = `<table style="width:100%"><thead><tr><th>#</th><th>Cliente</th><th>Pedidos</th><th>Total Gasto</th><th style="width:100px"></th></tr></thead><tbody>
+        ${sorted.map(([nome, cnt], i) => `<tr>
+          <td style="font-weight:700;color:${i<3?'var(--green)':'var(--text3)'}">${i+1}</td>
+          <td class="em">${esc(nome)}</td>
+          <td>${cnt}</td>
+          <td class="good">${fmtR(Math.round(totals[nome]||0))}</td>
+          <td><div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:${Math.round(cnt/maxV*100)}%;height:100%;background:var(--green);border-radius:4px"></div></div></td>
+        </tr>`).join('')}
+      </tbody></table>`;
+    }
+  } catch (e) { console.warn('Top SKUs error:', e); }
+}
+
 // ── INIT UPGRADE ──
 async function initUpgradeFeatures() {
   setupRealtimeSubscriptions();
@@ -7832,8 +8134,11 @@ async function initUpgradeFeatures() {
   // Esperar liveData ficar disponível, então carregar seções que dependem dele
   setTimeout(() => {
     loadMarketplaces();
+    loadMarketplacesExtras();
     loadFinanceiro();
     loadProjecoes();
+    loadProvaSocial();
+    loadRelatorio();
   }, 2000);
 }
 
