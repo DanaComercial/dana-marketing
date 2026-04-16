@@ -8419,15 +8419,14 @@ async function criarUsuario() {
 
   btn.textContent = 'Criando...'; btn.disabled = true;
   try {
-    const session = (await sb.auth.getSession()).data.session;
     const res = await fetch(SUPABASE_URL + '/functions/v1/criar-usuario', {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + session.access_token,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
         'apikey': SUPABASE_ANON_KEY,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ nome, email, senha, cargo }),
+      body: JSON.stringify({ nome, email, senha, cargo, admin_id: currentUser.id }),
     });
     const data = await res.json();
     if (data.ok) {

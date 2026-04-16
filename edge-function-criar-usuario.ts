@@ -18,31 +18,23 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verificar se quem chamou é admin
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) return jsonResponse({ ok: false, error: 'Não autorizado' }, 401)
-
-    const supabaseUser = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
-    // Decodificar o JWT para pegar o user_id
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user: caller } } = await createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY')!).auth.getUser(token)
-    if (!caller) return jsonResponse({ ok: false, error: 'Token inválido' }, 401)
-
-    // Verificar se é admin
-    const { data: callerProfile } = await supabaseUser.from('profiles').select('cargo').eq('id', caller.id).single()
-    if (!callerProfile || callerProfile.cargo !== 'admin') {
-      return jsonResponse({ ok: false, error: 'Apenas administradores podem criar usuários' }, 403)
-    }
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
     // Pegar dados do body
     const body = await req.json()
-    const { nome, email, senha, cargo } = body
+    const { nome, email, senha, cargo, admin_id } = body
+
+    // Verificar se quem chamou é admin
+    if (!admin_id) return jsonResponse({ ok: false, error: 'admin_id obrigatório' }, 400)
+    const { data: callerProfile } = await supabaseAdmin.from('profiles').select('cargo').eq('id', admin_id).single()
+    if (!callerProfile || callerProfile.cargo !== 'admin') {
+      return jsonResponse({ ok: false, error: 'Apenas administradores podem criar usuários' }, 403)
+    }
     if (!nome || !email || !senha) return jsonResponse({ ok: false, error: 'Nome, email e senha são obrigatórios' }, 400)
     if (senha.length < 6) return jsonResponse({ ok: false, error: 'Senha deve ter no mínimo 6 caracteres' }, 400)
 
     // Criar usuario no Supabase Auth
-    const { data: newUser, error: authError } = await supabaseUser.auth.admin.createUser({
+    const { data: newUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: senha,
       email_confirm: true, // Confirma email automaticamente
@@ -53,7 +45,7 @@ Deno.serve(async (req) => {
 
     // Atualizar profile com nome e cargo corretos
     if (newUser?.user) {
-      await supabaseUser.from('profiles').upsert({
+      await supabaseAdmin.from('profiles').upsert({
         id: newUser.user.id,
         nome,
         cargo: cargo || 'vendedor',
