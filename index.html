@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>DMS — Dana Marketing System</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -6713,7 +6716,11 @@ async function loadTarefas() {
         board.onscroll = () => { scrollTop.scrollLeft = board.scrollLeft; };
       }
     }, 200);
-  } catch(e) { console.warn('Tarefas error:', e.message); }
+  } catch(e) {
+    console.warn('Tarefas error:', e.message);
+    // Retry após 3s se falhar
+    if (!window._tarefasRetried) { window._tarefasRetried = true; setTimeout(loadTarefas, 3000); }
+  }
 }
 
 function renderKanbanCard(t) {
