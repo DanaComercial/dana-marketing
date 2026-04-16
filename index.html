@@ -6847,10 +6847,10 @@ async function loadTarefas() {
     // Descobrir colunas únicas (preservar ordem)
     const colOrder = ['backlog','doing','review','done','referencias','materiais','campanhas','producao','cronograma','crono_abril','todo','roteiros','campanhas_ativas','todo_reuniao','black_friday','info_jaleco_box','10_anos','campanhas_q1'];
     const usedCols = new Set(_tarefasCache.map(t => t.coluna));
-    // Só mostrar colunas que TÊM cards (remove vazias e arquivo)
-    const cols = colOrder.filter(c => usedCols.has(c) && c !== 'arquivo');
-    // Adicionar qualquer coluna desconhecida (exceto arquivo)
-    usedCols.forEach(c => { if (!cols.includes(c) && c !== 'arquivo') cols.push(c); });
+    // Só mostrar colunas que TÊM cards (remove vazias, arquivo e escondidas)
+    const cols = colOrder.filter(c => usedCols.has(c) && c !== 'arquivo' && !_colunasEscondidas?.has(c));
+    // Adicionar qualquer coluna desconhecida (exceto arquivo e escondidas)
+    usedCols.forEach(c => { if (!cols.includes(c) && c !== 'arquivo' && !_colunasEscondidas?.has(c)) cols.push(c); });
 
     const board = document.getElementById('kanban-board');
     if (!board) return;
@@ -7111,14 +7111,16 @@ function abrirNovaTarefa() {
 }
 
 // ── GERENCIADOR DE COLUNAS ──
-let _colunasCustom = []; // { coluna, label, cor }
+let _colunasCustom = []; // { coluna, label, cor, escondida }
+let _colunasEscondidas = new Set(); // Set de keys escondidas
 
 async function loadColunasCustom() {
   try {
     const { data } = await sb.from('kanban_colunas').select('*').order('ordem');
     _colunasCustom = data || [];
-    // Mergear no COL_LABELS e COL_COLORS
+    _colunasEscondidas = new Set();
     _colunasCustom.forEach(c => {
+      if (c.escondida) { _colunasEscondidas.add(c.coluna); return; }
       COL_LABELS[c.coluna] = c.label;
       COL_COLORS[c.coluna] = c.cor || '#1a4fa0';
     });
@@ -7138,27 +7140,70 @@ function renderGerenciarColunas() {
   const counts = {};
   _tarefasCache.forEach(t => { counts[t.coluna] = (counts[t.coluna] || 0) + 1; });
   const allCols = [...new Set([...Object.keys(COL_LABELS), ...Object.keys(counts)])].filter(c => c !== 'arquivo');
-  // Ordenar: custom primeiro, padrão depois
+  const visiveis = allCols.filter(c => !_colunasEscondidas.has(c));
+  const escondidas = [..._colunasEscondidas];
   const customKeys = _colunasCustom.map(c => c.coluna);
 
-  if (allCols.length === 0) { el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhuma coluna</div>'; return; }
+  let html = '';
+  if (visiveis.length === 0) {
+    html += '<div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Nenhuma coluna visível</div>';
+  } else {
+    html += visiveis.map(col => {
+      const count = counts[col] || 0;
+      const label = COL_LABELS[col] || col;
+      const cor = COL_COLORS[col] || '#1a4fa0';
+      const isCustom = customKeys.includes(col);
+      const isDefault = ['backlog','doing','review','done'].includes(col);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+        <div style="width:14px;height:14px;border-radius:50%;background:${cor};flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--black)">${esc(label)}</div>
+          <div style="font-size:10px;color:var(--text3)">${count} tarefa(s) · ${isCustom ? 'Personalizada' : (isDefault ? 'Padrão' : 'Importada do Trello')}</div>
+        </div>
+        <button onclick="excluirColuna('${col}')" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;color:var(--red)" title="Excluir">🗑</button>
+      </div>`;
+    }).join('');
+  }
 
-  el.innerHTML = allCols.map(col => {
-    const count = counts[col] || 0;
-    const label = COL_LABELS[col] || col;
-    const cor = COL_COLORS[col] || '#1a4fa0';
-    const isCustom = customKeys.includes(col);
-    const isDefault = ['backlog','doing','review','done'].includes(col);
+  if (escondidas.length > 0) {
+    html += '<div style="font-size:11px;font-weight:700;color:var(--text3);margin:14px 0 8px;text-transform:uppercase;letter-spacing:0.5px">Colunas Escondidas</div>';
+    html += escondidas.map(col => {
+      const escData = _colunasCustom.find(c => c.coluna === col);
+      const label = escData?.label || col;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px dashed var(--border);border-radius:8px;margin-bottom:6px;opacity:0.7">
+        <div style="width:14px;height:14px;border-radius:50%;background:var(--grey5);flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--text3);text-decoration:line-through">${esc(label)}</div>
+          <div style="font-size:10px;color:var(--text3)">Escondida</div>
+        </div>
+        <button onclick="restaurarColuna('${col}')" style="padding:6px 10px;background:var(--green-bg);border:1px solid var(--green);border-radius:6px;cursor:pointer;font-size:11px;color:var(--green)" title="Restaurar">↺</button>
+      </div>`;
+    }).join('');
+  }
 
-    return `<div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
-      <div style="width:14px;height:14px;border-radius:50%;background:${cor};flex-shrink:0"></div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600;color:var(--black)">${esc(label)}</div>
-        <div style="font-size:10px;color:var(--text3)">${count} tarefa(s) · ${isCustom ? 'Personalizada' : (isDefault ? 'Padrão' : 'Importada do Trello')}</div>
-      </div>
-      <button onclick="excluirColuna('${col}')" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;color:var(--red)" title="Excluir">🗑</button>
-    </div>`;
-  }).join('');
+  el.innerHTML = html;
+}
+
+async function restaurarColuna(coluna) {
+  if (!podeCriarTarefa()) { showToast('Sem permissao'); return; }
+  try {
+    const { data: existing } = await sb.from('kanban_colunas').select('*').eq('coluna', coluna).maybeSingle();
+    // Se é coluna padrão, só deleta a entrada de "escondida"
+    const isDefault = ['backlog','doing','review','done'].includes(coluna) || !existing?.label || existing?.escondida;
+    // Marcar como não escondida
+    await sb.from('kanban_colunas').update({ escondida: false }).eq('coluna', coluna);
+    // Se nem entrada tinha, inserir
+    if (!existing) {
+      await sb.from('kanban_colunas').insert({ coluna, label: COL_LABELS[coluna] || coluna, cor: COL_COLORS[coluna] || '#1a4fa0', escondida: false });
+    }
+    _colunasEscondidas.delete(coluna);
+    showToast('Coluna restaurada');
+    renderGerenciarColunas();
+    loadTarefas();
+  } catch(e) {
+    showToast('Erro: ' + e.message);
+    console.error(e);
+  }
 }
 
 async function criarColuna() {
@@ -7189,7 +7234,8 @@ async function criarColuna() {
 async function excluirColuna(coluna) {
   if (!podeCriarTarefa()) { showToast('Sem permissao'); return; }
   const count = _tarefasCache.filter(t => t.coluna === coluna).length;
-  let mensagem = 'Excluir a coluna "' + (COL_LABELS[coluna] || coluna) + '"?';
+  const label = COL_LABELS[coluna] || coluna;
+  let mensagem = 'Excluir a coluna "' + label + '"?';
   if (count > 0) mensagem += '\n\nATENÇÃO: As ' + count + ' tarefa(s) desta coluna serão movidas para "Arquivo".';
   if (!confirm(mensagem)) return;
 
@@ -7198,12 +7244,15 @@ async function excluirColuna(coluna) {
     if (count > 0) {
       await sb.from('tarefas').update({ coluna: 'arquivo' }).eq('coluna', coluna);
     }
-    // Tentar excluir do banco (se era custom)
-    await sb.from('kanban_colunas').delete().eq('coluna', coluna);
-    // Remover do frontend
+    // Marcar coluna como escondida no banco (upsert para sobrescrever se já existe)
+    await sb.from('kanban_colunas').upsert({
+      coluna, label, cor: COL_COLORS[coluna] || '#999', escondida: true
+    }, { onConflict: 'coluna' });
+    // Atualizar frontend
+    _colunasEscondidas.add(coluna);
     _colunasCustom = _colunasCustom.filter(c => c.coluna !== coluna);
     showToast('Coluna excluída');
-    logActivity('excluiu_coluna', COL_LABELS[coluna] || coluna, 'tarefas');
+    logActivity('excluiu_coluna', label, 'tarefas');
     renderGerenciarColunas();
     loadTarefas();
   } catch(e) {
