@@ -5713,30 +5713,33 @@ updateDynamicField('foto');
 
 <!-- ════════ MODAIS NOVOS ════════ -->
 <div class="modal-overlay" id="modal-novo-evento">
-  <div class="modal">
-    <div class="modal-head">Novo Evento<div class="modal-close" onclick="closeModal('novo-evento')">&times;</div></div>
-    <div class="modal-body">
-      <label>Título</label>
-      <input type="text" id="evt-titulo" placeholder="Nome do evento ou campanha">
-      <label>Tipo</label>
-      <select id="evt-tipo" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:7px;font-size:13px;margin-bottom:12px;background:var(--surface3)">
-        <option value="campanha">Campanha</option>
-        <option value="promocao">Promoção</option>
-        <option value="lancamento">Lançamento</option>
-        <option value="evento">Evento</option>
-        <option value="deadline">Deadline</option>
-        <option value="feriado">Feriado</option>
-      </select>
-      <label>Data Início</label>
-      <input type="date" id="evt-inicio">
-      <label>Data Fim (opcional)</label>
-      <input type="date" id="evt-fim">
-      <label>Descrição (opcional)</label>
-      <textarea id="evt-desc" rows="2" placeholder="Detalhes do evento"></textarea>
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <div class="modal-title" style="display:flex;align-items:center;gap:8px">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#dcfce7;color:#15803d;font-size:16px">📅</span>
+        Novo Evento
+      </div>
+      <button class="modal-close" onclick="closeModal('novo-evento')">×</button>
     </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('novo-evento')">Cancelar</button>
-      <button class="btn btn-primary" onclick="salvarEvento()">Salvar Evento</button>
+    <div class="form-row"><label class="label">Título</label><input class="input" type="text" id="evt-titulo" placeholder="Nome do evento ou campanha"></div>
+    <div class="form-row-2" style="margin-bottom:12px">
+      <div><label class="label">Tipo</label>
+        <select class="input" id="evt-tipo">
+          <option value="campanha">📣 Campanha</option>
+          <option value="promocao">🎁 Promoção</option>
+          <option value="lancamento">🚀 Lançamento</option>
+          <option value="evento">🎪 Evento</option>
+          <option value="deadline">⏰ Deadline</option>
+          <option value="feriado">🎉 Feriado</option>
+        </select>
+      </div>
+      <div><label class="label">Data Início</label><input class="input" type="date" id="evt-inicio"></div>
+    </div>
+    <div class="form-row"><label class="label">Data Fim <span style="font-size:10px;color:var(--text4)">(opcional)</span></label><input class="input" type="date" id="evt-fim"></div>
+    <div class="form-row"><label class="label">Descrição <span style="font-size:10px;color:var(--text4)">(opcional)</span></label><textarea class="input" id="evt-desc" rows="3" placeholder="Detalhes do evento..."></textarea></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-ghost" onclick="closeModal('novo-evento')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarEvento()" style="flex:2">Salvar Evento</button>
     </div>
   </div>
 </div>
@@ -7543,27 +7546,54 @@ function renderCalendario() {
   const diasNoMes = new Date(calAno, calMes, 0).getDate();
   const hoje = new Date();
 
+  // Coletar tarefas com prazo
+  const tarefasPorDia = {};
+  (_tarefasCache || []).forEach(t => {
+    const data = t.prazo || t.data_fim;
+    if (!data) return;
+    const dataStr = data.substring(0, 10);
+    if (!tarefasPorDia[dataStr]) tarefasPorDia[dataStr] = [];
+    tarefasPorDia[dataStr].push(t);
+  });
+
   let html = '';
   // Dias vazios antes
   for(let i = 0; i < primeiroDia; i++) {
-    html += '<div style="background:var(--surface);padding:8px;min-height:70px"></div>';
+    html += '<div style="background:var(--surface);padding:8px;min-height:90px"></div>';
   }
   // Dias do mes
   for(let d = 1; d <= diasNoMes; d++) {
     const dateStr = calAno + '-' + String(calMes).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     const isToday = hoje.getFullYear()===calAno && hoje.getMonth()+1===calMes && hoje.getDate()===d;
     const eventos = _eventosCache.filter(e => e.data_inicio <= dateStr && (e.data_fim ? e.data_fim >= dateStr : e.data_inicio === dateStr));
+    const tarefas = tarefasPorDia[dateStr] || [];
     const todayStyle = isToday ? 'font-weight:800;color:var(--green)' : '';
     const tiposCor = { campanha:'var(--black)', promocao:'var(--green)', lancamento:'var(--blue)', evento:'var(--amber)', deadline:'var(--red)', feriado:'#999' };
 
-    html += `<div style="background:var(--surface);padding:6px;min-height:70px;cursor:pointer" onclick="calDiaClick('${dateStr}')">
+    // Combinar eventos e tarefas para mostrar
+    const items = [
+      ...eventos.map(e => ({ tipo: 'evento', titulo: e.titulo, color: tiposCor[e.tipo] || '#ccc', onclick: `event.stopPropagation();editarEvento('${e.id}')` })),
+      ...tarefas.map(t => ({ tipo: 'tarefa', titulo: t.titulo, color: '#1a4fa0', onclick: `event.stopPropagation();openTarefa('${t.id}')`, icon: '✓' })),
+    ];
+
+    html += `<div style="background:var(--surface);padding:6px;min-height:90px;cursor:pointer" onclick="calDiaClick('${dateStr}')">
       <div style="font-size:12px;margin-bottom:4px;${todayStyle}">${d}</div>
-      ${eventos.slice(0,3).map(e => `<div style="font-size:9px;padding:2px 4px;margin-bottom:2px;border-radius:3px;background:${tiposCor[e.tipo]||'#ccc'};color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${e.titulo}">${e.titulo}</div>`).join('')}
-      ${eventos.length > 3 ? '<div style="font-size:9px;color:var(--text3)">+'+(eventos.length-3)+' mais</div>' : ''}
+      ${items.slice(0,4).map(it => `<div onclick="${it.onclick}" style="font-size:9px;padding:2px 5px;margin-bottom:2px;border-radius:3px;background:${it.color};color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" title="${esc(it.titulo)}">${it.icon ? it.icon + ' ' : ''}${esc(it.titulo)}</div>`).join('')}
+      ${items.length > 4 ? '<div style="font-size:9px;color:var(--text3)">+'+(items.length-4)+' mais</div>' : ''}
     </div>`;
   }
 
   grid.innerHTML = html;
+}
+
+async function editarEvento(id) {
+  const evt = _eventosCache.find(e => e.id === id);
+  if (!evt) return;
+  if (!confirm('Deseja excluir o evento "' + evt.titulo + '"?')) return;
+  await sb.from('calendario').delete().eq('id', id);
+  loadCalendario();
+  showToast('Evento excluído');
+  logActivity('excluiu_evento', evt.titulo, 'calendario');
 }
 
 function navegarMes(dir) {
