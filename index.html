@@ -8345,7 +8345,7 @@ async function loadAdminPermissoes() {
   _permData.forEach(p => { map[p.cargo+'_'+p.secao] = p; });
 
   container.innerHTML = `<table style="width:100%;font-size:11px"><thead><tr><th style="text-align:left;min-width:120px">Secao</th>
-    ${cargos.map(c => `<th style="text-align:center;writing-mode:vertical-lr;transform:rotate(180deg);padding:8px 4px;font-size:10px">${CARGO_LABELS[c]||c}</th>`).join('')}
+    ${cargos.map(c => `<th style="text-align:center;padding:8px 6px;font-size:10px;white-space:nowrap">${CARGO_LABELS[c]||c}</th>`).join('')}
   </tr></thead><tbody>
     ${secoes.map(s => `<tr>
       <td class="em">${secaoLabels[s]?.title || s}</td>
