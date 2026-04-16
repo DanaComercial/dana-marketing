@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
 
     // Pegar os pedidos dos últimos 14 dias
     const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - 14)
+    cutoff.setDate(cutoff.getDate() - 60)
     const cutoffStr = cutoff.toISOString().split('T')[0]
     console.log('STEP 3: Querying pedidos since', cutoffStr)
 
