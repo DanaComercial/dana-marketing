@@ -6654,18 +6654,22 @@ function timeAgo(date) {
 let _tarefasCache = [];
 const COL_LABELS = {
   backlog:'Backlog', doing:'Em Andamento', review:'Em Revisão', done:'Concluído',
-  referencias:'Referências', materiais:'Materiais', campanhas:'Campanhas 2 Tri',
-  producao:'Produção', cronograma:'Cronograma Março', crono_abril:'Cronograma Abril',
-  todo:'To Do - Luana', roteiros:'Roteiros a Produzir', campanhas_ativas:'Campanhas Ativas',
-  todo_reuniao:'To Do - Reunião', black_friday:'Black Friday Dana',
-  info_jaleco_box:'Jaleco Box', '10_anos':'10 Anos Dana', campanhas_q1:'Campanhas 1 Tri',
+  referencias:'Marcas Referências', materiais:'Materiais', campanhas_q2:'Campanhas 2 Tri',
+  producao:'Produção', crono_marco:'Cronograma Março', crono_abril:'Cronograma Abril',
+  compre_ganhe:'Compre e Ganhe', todo_luana:'To Do - Luana', roteiros:'Roteiros a Produzir',
+  campanhas_ativas:'Campanhas Ativas', todo_reuniao:'To Do - Reunião',
+  black_friday:'Black Friday Dana', jaleco_box:'Jaleco Box', redes_sociais:'Redes Sociais',
+  '10_anos':'10 Anos Dana', jaleco_box_marco:'Jaleco Box Março',
+  semana_consumidor:'Semana do Consumidor', campanhas_q1:'Campanhas 1 Tri',
 };
 const COL_COLORS = {
   backlog:'var(--grey5)', doing:'var(--amber)', review:'var(--blue)', done:'var(--green)',
-  referencias:'#7c3aed', materiais:'#0369a1', campanhas:'#dc2626', producao:'#d97706',
-  cronograma:'#059669', crono_abril:'#059669', todo:'#1a4fa0', roteiros:'#b45309',
-  campanhas_ativas:'#1a7a3a', todo_reuniao:'#7c3aed', black_friday:'#0a0a0a',
-  info_jaleco_box:'#0369a1', '10_anos':'#dc2626', campanhas_q1:'#d97706',
+  referencias:'#7c3aed', materiais:'#0369a1', campanhas_q2:'#dc2626', producao:'#d97706',
+  crono_marco:'#059669', crono_abril:'#059669', compre_ganhe:'#c0392b',
+  todo_luana:'#1a4fa0', roteiros:'#b45309', campanhas_ativas:'#1a7a3a',
+  todo_reuniao:'#7c3aed', black_friday:'#0a0a0a', jaleco_box:'#0369a1',
+  redes_sociais:'#e91e63', '10_anos':'#dc2626', jaleco_box_marco:'#0369a1',
+  semana_consumidor:'#d97706', campanhas_q1:'#d97706',
 };
 
 async function loadTarefas() {
