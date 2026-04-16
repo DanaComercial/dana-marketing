@@ -6086,9 +6086,10 @@ updateDynamicField('foto');
         <div><label class="label">Prioridade</label><select class="input" id="new-task-prio"><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select></div>
       </div>
       <div class="form-row-2">
-        <div><label class="label">Tag</label><input class="input" id="new-task-tag" placeholder="Ex: Campanha, Roteiro..."></div>
+        <div><label class="label">Responsável</label><select class="input" id="new-task-resp"><option value="">Sem responsável</option></select></div>
         <div><label class="label">Prazo</label><input class="input" type="date" id="new-task-due"></div>
       </div>
+      <div class="form-row"><label class="label">Tag</label><input class="input" id="new-task-tag" placeholder="Ex: Campanha, Roteiro..."></div>
     </div>
 
     <!-- Campos Link -->
@@ -6204,7 +6205,7 @@ updateDynamicField('foto');
       <div><label class="label">Prioridade</label><select class="input" id="vt-prio"><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select></div>
     </div>
     <div class="form-row-2" style="margin-bottom:12px">
-      <div><label class="label">Responsável</label><input class="input" id="vt-resp"></div>
+      <div><label class="label">Responsável</label><select class="input" id="vt-resp"><option value="">Sem responsável</option></select></div>
       <div><label class="label">Prazo</label><input class="input" type="date" id="vt-prazo"></div>
     </div>
     <div id="vt-links" style="margin-bottom:12px"></div>
@@ -7106,7 +7107,44 @@ function abrirNovaTarefa() {
   }
   _ntAttachments = [];
   nt_renderPreview();
+  fillResponsavelSelect('new-task-resp', '');
   openModal('nova-tarefa');
+}
+
+// ── Cache de profiles para selects de Responsável ──
+let _profilesCache = null;
+async function getProfilesList() {
+  if (_profilesCache) return _profilesCache;
+  try {
+    const { data, error } = await sb.from('profiles').select('id, nome, cargo').order('nome');
+    if (error) throw error;
+    _profilesCache = (data || []).filter(p => (p.nome || '').trim());
+  } catch (e) {
+    console.warn('getProfilesList:', e.message);
+    _profilesCache = [];
+  }
+  return _profilesCache;
+}
+
+async function fillResponsavelSelect(selectId, currentValue) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const profiles = await getProfilesList();
+  const opts = ['<option value="">Sem responsável</option>'];
+  let found = false;
+  profiles.forEach(p => {
+    const nome = (p.nome || '').trim();
+    if (!nome) return;
+    const selected = nome === currentValue ? ' selected' : '';
+    if (selected) found = true;
+    const cargo = p.cargo ? ' · ' + (CARGO_LABELS[p.cargo] || p.cargo) : '';
+    opts.push(`<option value="${esc(nome)}"${selected}>${esc(nome)}${esc(cargo)}</option>`);
+  });
+  // Preserva responsável legado que não está mais em profiles
+  if (currentValue && !found) {
+    opts.push(`<option value="${esc(currentValue)}" selected>${esc(currentValue)} (legado)</option>`);
+  }
+  sel.innerHTML = opts.join('');
 }
 
 // ── GERENCIADOR DE COLUNAS ──
@@ -7440,15 +7478,17 @@ async function createTask() {
   const tag = document.getElementById('new-task-tag')?.value || '';
   const prio = document.getElementById('new-task-prio')?.value || 'media';
   const prazo = document.getElementById('new-task-due')?.value || null;
+  const responsavel = document.getElementById('new-task-resp')?.value || null;
 
   await sb.from('tarefas').insert({
-    titulo, descricao: desc, tag, prioridade: prio, prazo, coluna,
+    titulo, descricao: desc, tag, prioridade: prio, prazo, coluna, responsavel,
     posicao: _tarefasCache.length,
     links: _ntAttachments.length ? _ntAttachments : null,
   });
   closeModal('nova-tarefa');
   document.getElementById('new-task-title').value = '';
   document.getElementById('new-task-desc').value = '';
+  document.getElementById('new-task-resp').value = '';
   _ntAttachments = [];
   loadTarefas();
   showToast('Tarefa criada');
@@ -7614,7 +7654,7 @@ function openTarefa(id) {
 
   document.getElementById('vt-tag').value = t.tag || '';
   document.getElementById('vt-prio').value = t.prioridade || 'media';
-  document.getElementById('vt-resp').value = t.responsavel || '';
+  fillResponsavelSelect('vt-resp', t.responsavel || '');
   document.getElementById('vt-prazo').value = t.prazo || t.data_fim || '';
 
   // Links/anexos com menu de 3 pontinhos
