@@ -32,11 +32,13 @@ async function blingFetch(path: string, token: string): Promise<any> {
 
 async function getToken(): Promise<string> {
   const { data: row } = await supabase.from('bling_tokens').select('*').eq('id', 1).single()
-  if (!row) throw new Error('No token found')
+  if (!row) throw new Error('No token found in bling_tokens table')
 
   // Testar token atual
-  const test = await blingFetch('pedidos/vendas?pagina=1&limite=1', row.access_token)
-  if (!test.error) return row.access_token
+  try {
+    const test = await blingFetch('pedidos/vendas?pagina=1&limite=1', row.access_token)
+    if (test && !test.error && test.data) return row.access_token
+  } catch {}
 
   // Renovar
   console.log('Renovando token...')
