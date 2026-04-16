@@ -1669,13 +1669,33 @@ select.input { cursor: pointer; }
     <div class="save-badge" id="last-sync-time" style="color:rgba(255,255,255,0.2);font-size:9px">
       Supabase · conectando...
     </div>
-    <div class="user-card" style="cursor:pointer" onclick="doLogout()">
+    <div class="user-card" style="cursor:pointer;position:relative" onclick="toggleUserMenu()">
       <div class="user-avatar" id="user-avatar-el">?</div>
       <div>
         <span class="user-name" id="user-name-el">Carregando...</span>
         <span class="user-role" id="user-role-el">...</span>
       </div>
-      <span style="margin-left:auto;font-size:10px;color:rgba(255,255,255,0.3)" title="Sair">⏻</span>
+      <span style="margin-left:auto;font-size:12px;color:rgba(255,255,255,0.3)">⋮</span>
+    </div>
+    <!-- Menu do usuario -->
+    <div id="user-menu" style="display:none;position:absolute;bottom:70px;left:10px;right:10px;background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,0.15);z-index:100">
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;margin-bottom:12px;color:var(--black)">Meu Perfil</div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Nome</label>
+        <input type="text" id="profile-nome-input" class="input" style="width:100%;font-size:13px" placeholder="Seu nome">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Cargo</label>
+        <div id="profile-cargo-display" style="font-size:12px;color:var(--text2);padding:6px 10px;background:var(--surface2);border-radius:6px"></div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">E-mail</label>
+        <div id="profile-email-display" style="font-size:12px;color:var(--text2);padding:6px 10px;background:var(--surface2);border-radius:6px"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" style="flex:1" onclick="saveProfileName()">Salvar Nome</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1;color:var(--red);border-color:var(--red)" onclick="doLogout()">Sair</button>
+      </div>
     </div>
   </div>
 </nav>
@@ -8181,6 +8201,39 @@ async function doLogin() {
   showApp();
   btn.textContent = 'Entrar'; btn.disabled = false;
 }
+
+function toggleUserMenu() {
+  const menu = document.getElementById('user-menu');
+  if (!menu) return;
+  const isOpen = menu.style.display !== 'none';
+  menu.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen && currentProfile) {
+    document.getElementById('profile-nome-input').value = currentProfile.nome || '';
+    document.getElementById('profile-cargo-display').textContent = CARGO_LABELS[currentProfile.cargo] || currentProfile.cargo;
+    document.getElementById('profile-email-display').textContent = currentUser?.email || '';
+  }
+}
+
+async function saveProfileName() {
+  const nome = document.getElementById('profile-nome-input')?.value?.trim();
+  if (!nome) return;
+  await sb.from('profiles').update({ nome }).eq('id', currentUser.id);
+  currentProfile.nome = nome;
+  document.getElementById('user-name-el').textContent = nome;
+  document.getElementById('user-avatar-el').textContent = nome.charAt(0).toUpperCase();
+  document.getElementById('user-menu').style.display = 'none';
+  logActivity('alterou_nome', 'Nome alterado para ' + nome);
+  if (typeof showToast === 'function') showToast('Nome atualizado!');
+}
+
+// Fechar menu ao clicar fora
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('user-menu');
+  const card = e.target.closest('.user-card');
+  if (menu && menu.style.display !== 'none' && !card && !e.target.closest('#user-menu')) {
+    menu.style.display = 'none';
+  }
+});
 
 async function doLogout() {
   if (!confirm('Deseja sair do sistema?')) return;
