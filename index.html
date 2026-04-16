@@ -1024,11 +1024,14 @@ select.input { cursor: pointer; }
 .inf-revenue { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 13px; color: var(--black); }
 
 /* ── KANBAN ── */
-.kanban { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; align-items: start; }
+.kanban { display: flex; gap: 12px; align-items: start; overflow-x: auto; padding-bottom: 12px; min-height: 500px; }
 .kanban-col {
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 12px;
+  min-width: 280px;
+  max-width: 300px;
+  flex-shrink: 0;
   min-height: 360px;
   display: flex; flex-direction: column;
 }
@@ -5742,26 +5745,7 @@ updateDynamicField('foto');
     <button class="btn btn-primary btn-sm" onclick="openModal('nova-tarefa')">+ Nova tarefa</button>
   </div>
   <div class="kanban" id="kanban-board">
-    <div class="kanban-col" data-col="backlog" ondragover="dragOver(event)" ondrop="drop(event,'backlog')">
-      <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:var(--grey5)"></div>Backlog</div><div class="kanban-count" id="cnt-backlog">0</div></div>
-      <div class="kanban-body" id="col-backlog"></div>
-      <div class="kanban-add" onclick="addCard('backlog')">+ Adicionar</div>
-    </div>
-    <div class="kanban-col" data-col="doing" ondragover="dragOver(event)" ondrop="drop(event,'doing')">
-      <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:var(--amber)"></div>Em Andamento</div><div class="kanban-count" id="cnt-doing">0</div></div>
-      <div class="kanban-body" id="col-doing"></div>
-      <div class="kanban-add" onclick="addCard('doing')">+ Adicionar</div>
-    </div>
-    <div class="kanban-col" data-col="review" ondragover="dragOver(event)" ondrop="drop(event,'review')">
-      <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:var(--blue)"></div>Em Revisão</div><div class="kanban-count" id="cnt-review">0</div></div>
-      <div class="kanban-body" id="col-review"></div>
-      <div class="kanban-add" onclick="addCard('review')">+ Adicionar</div>
-    </div>
-    <div class="kanban-col" data-col="done" ondragover="dragOver(event)" ondrop="drop(event,'done')">
-      <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:var(--green)"></div>Concluído</div><div class="kanban-count" id="cnt-done">0</div></div>
-      <div class="kanban-body" id="col-done"></div>
-      <div class="kanban-add" onclick="addCard('done')">+ Adicionar</div>
-    </div>
+    <div style="text-align:center;color:var(--text3);padding:40px;font-size:13px">Carregando quadro...</div>
   </div>
 </div>
 </div>
@@ -6298,11 +6282,7 @@ document.addEventListener('dragend', () => {
   document.querySelectorAll('.kanban-col').forEach(c=>c.classList.remove('drag-over'));
 });
 function updateKanbanCounts() {
-  ['backlog','doing','review','done'].forEach(col => {
-    const cnt = document.getElementById('col-'+col)?.children.length || 0;
-    const el = document.getElementById('cnt-'+col);
-    if(el) el.textContent = cnt;
-  });
+  // Counts são gerados dinamicamente pelo loadTarefas
 }
 
 let taskCount = 100;
@@ -6646,34 +6626,68 @@ function timeAgo(date) {
 
 // ── KANBAN PERSISTENTE ──
 let _tarefasCache = [];
+const COL_LABELS = {
+  backlog:'Backlog', doing:'Em Andamento', review:'Em Revisão', done:'Concluído',
+  referencias:'Referências', materiais:'Materiais', campanhas:'Campanhas 2 Tri',
+  producao:'Produção', cronograma:'Cronograma Março', crono_abril:'Cronograma Abril',
+  todo:'To Do - Luana', roteiros:'Roteiros a Produzir', campanhas_ativas:'Campanhas Ativas',
+  todo_reuniao:'To Do - Reunião', black_friday:'Black Friday Dana',
+  info_jaleco_box:'Jaleco Box', '10_anos':'10 Anos Dana', campanhas_q1:'Campanhas 1 Tri',
+};
+const COL_COLORS = {
+  backlog:'var(--grey5)', doing:'var(--amber)', review:'var(--blue)', done:'var(--green)',
+  referencias:'#7c3aed', materiais:'#0369a1', campanhas:'#dc2626', producao:'#d97706',
+  cronograma:'#059669', crono_abril:'#059669', todo:'#1a4fa0', roteiros:'#b45309',
+  campanhas_ativas:'#1a7a3a', todo_reuniao:'#7c3aed', black_friday:'#0a0a0a',
+  info_jaleco_box:'#0369a1', '10_anos':'#dc2626', campanhas_q1:'#d97706',
+};
+
 async function loadTarefas() {
   try {
     const { data } = await sb.from('tarefas').select('*').order('posicao');
     _tarefasCache = data || [];
-    ['backlog','doing','review','done'].forEach(col => {
-      const body = document.getElementById('col-' + col);
-      if(!body) return;
+
+    // Descobrir colunas únicas (preservar ordem)
+    const colOrder = ['backlog','doing','review','done','referencias','materiais','campanhas','producao','cronograma','crono_abril','todo','roteiros','campanhas_ativas','todo_reuniao','black_friday','info_jaleco_box','10_anos','campanhas_q1'];
+    const usedCols = new Set(_tarefasCache.map(t => t.coluna));
+    // Adicionar colunas padrão + as que têm cards
+    const cols = colOrder.filter(c => usedCols.has(c) || ['backlog','doing','review','done'].includes(c));
+    // Adicionar qualquer coluna desconhecida
+    usedCols.forEach(c => { if (!cols.includes(c)) cols.push(c); });
+
+    const board = document.getElementById('kanban-board');
+    if (!board) return;
+
+    board.innerHTML = cols.map(col => {
       const cards = _tarefasCache.filter(t => t.coluna === col);
-      body.innerHTML = cards.map(t => renderKanbanCard(t)).join('');
-    });
-    updateKanbanCounts();
+      const color = COL_COLORS[col] || 'var(--grey5)';
+      const label = COL_LABELS[col] || col;
+      return `<div class="kanban-col" data-col="${col}" ondragover="dragOver(event)" ondrop="drop(event,'${col}')">
+        <div class="kanban-col-head"><div class="kanban-col-title"><div class="k-dot" style="background:${color}"></div>${esc(label)}</div><div class="kanban-count">${cards.length}</div></div>
+        <div class="kanban-body" id="col-${col}">${cards.map(t => renderKanbanCard(t)).join('')}</div>
+        <div class="kanban-add" onclick="addCard('${col}')">+ Adicionar</div>
+      </div>`;
+    }).join('');
   } catch(e) { console.warn('Tarefas error:', e.message); }
 }
 
 function renderKanbanCard(t) {
   const prioClass = t.prioridade || 'media';
   const prioLabel = { alta:'Alta', media:'Média', baixa:'Baixa' }[prioClass] || 'Média';
-  const prazo = t.prazo ? new Date(t.prazo).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}) : '';
-  const late = t.prazo && new Date(t.prazo) < new Date() && t.coluna !== 'done' ? ' late' : '';
-  const opacity = t.coluna === 'done' ? ' style="opacity:0.65"' : '';
+  const prazo = t.prazo || t.data_fim;
+  const prazoStr = prazo ? new Date(prazo+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}) : '';
+  const late = prazo && new Date(prazo) < new Date() && t.coluna !== 'done' ? ' late' : '';
   const pessoa = t.responsavel ? t.responsavel.charAt(0).toUpperCase() : '';
-  return `<div class="k-card" draggable="true" ondragstart="drag(event)" id="task-${t.id}" data-id="${t.id}"${opacity}>
-    <div class="k-card-title">${t.titulo}</div>
+  const desc = t.descricao ? '<div style="font-size:11px;color:var(--text3);margin:4px 0;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+esc(t.descricao)+'</div>' : '';
+  const links = t.links?.length ? '<div style="font-size:10px;color:var(--blue);margin-top:3px">🔗 '+t.links.length+' link(s)</div>' : '';
+  return `<div class="k-card" draggable="true" ondragstart="drag(event)" id="task-${t.id}" data-id="${t.id}">
+    <div class="k-card-title">${esc(t.titulo)}</div>
+    ${desc}${links}
     <div class="k-meta">
-      ${t.tag ? '<div class="k-tag">'+t.tag+'</div>' : ''}
+      ${t.tag ? '<div class="k-tag">'+esc(t.tag)+'</div>' : ''}
       <div class="k-prio ${prioClass}">${prioLabel}</div>
       ${pessoa ? '<div class="k-person">'+pessoa+'</div>' : ''}
-      ${prazo ? '<div class="k-due'+late+'">'+prazo+'</div>' : ''}
+      ${prazoStr ? '<div class="k-due'+late+'">'+prazoStr+'</div>' : ''}
       <div class="k-del" onclick="event.stopPropagation();deleteTarefa('${t.id}')" style="margin-left:auto;cursor:pointer;font-size:11px;color:var(--text4);padding:2px 4px" title="Excluir">&times;</div>
     </div>
   </div>`;
