@@ -6244,6 +6244,7 @@ function go(el, viewId) {
   // Carregar dados especiais
   if (viewId === 'admin') loadAdminUsers();
   if (viewId === 'perfil') loadPerfilView();
+  if (viewId === 'calendario') { if (typeof loadCalendario==='function') loadCalendario(); if (typeof loadTarefas==='function' && !_tarefasCache?.length) loadTarefas(); else if (typeof renderCalendario==='function') setTimeout(renderCalendario, 100); }
 }
 
 function topbarAction() {
@@ -6763,6 +6764,8 @@ async function loadTarefas() {
 
     // Popular select de colunas
     populateColSelect();
+    // Re-renderizar calendário se estiver visível (para mostrar prazos das tarefas)
+    if (typeof renderCalendario === 'function' && document.getElementById('cal-grid')) renderCalendario();
     // Sincronizar scrollbar topo <-> kanban
     setTimeout(() => {
       const scrollTop = document.getElementById('kanban-scroll-top');
