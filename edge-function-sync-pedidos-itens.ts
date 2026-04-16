@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
 
             return pedido.itens.map((item: any) => ({
               pedido_id: pedidoId,
-              produto_id: item.produto?.id || item.id || 0,
+              produto_id: String(item.produto?.id || item.id || '0'),
               codigo: item.codigo || item.produto?.codigo || '',
               descricao: item.descricao || item.produto?.descricao || '',
               quantidade: item.quantidade || 0,
