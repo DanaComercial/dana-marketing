@@ -1669,32 +1669,11 @@ select.input { cursor: pointer; }
     <div class="save-badge" id="last-sync-time" style="color:rgba(255,255,255,0.2);font-size:9px">
       Supabase · conectando...
     </div>
-    <div class="user-card" style="cursor:pointer;position:relative" onclick="toggleUserMenu()">
+    <div class="user-card" style="cursor:pointer" onclick="go(null,'perfil')">
       <div class="user-avatar" id="user-avatar-el">?</div>
       <div>
         <span class="user-name" id="user-name-el">Carregando...</span>
         <span class="user-role" id="user-role-el">...</span>
-      </div>
-      <span style="margin-left:auto;font-size:12px;color:rgba(255,255,255,0.3)">⋮</span>
-    </div>
-    <!-- Menu do usuario -->
-    <div id="user-menu" style="display:none;position:absolute;bottom:70px;left:10px;right:10px;background:var(--white);border:1.5px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,0.15);z-index:100">
-      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;margin-bottom:12px;color:var(--black)">Meu Perfil</div>
-      <div style="margin-bottom:10px">
-        <label style="font-size:11px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Nome</label>
-        <input type="text" id="profile-nome-input" class="input" style="width:100%;font-size:13px" placeholder="Seu nome">
-      </div>
-      <div style="margin-bottom:10px">
-        <label style="font-size:11px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Cargo</label>
-        <div id="profile-cargo-display" style="font-size:12px;color:var(--text2);padding:6px 10px;background:var(--surface2);border-radius:6px"></div>
-      </div>
-      <div style="margin-bottom:10px">
-        <label style="font-size:11px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">E-mail</label>
-        <div id="profile-email-display" style="font-size:12px;color:var(--text2);padding:6px 10px;background:var(--surface2);border-radius:6px"></div>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary btn-sm" style="flex:1" onclick="saveProfileName()">Salvar Nome</button>
-        <button class="btn btn-ghost btn-sm" style="flex:1;color:var(--red);border-color:var(--red)" onclick="doLogout()">Sair</button>
       </div>
     </div>
   </div>
@@ -5429,6 +5408,57 @@ updateDynamicField('foto');
 
 <div class="view" id="view-briefingvisual"><div style="padding:24px 28px"><div class="card"><div class="card-title">Briefing Visual</div><div class="card-sub" style="margin-top:6px">Documento gerado pelo Construtor de Campanha, pronto para impressão.</div></div></div></div>
 
+<!-- ════════ MEU PERFIL ════════ -->
+<div class="view" id="view-perfil"><div style="padding:24px 28px">
+  <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;margin-bottom:20px">Meu Perfil</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:700px">
+    <!-- Card principal -->
+    <div class="card" style="grid-column:1/3">
+      <div style="display:flex;align-items:center;gap:20px;margin-bottom:20px">
+        <div id="perfil-avatar" style="width:64px;height:64px;border-radius:50%;background:var(--black);color:white;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:24px">?</div>
+        <div>
+          <div id="perfil-nome-display" style="font-family:'Syne',sans-serif;font-weight:700;font-size:18px;color:var(--black)">--</div>
+          <div id="perfil-cargo-badge" style="display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:6px;background:var(--surface2);color:var(--text2);margin-top:4px">--</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Nome</label>
+          <input type="text" id="perfil-nome-input" class="input" style="width:100%" placeholder="Seu nome completo">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">E-mail</label>
+          <div id="perfil-email" class="input" style="background:var(--surface2);color:var(--text3);cursor:not-allowed">--</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px">
+        <button class="btn btn-primary btn-sm" onclick="saveProfileName()">Salvar Alteracoes</button>
+      </div>
+    </div>
+
+    <!-- Info do cargo -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:10px">Meu Cargo</div>
+      <div id="perfil-cargo-nome" style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--black);margin-bottom:6px">--</div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6" id="perfil-cargo-desc">Seu cargo define quais secoes do sistema voce pode acessar. Apenas o administrador pode alterar cargos.</div>
+    </div>
+
+    <!-- Secoes com acesso -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:10px">Minhas Secoes</div>
+      <div id="perfil-secoes-list" style="display:flex;flex-wrap:wrap;gap:6px">--</div>
+    </div>
+  </div>
+
+  <!-- Botao de logout -->
+  <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
+    <button class="btn btn-ghost" onclick="doLogout()" style="color:var(--red);border-color:var(--red);padding:10px 24px;font-weight:700">
+      Sair da Conta
+    </button>
+  </div>
+</div></div>
+
 <!-- ════════ ADMINISTRADOR ════════ -->
 <div class="view" id="view-admin"><div style="padding:24px 28px">
   <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;margin-bottom:4px">Administrador</div>
@@ -6097,13 +6127,14 @@ const VIEW_META = {
   financeiro: { title: 'Financeiro', sub: 'Contas a pagar/receber, DRE e fluxo · Bling', action: '' },
   projecoes: { title: 'Projeções', sub: '2025 vs 2026 — real + projetado', action: '' },
   canaisvendas: { title: 'Canais e Vendas', sub: 'Clientes, canais de venda, revendas e eventos', action: '' },
+  perfil: { title: 'Meu Perfil', sub: 'Configuracoes da sua conta', action: '' },
   admin: { title: 'Administrador', sub: 'Usuarios, permissoes e atividades', action: '' }
 };
 
 // ── NAVIGATION ──
 function go(el, viewId) {
-  // Verificar permissao
-  if (userPermissoes[viewId] === false) {
+  // Verificar permissao (perfil sempre acessivel)
+  if (viewId !== 'perfil' && userPermissoes[viewId] === false) {
     if (typeof showToast === 'function') showToast('Voce nao tem acesso a esta secao');
     return;
   }
@@ -6120,8 +6151,9 @@ function go(el, viewId) {
   try { localStorage.setItem('dms-active-view', viewId); } catch(e) {}
   // Log navegacao
   logActivity('visualizou', meta.title || viewId, viewId);
-  // Carregar dados admin se necessario
+  // Carregar dados especiais
   if (viewId === 'admin') loadAdminUsers();
+  if (viewId === 'perfil') loadPerfilView();
 }
 
 function topbarAction() {
@@ -8202,38 +8234,40 @@ async function doLogin() {
   btn.textContent = 'Entrar'; btn.disabled = false;
 }
 
-function toggleUserMenu() {
-  const menu = document.getElementById('user-menu');
-  if (!menu) return;
-  const isOpen = menu.style.display !== 'none';
-  menu.style.display = isOpen ? 'none' : 'block';
-  if (!isOpen && currentProfile) {
-    document.getElementById('profile-nome-input').value = currentProfile.nome || '';
-    document.getElementById('profile-cargo-display').textContent = CARGO_LABELS[currentProfile.cargo] || currentProfile.cargo;
-    document.getElementById('profile-email-display').textContent = currentUser?.email || '';
+function loadPerfilView() {
+  if (!currentProfile || !currentUser) return;
+  const el = (id) => document.getElementById(id);
+  const nome = currentProfile.nome || '';
+  if (el('perfil-avatar')) el('perfil-avatar').textContent = nome.charAt(0).toUpperCase() || '?';
+  if (el('perfil-nome-display')) el('perfil-nome-display').textContent = nome;
+  if (el('perfil-nome-input')) el('perfil-nome-input').value = nome;
+  if (el('perfil-email')) el('perfil-email').textContent = currentUser.email || '';
+  if (el('perfil-cargo-badge')) el('perfil-cargo-badge').textContent = CARGO_LABELS[currentProfile.cargo] || currentProfile.cargo;
+  if (el('perfil-cargo-nome')) el('perfil-cargo-nome').textContent = CARGO_LABELS[currentProfile.cargo] || currentProfile.cargo;
+
+  // Listar secoes com acesso
+  const secoesEl = el('perfil-secoes-list');
+  if (secoesEl) {
+    const secoes = Object.entries(userPermissoes).filter(([,v]) => v !== false).map(([k]) => k);
+    secoesEl.innerHTML = secoes.map(s => {
+      const meta = VIEW_META[s];
+      return meta ? `<span style="font-size:11px;padding:4px 10px;background:var(--green-bg);color:var(--green);border-radius:6px;font-weight:600">${meta.title}</span>` : '';
+    }).filter(Boolean).join('') || '<span style="font-size:12px;color:var(--text3)">Todas as secoes</span>';
   }
 }
 
 async function saveProfileName() {
-  const nome = document.getElementById('profile-nome-input')?.value?.trim();
+  const nome = document.getElementById('perfil-nome-input')?.value?.trim();
   if (!nome) return;
   await sb.from('profiles').update({ nome }).eq('id', currentUser.id);
   currentProfile.nome = nome;
   document.getElementById('user-name-el').textContent = nome;
   document.getElementById('user-avatar-el').textContent = nome.charAt(0).toUpperCase();
-  document.getElementById('user-menu').style.display = 'none';
+  document.getElementById('perfil-nome-display').textContent = nome;
+  document.getElementById('perfil-avatar').textContent = nome.charAt(0).toUpperCase();
   logActivity('alterou_nome', 'Nome alterado para ' + nome);
   if (typeof showToast === 'function') showToast('Nome atualizado!');
 }
-
-// Fechar menu ao clicar fora
-document.addEventListener('click', (e) => {
-  const menu = document.getElementById('user-menu');
-  const card = e.target.closest('.user-card');
-  if (menu && menu.style.display !== 'none' && !card && !e.target.closest('#user-menu')) {
-    menu.style.display = 'none';
-  }
-});
 
 async function doLogout() {
   if (!confirm('Deseja sair do sistema?')) return;
