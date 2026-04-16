@@ -7753,7 +7753,7 @@ async function loadTopProdutos(container, mesLabel) {
     if (prodData && prodData.length > 0) {
       const maxVal = prodData[0]?.total_quantidade || 1;
       container.innerHTML = '<div class="card-title" style="margin-bottom:10px">Top Produtos — ' + (mesLabel||'Mês') + '</div>' +
-        prodData.map((p, i) => `<div class="rank-row"><div class="rank-num${i<3?' top':''}">#${i+1}</div><div class="rank-bar-wrap"><div class="rank-bar-label">${esc(p.descricao)}</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:${Math.round(p.total_quantidade/maxVal*100)}%"></div></div></div><div class="rank-val">${Math.round(p.total_quantidade)} un</div></div>`).join('');
+        prodData.map((p, i) => `<div class="rank-row"><div class="rank-num${i<3?' top':''}">#${i+1}</div><div class="rank-bar-wrap"><div class="rank-bar-label">${esc(p.produto||p.descricao)}</div><div class="rank-bar-track"><div class="rank-bar-fill" style="width:${Math.round(p.total_quantidade/maxVal*100)}%"></div></div></div><div class="rank-val">${Math.round(p.total_quantidade)} un</div></div>`).join('');
       return;
     }
 
@@ -7895,7 +7895,7 @@ async function loadMarketplacesExtras() {
       skuEl.innerHTML = `<table style="width:100%"><thead><tr><th>#</th><th>Produto</th><th>Qtd.</th><th>Receita</th><th style="width:100px"></th></tr></thead><tbody>
         ${prodData.slice(0, 10).map((p, i) => `<tr>
           <td style="font-weight:700;color:${i<3?'var(--green)':'var(--text3)'}">${i+1}</td>
-          <td class="em">${esc(p.descricao)}${p.codigo ? ' <span style="color:var(--text4);font-size:10px">('+esc(p.codigo)+')</span>' : ''}</td>
+          <td class="em">${esc(p.produto||p.descricao)}${p.codigo ? ' <span style="color:var(--text4);font-size:10px">('+esc(p.codigo)+')</span>' : ''}</td>
           <td>${Math.round(p.total_quantidade)} un</td>
           <td class="good">${fmtR(Math.round(p.total_receita||0))}</td>
           <td><div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:${Math.round(p.total_quantidade/maxQtd*100)}%;height:100%;background:var(--green);border-radius:4px"></div></div></td>

@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
       .gte('data', cutoffStr)
       .gt('total_produtos', 0)
       .order('data', { ascending: false })
-      .limit(200)
+      .limit(500)
 
     const pedidos = pedidosResult?.data
     const pedidosError = pedidosResult?.error
