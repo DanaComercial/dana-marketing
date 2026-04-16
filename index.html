@@ -7738,17 +7738,22 @@ async function deleteTarefaFromModal() {
 // Popular select de colunas no modal nova tarefa
 function populateColSelect() {
   const sel = document.getElementById('new-task-col');
-  if (!sel || sel.options.length > 4) return;
+  if (!sel) return;
   sel.innerHTML = '';
   const usedCols = [...new Set(_tarefasCache.map(t => t.coluna))];
   const allCols = Object.keys(COL_LABELS);
   allCols.forEach(c => {
+    // Pular colunas escondidas e arquivo
+    if (_colunasEscondidas?.has(c) || c === 'arquivo') return;
     if (usedCols.includes(c) || ['backlog','doing','review','done'].includes(c)) {
       const opt = document.createElement('option');
       opt.value = c; opt.textContent = COL_LABELS[c] || c;
       sel.appendChild(opt);
     }
   });
+  // Também popular o select do modal de link se existe
+  const linkSel = document.getElementById('new-link-col');
+  if (linkSel) linkSel.innerHTML = sel.innerHTML;
 }
 
 async function deleteTarefa(id) {
