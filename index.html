@@ -6112,6 +6112,31 @@ updateDynamicField('foto');
 </div>
 
 <!-- Modal: Ver/Editar Tarefa -->
+<!-- Modal: Editar Link (bonito) -->
+<div class="modal-overlay" id="modal-editar-link">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <div class="modal-title" style="display:flex;align-items:center;gap:8px">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#dbeafe;color:#1d4ed8;font-size:16px">🔗</span>
+        Editar Link
+      </div>
+      <button class="modal-close" onclick="closeModal('editar-link')">×</button>
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Nome do link</label>
+      <input type="text" id="el-nome" class="input" style="width:100%" placeholder="Ex: DANA - Google Drive" onkeydown="if(event.key==='Enter')salvarLinkEdit()">
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">URL do link</label>
+      <input type="url" id="el-url" class="input" style="width:100%;font-size:12px" placeholder="https://...">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="closeModal('editar-link')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarLinkEdit()" style="flex:2">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-ver-tarefa">
   <div class="modal" style="max-width:550px">
     <div class="modal-header"><div class="modal-title" id="vt-title">Tarefa</div><button class="modal-close" onclick="closeModal('ver-tarefa')">×</button></div>
@@ -6902,26 +6927,45 @@ async function createTask() {
 // ── ABRIR TAREFA (modal detalhes) ──
 let _editingTaskId = null;
 
-async function renomearLink(id) {
+let _editingLinkId = null;
+
+function renomearLink(id) {
   const t = _tarefasCache.find(x => x.id === id);
   if (!t) return;
-  const currentTitle = /^https?:\/\//.test((t.titulo || '').trim()) ? '' : t.titulo;
-  const novo = prompt('Qual o nome deste link?', currentTitle);
-  if (novo === null) return;
-  const trimmed = novo.trim();
-  if (!trimmed) return;
+  _editingLinkId = id;
 
-  // Se o título original era a URL, preserva no campo links
-  let links = t.links || [];
-  if (/^https?:\/\//.test((t.titulo || '').trim())) {
-    const origUrl = t.titulo.trim();
-    if (!links.includes(origUrl)) links = [origUrl, ...links];
-  }
+  // Descobrir URL atual
+  let currentUrl = '';
+  if (/^https?:\/\//.test((t.titulo || '').trim())) currentUrl = t.titulo.trim();
+  else if (t.links?.length) currentUrl = t.links[0];
 
-  await sb.from('tarefas').update({ titulo: trimmed, tag: 'link', links }).eq('id', id);
-  logActivity('renomeou_link', trimmed, 'tarefas');
+  // Descobrir nome atual (se título é URL, está em branco)
+  const currentNome = /^https?:\/\//.test((t.titulo || '').trim()) ? '' : (t.titulo || '');
+
+  document.getElementById('el-nome').value = currentNome;
+  document.getElementById('el-url').value = currentUrl;
+  openModal('editar-link');
+  setTimeout(() => document.getElementById('el-nome').focus(), 100);
+}
+
+async function salvarLinkEdit() {
+  if (!_editingLinkId) return;
+  const nome = document.getElementById('el-nome').value.trim();
+  const url = document.getElementById('el-url').value.trim();
+  if (!nome) { showToast('Coloque um nome para o link'); return; }
+  if (!url || !/^https?:\/\//.test(url)) { showToast('URL inválida (deve começar com http://)'); return; }
+
+  await sb.from('tarefas').update({
+    titulo: nome,
+    tag: 'link',
+    links: [url],
+  }).eq('id', _editingLinkId);
+
+  closeModal('editar-link');
+  _editingLinkId = null;
   loadTarefas();
-  showToast('Renomeado!');
+  showToast('Link atualizado!');
+  logActivity('renomeou_link', nome, 'tarefas');
 }
 
 function isLinkOnlyCard(t) {
