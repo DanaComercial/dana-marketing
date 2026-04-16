@@ -8359,16 +8359,34 @@ async function loadAdminPermissoes() {
 }
 
 async function savePermissoes() {
+  const btn = document.querySelector('#admin-permissoes .btn-primary');
+  if (btn) { btn.textContent = 'Salvando...'; btn.disabled = true; }
+
   const checks = document.querySelectorAll('#admin-perm-grid input[type="checkbox"]');
   const updates = [];
   checks.forEach(ch => {
     updates.push({ cargo: ch.dataset.cargo, secao: ch.dataset.secao, permitido: ch.checked });
   });
-  for (const u of updates) {
-    await sb.from('cargo_permissoes').upsert(u, { onConflict: 'cargo,secao' });
+
+  // Salvar tudo de uma vez em batch
+  let erros = 0;
+  for (let i = 0; i < updates.length; i += 50) {
+    const batch = updates.slice(i, i + 50);
+    const { error } = await sb.from('cargo_permissoes').upsert(batch, { onConflict: 'cargo,secao' });
+    if (error) { console.error('Perm save error:', error.message); erros++; }
   }
-  logActivity('alterou_permissoes', updates.length + ' permissoes atualizadas', 'admin');
-  if (typeof showToast === 'function') showToast('Permissoes salvas!');
+
+  if (btn) { btn.textContent = 'Salvar Alteracoes'; btn.disabled = false; }
+
+  if (erros === 0) {
+    logActivity('alterou_permissoes', updates.length + ' permissoes atualizadas', 'admin');
+    if (typeof showToast === 'function') showToast('Permissoes salvas com sucesso!');
+  } else {
+    if (typeof showToast === 'function') showToast('Erro ao salvar algumas permissoes');
+  }
+
+  // Recarregar para confirmar
+  setTimeout(() => loadAdminPermissoes(), 500);
 }
 
 // ── ADMIN: log de atividades ──
