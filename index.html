@@ -6662,6 +6662,7 @@ const COL_LABELS = {
   black_friday:'Black Friday Dana', jaleco_box:'Jaleco Box', redes_sociais:'Redes Sociais',
   '10_anos':'10 Anos Dana', jaleco_box_marco:'Jaleco Box Março',
   semana_consumidor:'Semana do Consumidor', campanhas_q1:'Campanhas 1 Tri',
+  arquivo:'Arquivo / Histórico',
 };
 const COL_COLORS = {
   backlog:'var(--grey5)', doing:'var(--amber)', review:'var(--blue)', done:'var(--green)',
@@ -6681,10 +6682,10 @@ async function loadTarefas() {
     // Descobrir colunas únicas (preservar ordem)
     const colOrder = ['backlog','doing','review','done','referencias','materiais','campanhas','producao','cronograma','crono_abril','todo','roteiros','campanhas_ativas','todo_reuniao','black_friday','info_jaleco_box','10_anos','campanhas_q1'];
     const usedCols = new Set(_tarefasCache.map(t => t.coluna));
-    // Só mostrar colunas que TÊM cards (remove vazias e unknown)
-    const cols = colOrder.filter(c => usedCols.has(c) && c !== 'unknown');
-    // Adicionar qualquer coluna desconhecida (exceto unknown)
-    usedCols.forEach(c => { if (!cols.includes(c) && c !== 'unknown') cols.push(c); });
+    // Só mostrar colunas que TÊM cards (remove vazias e arquivo)
+    const cols = colOrder.filter(c => usedCols.has(c) && c !== 'arquivo');
+    // Adicionar qualquer coluna desconhecida (exceto arquivo)
+    usedCols.forEach(c => { if (!cols.includes(c) && c !== 'arquivo') cols.push(c); });
 
     const board = document.getElementById('kanban-board');
     if (!board) return;
