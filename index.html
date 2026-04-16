@@ -4721,6 +4721,14 @@ updateDynamicField('foto');
     </div>
   </div>
 
+  <!-- Top Clientes por Volume (dados reais Bling) -->
+  <div class="card mb20">
+    <div class="card-header">
+      <div><div class="card-title">Top Clientes por Volume de Pedidos</div><div class="card-sub" id="mp-clientes-sub">Clientes com mais pedidos no período · dados Bling</div></div>
+    </div>
+    <div id="mp-top-clientes" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+  </div>
+
   <!-- Canais e Revendas originais -->
   <div class="g2">
     <div class="card">
@@ -4799,46 +4807,12 @@ updateDynamicField('foto');
     <div id="mp-canais-completo" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
   </div>
 
-  <!-- SKU mais vendidos -->
-  <div class="g2 mb20">
-    <div class="card">
-      <div class="card-header">
-        <div><div class="card-title">Top Produtos Vendidos</div><div class="card-sub" id="mp-sku-sub">SKUs com mais unidades vendidas · dados Bling</div></div>
-      </div>
-      <div id="mp-top-skus" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+  <!-- Top Produtos Vendidos -->
+  <div class="card mb20">
+    <div class="card-header">
+      <div><div class="card-title">Top Produtos Vendidos</div><div class="card-sub" id="mp-sku-sub">SKUs com mais unidades vendidas · dados Bling</div></div>
     </div>
-    <div class="card">
-      <div class="card-header">
-        <div><div class="card-title">Top Clientes por Volume</div><div class="card-sub" id="mp-clientes-sub">Clientes com mais pedidos · dados Bling</div></div>
-      </div>
-      <div id="mp-top-clientes" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
-    </div>
-  </div>
-
-  <!-- Canais e Eventos -->
-  <div class="g2">
-    <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Canais Ativos (Bling)</div>
-      <table><thead><tr><th>Canal</th><th>Status</th></tr></thead><tbody>
-        <tr><td class="em">Mercado Livre</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">Shopee</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">TikTok Shop</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">Magalu (2 contas)</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">Magazord (Loja virtual)</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">Pano Perfeito</td><td><span class="chip prod">Parceiro</span></td></tr>
-      </tbody></table>
-    </div>
-    <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Eventos e Feiras Presenciais</div>
-      <table><thead><tr><th>Evento</th><th>Ano</th></tr></thead><tbody>
-        <tr><td class="em">CIOSP</td><td>2022, 2023, 2024, 2025</td></tr>
-        <tr><td class="em">Full Face SP</td><td>2022, 2024</td></tr>
-        <tr><td class="em">Congrehof</td><td>2023, 2024</td></tr>
-        <tr><td class="em">SBTI</td><td>2023, 2024</td></tr>
-        <tr><td class="em">Estetika SP</td><td>2024</td></tr>
-        <tr><td class="em">Sul Beleza</td><td>Recorrente</td></tr>
-      </tbody></table>
-    </div>
+    <div id="mp-top-skus" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
   </div>
 </div></div>
 
@@ -4947,6 +4921,32 @@ updateDynamicField('foto');
         <tr><td class="em">IOA Joinville — Dina</td><td>Parceira regional</td></tr>
         <tr><td class="em">Paulo Kano — Marina</td><td>Parceria odonto</td></tr>
         <tr><td class="em">Lype Depyl</td><td>Parceiro (desconto 20%)</td></tr>
+      </tbody></table>
+    </div>
+  </div>
+
+  <!-- Canais e Eventos (movidos de Marketplaces) -->
+  <div class="g2" style="margin-top:20px">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Canais de Venda Ativos (Bling)</div>
+      <table><thead><tr><th>Canal</th><th>Status</th></tr></thead><tbody>
+        <tr><td class="em">Mercado Livre</td><td><span class="chip ativo">Ativo</span></td></tr>
+        <tr><td class="em">Shopee</td><td><span class="chip ativo">Ativo</span></td></tr>
+        <tr><td class="em">TikTok Shop</td><td><span class="chip ativo">Ativo</span></td></tr>
+        <tr><td class="em">Magalu (2 contas)</td><td><span class="chip ativo">Ativo</span></td></tr>
+        <tr><td class="em">Magazord (Loja virtual)</td><td><span class="chip ativo">Ativo</span></td></tr>
+        <tr><td class="em">Pano Perfeito</td><td><span class="chip prod">Parceiro</span></td></tr>
+      </tbody></table>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px">Eventos e Feiras Presenciais</div>
+      <table><thead><tr><th>Evento</th><th>Ano</th></tr></thead><tbody>
+        <tr><td class="em">CIOSP</td><td>2022, 2023, 2024, 2025</td></tr>
+        <tr><td class="em">Full Face SP</td><td>2022, 2024</td></tr>
+        <tr><td class="em">Congrehof</td><td>2023, 2024</td></tr>
+        <tr><td class="em">SBTI</td><td>2023, 2024</td></tr>
+        <tr><td class="em">Estetika SP</td><td>2024</td></tr>
+        <tr><td class="em">Sul Beleza</td><td>Recorrente</td></tr>
       </tbody></table>
     </div>
   </div>
