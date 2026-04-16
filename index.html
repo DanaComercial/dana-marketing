@@ -8158,12 +8158,15 @@ async function checkAuth() {
 
 async function loadProfile() {
   if (!currentUser) return;
-  const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  const { data, error } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  console.log('PROFILE LOAD:', { data, error, userId: currentUser.id });
   if (data) {
     currentProfile = data;
   } else {
-    // Profile nao existe (usuario antigo) — criar
-    await sb.from('profiles').insert({ id: currentUser.id, nome: currentUser.email.split('@')[0], cargo: 'vendedor' });
+    console.warn('Profile not found, creating default. Error:', error?.message);
+    // Profile nao existe — criar
+    const { error: insertErr } = await sb.from('profiles').insert({ id: currentUser.id, nome: currentUser.email.split('@')[0], cargo: 'vendedor' });
+    if (insertErr) console.error('Insert profile error:', insertErr.message);
     currentProfile = { id: currentUser.id, nome: currentUser.email.split('@')[0], cargo: 'vendedor' };
   }
 
