@@ -7312,12 +7312,17 @@ async function dragColDrop(e, colunaDestino) {
     if (c) visCols.push(c);
   });
 
-  const idxOrigem = visCols.indexOf(origem);
-  if (idxOrigem === -1) return;
-  visCols.splice(idxOrigem, 1);
+  const idxOrigemOrig = visCols.indexOf(origem);
+  const idxDestinoOrig = visCols.indexOf(colunaDestino);
+  if (idxOrigemOrig === -1 || idxDestinoOrig === -1) return;
+
+  // Detectar direção: esquerda→direita insere DEPOIS do destino; direita→esquerda insere ANTES
+  const goingRight = idxOrigemOrig < idxDestinoOrig;
+
+  visCols.splice(idxOrigemOrig, 1);
   const newDestIdx = visCols.indexOf(colunaDestino);
-  if (newDestIdx === -1) return;
-  visCols.splice(newDestIdx, 0, origem);
+  const insertAt = goingRight ? newDestIdx + 1 : newDestIdx;
+  visCols.splice(insertAt, 0, origem);
 
   // ATUALIZAÇÃO OTIMISTA: reorganizar o DOM na hora sem esperar DB
   const board = document.getElementById('kanban-board');
