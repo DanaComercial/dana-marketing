@@ -7276,7 +7276,7 @@ function openTarefa(id) {
 
   // Links/anexos com menu de 3 pontinhos
   const linksEl = document.getElementById('vt-links');
-  const canEditAttach = podeCriarTarefa();
+  const canEditAttach = podeExcluirTarefa() || podeCriarTarefa();
   if (t.links?.length) {
     const imgLinks = t.links.filter(l => /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(l));
     const otherLinks = t.links.filter(l => !/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(l));
