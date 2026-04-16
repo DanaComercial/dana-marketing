@@ -4693,29 +4693,11 @@ updateDynamicField('foto');
   <div class="g2">
     <div class="card">
       <div class="card-title" style="margin-bottom:12px">Revendas Nacionais (Bling)</div>
-      <table><thead><tr><th>Revenda</th><th>Local</th></tr></thead><tbody>
-        <tr><td class="em">Jalecos Bauru</td><td>Bauru, SP</td></tr>
-        <tr><td class="em">Nossa Dental</td><td>Imperatriz, MA</td></tr>
-        <tr><td class="em">Doctor Scan</td><td>Cuiaba, MT</td></tr>
-        <tr><td class="em">Fatel</td><td>Londrina, PR</td></tr>
-        <tr><td class="em">Meus Jalecos</td><td>Palmas, TO</td></tr>
-        <tr><td class="em">Revenda Mafra — Susan</td><td>Mafra, SC</td></tr>
-        <tr><td class="em">Revenda Julia</td><td>Nacional</td></tr>
-        <tr><td class="em">Revenda Porto Velho</td><td>Porto Velho, RO</td></tr>
-        <tr><td class="em">Marize</td><td>Petrolandia, PE</td></tr>
-      </tbody></table>
+      <table><thead><tr><th>Revenda</th><th>Local</th></tr></thead><tbody id="ps-revendas-nacionais-tbody"><tr><td colspan="2" style="text-align:center;color:var(--text3);font-size:12px;padding:12px">Carregando...</td></tr></tbody></table>
     </div>
     <div class="card">
       <div class="card-title" style="margin-bottom:12px">Revendas Internacionais + Parcerias (Bling)</div>
-      <table><thead><tr><th>Parceiro</th><th>Tipo</th></tr></thead><tbody>
-        <tr><td class="em">Izaya Comercio Inter</td><td>Revenda Mocambique</td></tr>
-        <tr><td class="em">Espreso Dental</td><td>Revenda Costa Rica</td></tr>
-        <tr><td class="em">Dental/Quantity Original</td><td>Parceira Daniela Binhotti</td></tr>
-        <tr><td class="em">Dental/Quantity Parcial</td><td>Parceira</td></tr>
-        <tr><td class="em">IOA Joinville — Dina</td><td>Parceira regional</td></tr>
-        <tr><td class="em">Paulo Kano — Marina</td><td>Parceria odonto</td></tr>
-        <tr><td class="em">Lype Depyl</td><td>Parceiro (desconto 20%)</td></tr>
-      </tbody></table>
+      <table><thead><tr><th>Parceiro</th><th>Tipo</th></tr></thead><tbody id="ps-revendas-intl-tbody"><tr><td colspan="2" style="text-align:center;color:var(--text3);font-size:12px;padding:12px">Carregando...</td></tr></tbody></table>
     </div>
   </div>
 
@@ -4751,17 +4733,7 @@ updateDynamicField('foto');
     </div>
     <div class="card">
       <div class="card-title" style="margin-bottom:12px">Revendas Nacionais (Bling)</div>
-      <table><thead><tr><th>Revenda</th><th>Local</th></tr></thead><tbody>
-        <tr><td class="em">Jalecos Bauru</td><td>Bauru, SP</td></tr>
-        <tr><td class="em">Nossa Dental</td><td>Imperatriz, MA</td></tr>
-        <tr><td class="em">Doctor Scan</td><td>Cuiabá, MT</td></tr>
-        <tr><td class="em">Fatel</td><td>Londrina, PR</td></tr>
-        <tr><td class="em">Meus Jalecos</td><td>Palmas, TO</td></tr>
-        <tr><td class="em">Revenda Mafra — Susan</td><td>Mafra, SC</td></tr>
-        <tr><td class="em">Revenda Julia</td><td>Nacional</td></tr>
-        <tr><td class="em">Revenda Porto Velho</td><td>Porto Velho, RO</td></tr>
-        <tr><td class="em">Marize</td><td>Petrolândia, PE</td></tr>
-      </tbody></table>
+      <table><thead><tr><th>Revenda</th><th>Local</th></tr></thead><tbody id="cv-revendas-nacionais-tbody"><tr><td colspan="2" style="text-align:center;color:var(--text3);font-size:12px;padding:12px">Carregando...</td></tr></tbody></table>
     </div>
   </div>
 
@@ -4769,15 +4741,7 @@ updateDynamicField('foto');
   <div class="g2">
     <div class="card">
       <div class="card-title" style="margin-bottom:12px">Revendas Internacionais + Parcerias</div>
-      <table><thead><tr><th>Parceiro</th><th>Tipo</th></tr></thead><tbody>
-        <tr><td class="em">Izaya Comércio Inter</td><td>Revenda Moçambique</td></tr>
-        <tr><td class="em">Espreso Dental</td><td>Revenda Costa Rica</td></tr>
-        <tr><td class="em">Dental/Quantity Original</td><td>Parceira Daniela Binhotti</td></tr>
-        <tr><td class="em">Dental/Quantity Parcial</td><td>Parceira</td></tr>
-        <tr><td class="em">IOA Joinville — Dina</td><td>Parceira regional</td></tr>
-        <tr><td class="em">Paulo Kano — Marina</td><td>Parceria odonto</td></tr>
-        <tr><td class="em">Lype Depyl</td><td>Parceiro (desconto 20%)</td></tr>
-      </tbody></table>
+      <table><thead><tr><th>Parceiro</th><th>Tipo</th></tr></thead><tbody id="cv-revendas-intl-tbody"><tr><td colspan="2" style="text-align:center;color:var(--text3);font-size:12px;padding:12px">Carregando...</td></tr></tbody></table>
     </div>
     <div class="card">
       <div class="card-title" style="margin-bottom:12px">Eventos e Feiras Presenciais</div>
@@ -9225,6 +9189,48 @@ function loadProvaSocial() {
       if (el('ps-pedidos')) el('ps-pedidos').textContent = fmt(m.pedidos);
       if (el('ps-pedidos-sub')) el('ps-pedidos-sub').textContent = fmtK(m.receita) + ' faturado';
     }
+  }
+
+  loadRevendasParceiros();
+}
+
+// ── REVENDAS E PARCERIAS (tabela revendas_parceiros + JOIN contatos) ──
+async function loadRevendasParceiros() {
+  try {
+    const { data, error } = await sb.from('revendas_parceiros')
+      .select('categoria, label_exibicao, local_ou_tipo, ordem, ativo, contato_id')
+      .eq('ativo', true)
+      .order('categoria')
+      .order('ordem');
+    if (error) throw error;
+
+    const rows = data || [];
+    const nacionais = rows.filter(r => r.categoria === 'nacional');
+    const intl = rows.filter(r => r.categoria === 'internacional_parceria');
+
+    const renderNacionais = (list) => list.length
+      ? list.map(r => `<tr><td class="em">${r.label_exibicao}</td><td>${r.local_ou_tipo || '—'}</td></tr>`).join('')
+      : '<tr><td colspan="2" style="text-align:center;color:var(--text3);font-size:12px;padding:12px">Nenhuma revenda cadastrada</td></tr>';
+
+    const renderIntl = (list) => list.length
+      ? list.map(r => `<tr><td class="em">${r.label_exibicao}</td><td>${r.local_ou_tipo || '—'}</td></tr>`).join('')
+      : '<tr><td colspan="2" style="text-align:center;color:var(--text3);font-size:12px;padding:12px">Nenhum parceiro cadastrado</td></tr>';
+
+    ['ps-revendas-nacionais-tbody', 'cv-revendas-nacionais-tbody'].forEach(id => {
+      const tb = document.getElementById(id);
+      if (tb) tb.innerHTML = renderNacionais(nacionais);
+    });
+    ['ps-revendas-intl-tbody', 'cv-revendas-intl-tbody'].forEach(id => {
+      const tb = document.getElementById(id);
+      if (tb) tb.innerHTML = renderIntl(intl);
+    });
+  } catch (e) {
+    console.error('loadRevendasParceiros:', e);
+    const errHtml = '<tr><td colspan="2" style="text-align:center;color:var(--red);font-size:12px;padding:12px">Erro ao carregar</td></tr>';
+    ['ps-revendas-nacionais-tbody','ps-revendas-intl-tbody','cv-revendas-nacionais-tbody','cv-revendas-intl-tbody'].forEach(id => {
+      const tb = document.getElementById(id);
+      if (tb) tb.innerHTML = errHtml;
+    });
   }
 }
 
