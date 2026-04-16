@@ -8853,7 +8853,7 @@ function refreshNews(btn) {
 }
 function saveNews(btn) { btn.textContent = '✓ Salvo'; btn.style.color='var(--green)'; btn.disabled=true; showToastDMS('📌 Notícia salva nas referências.', ''); }
 function useNews(btn) { showToastDMS('🎯 Adicionado ao Construtor de Campanha!', 'success'); }
-function prospectar(btn) { const name = btn.closest('div')?.querySelector('div')?.textContent || ''; showToastDMS('📱 Abrindo contato com ' + name.trim(), ''); }
+// prospectar() definida no bloco MERCADO JS
 function loadMoreNews(btn) { btn.textContent = '⏳ Carregando...'; setTimeout(()=>{ btn.textContent = '✓ Carregando mais notícias...'; showToastDMS('Mais 6 notícias carregadas!', ''); btn.textContent = 'Carregar mais notícias'; }, 1200); }
 
 // ══════════════════════════════════
