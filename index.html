@@ -7488,6 +7488,19 @@ async function deleteTarefa(id) {
   if (!podeExcluirTarefa()) { showToast('Voce nao tem permissao para excluir tarefas'); return; }
   if(!confirm('Excluir esta tarefa?')) return;
   const tarefa = _tarefasCache.find(t => t.id === id);
+
+  // Apagar imagens do Supabase Storage (se existirem)
+  if (tarefa?.links?.length) {
+    const storagePaths = tarefa.links
+      .filter(l => l && l.includes('/storage/v1/object/public/kanban/'))
+      .map(l => l.split('/storage/v1/object/public/kanban/')[1])
+      .filter(Boolean);
+    if (storagePaths.length) {
+      try { await sb.storage.from('kanban').remove(storagePaths); }
+      catch(e) { console.warn('Delete storage files error:', e); }
+    }
+  }
+
   await sb.from('tarefas').delete().eq('id', id);
   loadTarefas();
   showToast('Tarefa excluída');
