@@ -1605,6 +1605,9 @@ select.input { cursor: pointer; }
     <div class="nav-item" onclick="go(this,'canaisaquisicao')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 2v12M2 8h12"/></svg></div>Canais de Aquisição
     </div>
+    <div class="nav-item" onclick="go(this,'analytics')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 14V2M2 14h12M5 11V7M8 11V5M11 11V9"/></svg></div>Analytics
+    </div>
     <div class="nav-item" onclick="go(this,'campanhas')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 6h14M5 2v2M11 2v2"/></svg></div>Campanhas
     </div>
@@ -1993,6 +1996,164 @@ select.input { cursor: pointer; }
 </div>
 
 <!-- ════════ CAMPANHAS ════════ -->
+<!-- ════════ ANALYTICS ════════ -->
+<div class="view" id="view-analytics">
+<div style="padding:24px 28px">
+
+  <div style="margin-bottom:20px">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px">Analytics</div>
+    <div style="font-size:12.5px;color:var(--text3);margin-top:3px">Métricas consolidadas · dashboards nativos das plataformas + Google Analytics 4 integrado</div>
+  </div>
+
+  <!-- BLOCO 1: Dashboards externos -->
+  <div class="card mb20">
+    <div class="card-title" style="margin-bottom:4px">🔗 Dashboards Externos</div>
+    <div class="card-sub" style="margin-bottom:16px">Clique pra abrir o painel oficial de cada plataforma em nova aba (já logado no browser)</div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+      <!-- Meta Business Suite -->
+      <a href="https://business.facebook.com/latest/home" target="_blank" style="text-decoration:none;color:inherit">
+        <div style="padding:16px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(135deg,#1877f2 0%,#1e3a8a 100%);color:white;cursor:pointer;transition:transform 0.15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">📘</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:3px">Meta Business Suite</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.4">Facebook + Instagram · posts, insights, mensagens, anúncios pagos</div>
+          <div style="font-size:10px;font-weight:700;margin-top:10px;opacity:0.7">Abrir ↗</div>
+        </div>
+      </a>
+
+      <!-- Meta Ads Manager -->
+      <a href="https://adsmanager.facebook.com/adsmanager/" target="_blank" style="text-decoration:none;color:inherit">
+        <div style="padding:16px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(135deg,#1e3a8a 0%,#312e81 100%);color:white;cursor:pointer;transition:transform 0.15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">📊</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:3px">Meta Ads Manager</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.4">Campanhas pagas, ROAS, CPA, conversões Meta/Instagram</div>
+          <div style="font-size:10px;font-weight:700;margin-top:10px;opacity:0.7">Abrir ↗</div>
+        </div>
+      </a>
+
+      <!-- Google Analytics 4 -->
+      <a href="https://analytics.google.com/" target="_blank" style="text-decoration:none;color:inherit">
+        <div style="padding:16px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(135deg,#f9ab00 0%,#e8710a 100%);color:white;cursor:pointer;transition:transform 0.15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">📈</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:3px">Google Analytics 4</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.4">Tráfego do site, usuários, conversões, funis, origem dos visitantes</div>
+          <div style="font-size:10px;font-weight:700;margin-top:10px;opacity:0.7">Abrir ↗</div>
+        </div>
+      </a>
+
+      <!-- Google Ads -->
+      <a href="https://ads.google.com/" target="_blank" style="text-decoration:none;color:inherit">
+        <div style="padding:16px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(135deg,#4285f4 0%,#34a853 100%);color:white;cursor:pointer;transition:transform 0.15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">🔍</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:3px">Google Ads</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.4">Campanhas de Search, Shopping, Display e YouTube</div>
+          <div style="font-size:10px;font-weight:700;margin-top:10px;opacity:0.7">Abrir ↗</div>
+        </div>
+      </a>
+
+      <!-- Google Search Console -->
+      <a href="https://search.google.com/search-console" target="_blank" style="text-decoration:none;color:inherit">
+        <div style="padding:16px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(135deg,#ea4335 0%,#c5221f 100%);color:white;cursor:pointer;transition:transform 0.15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">🔎</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:3px">Search Console</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.4">SEO orgânico, palavras-chave, impressões, posição média no Google</div>
+          <div style="font-size:10px;font-weight:700;margin-top:10px;opacity:0.7">Abrir ↗</div>
+        </div>
+      </a>
+
+      <!-- TikTok Ads Manager -->
+      <a href="https://ads.tiktok.com/" target="_blank" style="text-decoration:none;color:inherit">
+        <div style="padding:16px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(135deg,#000000 0%,#25f4ee 100%);color:white;cursor:pointer;transition:transform 0.15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">🎵</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:3px">TikTok Ads Manager</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.4">Performance de campanhas TikTok, criativos, audiência</div>
+          <div style="font-size:10px;font-weight:700;margin-top:10px;opacity:0.7">Abrir ↗</div>
+        </div>
+      </a>
+
+      <!-- TikTok Analytics (orgânico) -->
+      <a href="https://www.tiktok.com/tiktokstudio/analytics" target="_blank" style="text-decoration:none;color:inherit">
+        <div style="padding:16px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(135deg,#ff0050 0%,#000000 100%);color:white;cursor:pointer;transition:transform 0.15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">🎬</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:3px">TikTok Studio</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.4">Analytics orgânicos do TikTok — views, seguidores, vídeos top</div>
+          <div style="font-size:10px;font-weight:700;margin-top:10px;opacity:0.7">Abrir ↗</div>
+        </div>
+      </a>
+
+      <!-- Mercado Livre -->
+      <a href="https://www.mercadolivre.com.br/metricas/home" target="_blank" style="text-decoration:none;color:inherit">
+        <div style="padding:16px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(135deg,#ffe600 0%,#fff159 100%);color:#2d3277;cursor:pointer;transition:transform 0.15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">🛒</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:3px">Mercado Livre</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.4">Métricas de vendas, anúncios, reputação do seller</div>
+          <div style="font-size:10px;font-weight:700;margin-top:10px;opacity:0.7">Abrir ↗</div>
+        </div>
+      </a>
+
+      <!-- Shopee -->
+      <a href="https://seller.shopee.com.br/" target="_blank" style="text-decoration:none;color:inherit">
+        <div style="padding:16px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(135deg,#ee4d2d 0%,#f53d2d 100%);color:white;cursor:pointer;transition:transform 0.15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">🛍</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:3px">Shopee Seller</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.4">Dashboards de vendas, conversão, anúncios Shopee Ads</div>
+          <div style="font-size:10px;font-weight:700;margin-top:10px;opacity:0.7">Abrir ↗</div>
+        </div>
+      </a>
+
+      <!-- Instagram Insights (via business.facebook) -->
+      <a href="https://business.facebook.com/latest/insights/overview" target="_blank" style="text-decoration:none;color:inherit">
+        <div style="padding:16px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(135deg,#833ab4 0%,#fd1d1d 50%,#fcb045 100%);color:white;cursor:pointer;transition:transform 0.15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:24px;margin-bottom:6px">📸</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:3px">Instagram Insights</div>
+          <div style="font-size:11px;opacity:0.85;line-height:1.4">Alcance, engajamento, stories, reels, seguidores @danajalecos</div>
+          <div style="font-size:10px;font-weight:700;margin-top:10px;opacity:0.7">Abrir ↗</div>
+        </div>
+      </a>
+    </div>
+
+    <div style="margin-top:14px;padding:10px 14px;background:var(--surface2);border-radius:8px;font-size:11.5px;color:var(--text2);line-height:1.5">
+      💡 <strong>Dica:</strong> mantenha as contas de cada plataforma logadas no browser — os dashboards abrem direto sem pedir login toda vez.
+    </div>
+  </div>
+
+  <!-- BLOCO 2: GA4 integrado (placeholder) -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:12px;flex-wrap:wrap">
+      <div>
+        <div class="card-title">📈 Google Analytics 4 — Integração Nativa</div>
+        <div class="card-sub">Dashboard do GA4 direto aqui dentro, sem precisar abrir em aba externa</div>
+      </div>
+      <div style="display:inline-block;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--amber);color:white;letter-spacing:0.5px">⏳ AGUARDANDO SETUP</div>
+    </div>
+
+    <div style="background:var(--surface2);border-radius:10px;padding:20px;margin-top:14px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px">🛠 Como ativar (5-10 min)</div>
+      <ol style="font-size:12.5px;color:var(--text2);line-height:1.7;padding-left:20px;margin:0">
+        <li>Acesse <a href="https://console.cloud.google.com/" target="_blank" style="color:var(--blue);font-weight:600">Google Cloud Console</a> e crie um novo projeto (ex: <code>dana-ga4-integration</code>)</li>
+        <li>Ative a API <strong>"Google Analytics Data API"</strong> na biblioteca de APIs</li>
+        <li>Crie um <strong>Service Account</strong> (IAM & Admin → Service Accounts → Create)</li>
+        <li>Gere uma chave JSON pro Service Account (Keys → Add Key → Create new key → JSON)</li>
+        <li>No GA4 (analytics.google.com), vá em <strong>Admin → Property Access Management</strong> e adicione o email do Service Account (termina em <code>.iam.gserviceaccount.com</code>) como <strong>Viewer</strong></li>
+        <li>Me mande o arquivo JSON do Service Account + o Property ID do GA4 (números, ex: <code>123456789</code>)</li>
+      </ol>
+      <div style="margin-top:14px;padding:10px 12px;background:var(--white);border:1px solid var(--border);border-radius:8px;font-size:11.5px;color:var(--text2)">
+        🔒 <strong>Segurança:</strong> A chave JSON fica salva como secret no Supabase (criptografado). Nunca vai pro código ou GitHub. Só o backend tem acesso.
+      </div>
+    </div>
+
+    <div style="margin-top:14px;padding:14px;border:1px dashed var(--border);border-radius:10px;text-align:center">
+      <div style="font-size:36px;opacity:0.3;margin-bottom:6px">📊</div>
+      <div style="font-size:12.5px;color:var(--text3)">Assim que configurar, aqui vão aparecer:</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.5">
+        Usuários ativos · Sessões · Taxa de conversão · Origem do tráfego · Páginas mais visitadas · Dispositivos · Localização
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
 <!-- ════════ CANAIS DE AQUISIÇÃO ════════ -->
 <div class="view" id="view-canaisaquisicao">
 <div style="padding:24px 28px">
@@ -7484,6 +7645,7 @@ updateDynamicField('foto');
 const VIEW_META = {
   home:         { title: 'Dashboard', sub: 'Visão geral · Dana Jalecos Exclusivos', action: 'Nova Campanha' },
   canaisaquisicao: { title: 'Canais de Aquisição', sub: 'Fontes de tráfego e investimento estratégico', action: '' },
+  analytics:    { title: 'Analytics', sub: 'Métricas consolidadas · dashboards nativos e GA4', action: '' },
   campanhas:    { title: 'Campanhas', sub: 'Execução e performance de anúncios pagos', action: '' },
   criativos:    { title: 'Criativos', sub: 'Artes, vídeos e calendário de publicação', action: 'Novo Criativo' },
   influenciadores: { title: 'Influenciadores', sub: 'Ranking, cupons e radar de novos perfis', action: 'Adicionar Influenciadora' },
