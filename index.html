@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>DMS — Dana Marketing System</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=Unica+One&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ── SUPABASE CONFIG ──
@@ -503,6 +503,22 @@ body {
   animation: pulse 1.8s infinite;
 }
 @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+/* Fonte oficial da marca Dana Jalecos */
+@font-face {
+  font-family: 'Northlane';
+  src: url('./assets/fonts/Northlane-One.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Northlane';
+  src: url('./assets/fonts/Northlane-Two.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* Sidebar footer */
 .sidebar-footer {
@@ -6056,15 +6072,16 @@ updateDynamicField('foto');
       <div class="card" style="padding:14px 16px">
         <div class="card-title" style="margin-bottom:10px;font-size:13px">✏️ Tipografia</div>
         <div style="display:flex;gap:8px">
-          <div style="flex:1;padding:8px 10px;background:var(--surface2);border-radius:6px">
-            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:15px;line-height:1;margin-bottom:2px">Syne 800</div>
-            <div style="font-size:9.5px;color:var(--text3)">Títulos</div>
+          <div style="flex:1;padding:10px 12px;background:linear-gradient(135deg,#0a0a0a,#1a1a1a);border-radius:6px;color:white;cursor:pointer" onclick="abrirManualTipografia()" title="Ver pág 6 do Manual da Marca">
+            <div style="font-family:'Northlane','Unica One','Bebas Neue',sans-serif;font-weight:700;font-size:20px;line-height:1;margin-bottom:2px;letter-spacing:1px">NORTHLANE</div>
+            <div style="font-size:9.5px;opacity:0.7">Fonte oficial da marca</div>
           </div>
-          <div style="flex:1;padding:8px 10px;background:var(--surface2);border-radius:6px">
+          <div style="flex:1;padding:10px 12px;background:var(--surface2);border-radius:6px">
             <div style="font-family:'DM Sans',sans-serif;font-weight:400;font-size:13px;line-height:1;margin-bottom:2px">DM Sans 400</div>
-            <div style="font-size:9.5px;color:var(--text3)">Corpo</div>
+            <div style="font-size:9.5px;color:var(--text3)">UI / Sistema</div>
           </div>
         </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:8px">Clique em "NORTHLANE" pra ver no Manual da Marca</div>
       </div>
     </div>
 
@@ -6110,7 +6127,7 @@ updateDynamicField('foto');
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap" id="bk-actions">
         <button class="btn btn-ghost btn-sm" onclick="bkImportarRebranding()" title="Upload rápido do pacote de rebranding (5 arquivos com categorização automática)">⚡ Importar Rebranding</button>
-        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bk-file-input').click()">📷 Arquivo</button>
+        <button class="btn btn-ghost btn-sm" onclick="abrirModalUploadAsset()">📷 Arquivo</button>
         <button class="btn btn-ghost btn-sm" onclick="bkToggleAddLink()">🔗 Link</button>
       </div>
     </div>
@@ -6260,6 +6277,47 @@ updateDynamicField('foto');
     <div style="display:flex;gap:8px">
       <button class="btn btn-ghost" onclick="closeModal('excluir-material')" style="flex:1">Cancelar</button>
       <button class="btn btn-primary" onclick="confirmarExcluirMaterial()" style="flex:1;background:var(--red);border-color:var(--red)">Remover</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Adicionar Asset ao Brand Kit -->
+<div class="modal-overlay" id="modal-bk-upload">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <div class="modal-title">📷 Adicionar Asset ao Brand Kit</div>
+      <button class="modal-close" onclick="closeModal('bk-upload')">×</button>
+    </div>
+    <div class="form-row">
+      <label class="label">Arquivo *</label>
+      <input type="file" id="bk-ua-file" accept="image/*,video/*,.pdf" onchange="bkUAFileSelected(this)" style="display:block;width:100%;padding:10px;border:1.5px dashed var(--border);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:12.5px">
+      <div id="bk-ua-info" style="font-size:10.5px;color:var(--text3);margin-top:4px">💡 Limite 50 MB. Aceita JPG/PNG/GIF/WEBP, MP4/MOV, PDF.</div>
+    </div>
+    <div class="form-row">
+      <label class="label">Nome de exibição *</label>
+      <input class="input" id="bk-ua-nome" placeholder="Ex: Logo Principal Horizontal">
+      <div style="font-size:10px;color:var(--text3);margin-top:3px">Aparece no card. Por padrão usa o nome do arquivo.</div>
+    </div>
+    <div class="form-row-2">
+      <div>
+        <label class="label">Categoria *</label>
+        <select class="input" id="bk-ua-cat">
+          <option value="logo">🏷 Logos</option>
+          <option value="foto">📸 Fotos</option>
+          <option value="template">🎨 Templates</option>
+          <option value="documento">📄 Documentos</option>
+          <option value="outro">📎 Outros</option>
+        </select>
+      </div>
+      <div>
+        <label class="label">Descrição / Tag</label>
+        <input class="input" id="bk-ua-desc" placeholder="Ex: Rebranding 2026">
+      </div>
+    </div>
+    <div id="bk-ua-status" style="font-size:11px;color:var(--text3);margin-bottom:6px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="closeModal('bk-upload')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="bkUAConfirmar()" style="flex:1" id="bk-ua-btn">Adicionar ao Brand Kit</button>
     </div>
   </div>
 </div>
@@ -8476,6 +8534,109 @@ async function bkProcessarRebranding(files) {
   }
 }
 
+// ── MODAL DE UPLOAD DE ASSET (Brand Kit) ──
+function abrirModalUploadAsset() {
+  if (!podeCriarBrandkit()) { showToast('Sem permissão'); return; }
+  document.getElementById('bk-ua-file').value = '';
+  document.getElementById('bk-ua-nome').value = '';
+  document.getElementById('bk-ua-cat').value = 'foto';
+  document.getElementById('bk-ua-desc').value = '';
+  document.getElementById('bk-ua-status').textContent = '';
+  document.getElementById('bk-ua-info').textContent = '💡 Limite 50 MB. Aceita JPG/PNG/GIF/WEBP, MP4/MOV, PDF.';
+  openModal('bk-upload');
+}
+
+function bkUAFileSelected(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  // Pré-preenche nome com o nome do arquivo (sem extensão)
+  const nomeSemExt = file.name.replace(/\.[^.]+$/, '');
+  document.getElementById('bk-ua-nome').value = nomeSemExt;
+  // Auto-detect categoria baseado no tipo/extensão
+  const lowerName = file.name.toLowerCase();
+  const catSel = document.getElementById('bk-ua-cat');
+  if (catSel) {
+    if (lowerName.endsWith('.pdf') || lowerName.includes('manual')) catSel.value = 'documento';
+    else if (lowerName.includes('logo')) catSel.value = 'logo';
+    else if (file.type?.startsWith('image/')) catSel.value = 'foto';
+    else catSel.value = 'outro';
+  }
+  // Info do arquivo
+  document.getElementById('bk-ua-info').innerHTML = `<span style="color:var(--green)">✓ ${esc(file.name)} · ${(file.size/1024/1024).toFixed(2)} MB</span>`;
+}
+
+async function bkUAConfirmar() {
+  const fileInput = document.getElementById('bk-ua-file');
+  const file = fileInput?.files?.[0];
+  const nome = document.getElementById('bk-ua-nome').value.trim();
+  const categoria = document.getElementById('bk-ua-cat').value;
+  const descricao = document.getElementById('bk-ua-desc').value.trim() || null;
+  const statusEl = document.getElementById('bk-ua-status');
+  const btn = document.getElementById('bk-ua-btn');
+
+  if (!file) { showToast('Escolha um arquivo'); return; }
+  if (!nome) { showToast('Dê um nome pra exibição'); return; }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    showToast('Arquivo acima de 50 MB (' + (file.size/1024/1024).toFixed(1) + ' MB)');
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+  statusEl.innerHTML = `<span style="color:var(--blue)">⏳ Fazendo upload...</span>`;
+
+  try {
+    const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+    const filename = 'brandkit-' + categoria + '-' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
+
+    const { error: upErr } = await sb.storage.from('kanban').upload(filename, file, { cacheControl: '3600', upsert: false });
+    if (upErr) throw upErr;
+    const { data: urlData } = sb.storage.from('kanban').getPublicUrl(filename);
+
+    const { error: insErr } = await sb.from('brandkit_itens').insert({
+      nome,
+      descricao,
+      categoria,
+      url: urlData.publicUrl,
+      tipo: detectTipoMaterial(file),
+      mime_type: file.type || null,
+      tamanho: file.size || null,
+      storage_path: filename,
+      criado_por: currentUser?.id || null,
+      criado_por_nome: currentProfile?.nome || 'Anônimo',
+    });
+    if (insErr) throw insErr;
+
+    closeModal('bk-upload');
+    showToast('✓ Adicionado ao Brand Kit');
+    logActivity('adicionou_brandkit', nome, 'briefingvisual');
+    loadBrandkit();
+  } catch (e) {
+    console.error('bkUA:', e);
+    statusEl.innerHTML = `<span style="color:var(--red)">Erro: ${esc(e.message || e)}</span>`;
+    showToast('Erro: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Adicionar ao Brand Kit'; }
+  }
+}
+
+// Abre o Manual da Marca (se existir) ou avisa
+async function abrirManualTipografia() {
+  // Procura no brandkit_itens um documento com "manual" no nome
+  try {
+    const { data } = await sb.from('brandkit_itens')
+      .select('url, nome')
+      .eq('categoria', 'documento')
+      .or('nome.ilike.%manual%,descricao.ilike.%manual%')
+      .limit(1)
+      .maybeSingle();
+    if (data?.url) {
+      window.open(data.url, '_blank');
+    } else {
+      showToast('Manual da Marca não encontrado no Brand Kit');
+    }
+  } catch (e) { showToast('Erro ao buscar manual: ' + e.message); }
+}
+
 let _brandkitExcluirId = null;
 
 function abrirModalExcluirBrandkit(id) {
@@ -9830,12 +9991,27 @@ async function createTask() {
   const prio = document.getElementById('new-task-prio')?.value || 'media';
   const prazo = document.getElementById('new-task-due')?.value || null;
   const responsavel = document.getElementById('new-task-resp')?.value || null;
+  const responsavelId = getSelectedProfileId('new-task-resp');
 
-  await sb.from('tarefas').insert({
+  const { data: inserted, error } = await sb.from('tarefas').insert({
     titulo, descricao: desc, tag, prioridade: prio, prazo, coluna, responsavel,
     posicao: _tarefasCache.length,
     links: _ntAttachments.length ? _ntAttachments : null,
-  });
+  }).select().single();
+
+  // Notifica o responsável atribuído (se diferente do criador)
+  if (responsavelId && !error) {
+    const quem = currentProfile?.nome || 'alguém';
+    const colunaLabel = COL_LABELS[coluna] || coluna;
+    await criarAlertaParaId(responsavelId,
+      '📌 Nova tarefa atribuída a você',
+      `"${titulo}" foi criada por ${quem} na coluna "${colunaLabel}"` + (prazo ? ` · Prazo: ${prazo}` : ''),
+      prio === 'alta' ? 'urgent' : 'info',
+      'tarefas-e-kanban', 'Ver tarefa',
+      { tarefa_id: inserted?.id, tipo: 'tarefa_atribuida' }
+    );
+  }
+
   closeModal('nova-tarefa');
   document.getElementById('new-task-title').value = '';
   document.getElementById('new-task-desc').value = '';
@@ -10236,15 +10412,38 @@ async function removerAnexo(idx) {
 async function salvarTarefaEdit() {
   if (!_editingTaskId) return;
   if (!podeCriarTarefa()) { showToast('Voce nao tem permissao para editar tarefas'); return; }
+
+  // Detecta mudança de responsável pra disparar notificação
+  const tarefaAntes = _tarefasCache.find(t => t.id === _editingTaskId);
+  const respAntes = (tarefaAntes?.responsavel || '').trim();
+  const respDepois = (document.getElementById('vt-resp').value || '').trim();
+
   const descEdit = document.getElementById('vt-desc-edit');
   const updates = {
     descricao: descEdit ? descEdit.value : '',
     tag: document.getElementById('vt-tag').value,
     prioridade: document.getElementById('vt-prio').value,
-    responsavel: document.getElementById('vt-resp').value,
+    responsavel: respDepois,
     prazo: document.getElementById('vt-prazo').value || null,
   };
   await sb.from('tarefas').update(updates).eq('id', _editingTaskId);
+
+  // Se mudou o responsável e tem alguém novo atribuído, notifica
+  if (respDepois && respDepois !== respAntes) {
+    const respId = getSelectedProfileId('vt-resp');
+    if (respId) {
+      const quem = currentProfile?.nome || 'alguém';
+      const colunaLabel = COL_LABELS[tarefaAntes?.coluna] || tarefaAntes?.coluna || '';
+      await criarAlertaParaId(respId,
+        '📌 Tarefa atribuída a você',
+        `"${tarefaAntes?.titulo || 'Tarefa'}" foi atribuída por ${quem}` + (colunaLabel ? ` (${colunaLabel})` : '') + (updates.prazo ? ` · Prazo: ${updates.prazo}` : ''),
+        updates.prioridade === 'alta' ? 'urgent' : 'info',
+        'tarefas-e-kanban', 'Ver tarefa',
+        { tarefa_id: _editingTaskId, tipo: 'tarefa_atribuida' }
+      );
+    }
+  }
+
   closeModal('ver-tarefa');
   loadTarefas();
   logActivity('editou_tarefa', updates.descricao?.substring(0,50) || '', 'tarefas');
