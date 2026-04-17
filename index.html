@@ -1971,95 +1971,73 @@ select.input { cursor: pointer; }
 <!-- ════════ CAMPANHAS ════════ -->
 <div class="view" id="view-campanhas">
 <div style="padding:24px 28px">
-  <div class="g21 mb20">
-    <div class="card">
-      <div class="card-header">
-        <div><div class="card-title">Campanhas</div><div class="card-sub">Gestão completa</div></div>
-        <button class="btn btn-primary btn-sm" onclick="openModal('nova-campanha')">+ Nova campanha</button>
-      </div>
-      <table>
-        <thead><tr><th>Campanha</th><th>Público</th><th>Status</th><th>Progresso</th><th>ROAS</th><th>Faturamento</th></tr></thead>
-        <tbody>
-          <tr onclick="openModal('det-camp')" style="cursor:pointer">
-            <td class="em">Profissional Liberal — Q2</td>
-            <td>B2C Premium</td>
-            <td><span class="chip ativo">Ativo</span></td>
-            <td><div class="prog-wrap"><div class="prog-bar"><div class="prog-fill" style="width:68%"></div></div><div class="prog-pct">68%</div></div></td>
-            <td class="good">3.8×</td>
-            <td class="em">R$180k</td>
-          </tr>
-          <tr onclick="openModal('det-camp')" style="cursor:pointer">
-            <td class="em">Clínicas — Padronização</td>
-            <td>B2B Clínicas</td>
-            <td><span class="chip ativo">Ativo</span></td>
-            <td><div class="prog-wrap"><div class="prog-bar"><div class="prog-fill" style="width:42%"></div></div><div class="prog-pct">42%</div></div></td>
-            <td class="good">4.2×</td>
-            <td class="em">R$95k</td>
-          </tr>
-          <tr onclick="openModal('det-camp')" style="cursor:pointer">
-            <td class="em">Estudante — Primeiro Jaleco</td>
-            <td>B2C Entrada</td>
-            <td><span class="chip rev">Revisão</span></td>
-            <td><div class="prog-wrap"><div class="prog-bar"><div class="prog-fill" style="width:30%"></div></div><div class="prog-pct">30%</div></div></td>
-            <td class="bad">2.1×</td>
-            <td class="em">R$38k</td>
-          </tr>
-          <tr>
-            <td class="em">Campanha Inverno 2025</td>
-            <td>Multi-público</td>
-            <td><span class="chip plan">Planejada</span></td>
-            <td><div class="prog-wrap"><div class="prog-bar"><div class="prog-fill" style="width:8%"></div></div><div class="prog-pct">8%</div></div></td>
-            <td>—</td>
-            <td>—</td>
-          </tr>
-          <tr>
-            <td class="em">Empresas — Labirinto Padronização</td>
-            <td>B2B Corporativo</td>
-            <td><span class="chip prod">Em produção</span></td>
-            <td><div class="prog-wrap"><div class="prog-bar"><div class="prog-fill" style="width:55%"></div></div><div class="prog-pct">55%</div></div></td>
-            <td>—</td>
-            <td>—</td>
-          </tr>
-        </tbody>
-      </table>
+
+  <!-- Estado aguardando APIs -->
+  <div class="card" style="text-align:center;padding:48px 24px;margin-bottom:20px">
+    <div style="font-size:44px;margin-bottom:12px;opacity:0.4">📊</div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;margin-bottom:8px">Campanhas em Execução</div>
+    <div style="font-size:13px;color:var(--text3);max-width:540px;margin:0 auto 20px;line-height:1.6">
+      Esta seção mostrará suas campanhas <strong style="color:var(--text)">ativas em tempo real</strong> com métricas de performance assim que você conectar as plataformas de anúncios.
     </div>
-    <div>
-      <div class="card mb16">
-        <div class="card-title" style="margin-bottom:12px">Checklist de Lançamento</div>
-        <div class="check-item done" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-label">Briefing criativo aprovado</div></div>
-        <div class="check-item done" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-label">Criativos produzidos (Feed + Stories + Reels)</div></div>
-        <div class="check-item done" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-label">Segmentação configurada no Meta Ads</div></div>
-        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-label">Landing page ou produto linkado</div></div>
-        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-label">UTMs configurados</div></div>
-        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-label">Pixel / GA4 validado</div></div>
-        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-label">Orçamento diário definido</div></div>
-        <div class="check-item" onclick="toggleCheck(this)"><div class="check-box">✓</div><div class="check-label">Revisão de copy e CTAs</div></div>
+    <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:24px">
+      <button class="btn btn-primary btn-sm" onclick="document.querySelector('[onclick*=apis]')?.click()">🔌 Conectar APIs</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.querySelector('[onclick*=briefingvisual]')?.click()">📋 Ver briefings salvos</button>
+    </div>
+    <div style="font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--surface2);color:var(--text3);letter-spacing:0.5px;display:inline-block">AGUARDANDO META ADS · GOOGLE ADS · TIKTOK ADS</div>
+  </div>
+
+  <!-- Preview do que virá -->
+  <div class="card mb20">
+    <div class="card-title" style="margin-bottom:14px">Quando conectado, você verá aqui:</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+      <div style="padding:14px;border:1px solid var(--border);border-radius:10px;opacity:0.7">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:6px">ROAS</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--text3)">—</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Retorno sobre investimento</div>
       </div>
-      <div class="card">
-        <div class="card-title" style="margin-bottom:12px">Fluxo de Lançamento</div>
-        <div class="tl-item">
-          <div class="tl-dot done"><div class="tl-inner"></div></div>
-          <div class="tl-content"><div class="tl-title">Planejamento estratégico</div><div class="tl-meta">Público · Problema · Conceito</div></div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-dot done"><div class="tl-inner"></div></div>
-          <div class="tl-content"><div class="tl-title">Produção de criativos</div><div class="tl-meta">Reels · Feed · Stories</div></div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-dot active"><div class="tl-inner"></div></div>
-          <div class="tl-content"><div class="tl-title">Configuração de tráfego</div><div class="tl-meta now">Em andamento</div></div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-dot"><div class="tl-inner"></div></div>
-          <div class="tl-content"><div class="tl-title">Go-live e monitoramento</div><div class="tl-meta">D+0 a D+3</div></div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-dot"><div class="tl-inner"></div></div>
-          <div class="tl-content"><div class="tl-title">Otimização e escala</div><div class="tl-meta">D+7 em diante</div></div>
-        </div>
+      <div style="padding:14px;border:1px solid var(--border);border-radius:10px;opacity:0.7">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:6px">CPA</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--text3)">—</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Custo por aquisição</div>
+      </div>
+      <div style="padding:14px;border:1px solid var(--border);border-radius:10px;opacity:0.7">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:6px">CPM</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--text3)">—</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Custo por mil impressões</div>
+      </div>
+      <div style="padding:14px;border:1px solid var(--border);border-radius:10px;opacity:0.7">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:6px">CTR</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--text3)">—</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Taxa de clique</div>
+      </div>
+      <div style="padding:14px;border:1px solid var(--border);border-radius:10px;opacity:0.7">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:6px">ALCANCE</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--text3)">—</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Pessoas únicas atingidas</div>
+      </div>
+      <div style="padding:14px;border:1px solid var(--border);border-radius:10px;opacity:0.7">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:6px">CONVERSÕES</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--text3)">—</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Vendas atribuídas</div>
       </div>
     </div>
   </div>
+
+  <!-- Relação com Briefing Visual -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:10px">💡 Onde essas campanhas nascem?</div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px">
+      Toda campanha começa como um <strong>briefing estratégico</strong> (público, problema, conceito, copy, investimento). Use o <strong>Construtor de Campanha</strong> pra montar um briefing em 8 passos e salvá-lo em <strong>Briefing Visual</strong>.
+    </div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6">
+      Quando as APIs de anúncios estiverem conectadas, cada briefing salvo poderá ser vinculado a uma campanha ativa — e os números reais aparecerão aqui automaticamente.
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="document.querySelector('[onclick*=construtor]')?.click()">Abrir Construtor de Campanha</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.querySelector('[onclick*=briefingvisual]')?.click()">Ver Briefing Visual</button>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -6332,7 +6310,7 @@ updateDynamicField('foto');
 // ── VIEWS CONFIG ──
 const VIEW_META = {
   home:         { title: 'Dashboard', sub: 'Visão geral · Dana Jalecos Exclusivos', action: 'Nova Campanha' },
-  campanhas:    { title: 'Campanhas', sub: 'Gestão de campanhas · ' + new Date().toLocaleDateString('pt-BR'), action: 'Nova Campanha' },
+  campanhas:    { title: 'Campanhas', sub: 'Execução e performance de anúncios pagos', action: '' },
   criativos:    { title: 'Criativos', sub: 'Artes, vídeos e calendário de publicação', action: 'Novo Criativo' },
   influenciadores: { title: 'Influenciadores', sub: 'Ranking, cupons e radar de novos perfis', action: 'Adicionar Influenciadora' },
   personas:     { title: 'Públicos Ideais', sub: '5 personas estratégicas da Dana Jalecos', action: 'Criar Campanha' },
