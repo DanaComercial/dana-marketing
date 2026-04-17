@@ -1,21 +1,8 @@
 -- ══════════════════════════════════════════════════════════
--- Notificações inteligentes — Fase 1
--- 1) Adiciona destinatário + link de referência em alertas
--- 2) Função que gera alertas de prazo em tarefas
--- 3) Cron diário 9h pra rodar essa função
+-- FIX: coluna 'tipo' (NOT NULL) faltando nos INSERT da função
+-- gerar_alertas_prazos(). Rodar uma vez pra atualizar a função.
 -- ══════════════════════════════════════════════════════════
 
--- ── 1. ALTER TABLE alertas ──
-ALTER TABLE alertas
-  ADD COLUMN IF NOT EXISTS destinatario_id UUID,
-  ADD COLUMN IF NOT EXISTS destinatario_nome TEXT,
-  ADD COLUMN IF NOT EXISTS link_ref TEXT,
-  ADD COLUMN IF NOT EXISTS link_label TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_alertas_destinatario
-  ON alertas(destinatario_id) WHERE destinatario_id IS NOT NULL;
-
--- ── 2. Função que gera alertas de prazo em tarefas do Kanban ──
 CREATE OR REPLACE FUNCTION gerar_alertas_prazos() RETURNS void AS $$
 DECLARE
   r RECORD;
@@ -24,7 +11,6 @@ DECLARE
   v_titulo TEXT;
   v_mensagem TEXT;
 BEGIN
-  -- Tarefas com prazo hoje ou amanhã, com responsavel, não concluídas
   FOR r IN
     SELECT t.id, t.titulo, t.prazo, t.responsavel
     FROM tarefas t
@@ -34,7 +20,6 @@ BEGIN
       AND t.responsavel IS NOT NULL
       AND TRIM(t.responsavel) <> ''
   LOOP
-    -- Resolver responsavel (string) pra profile_id via match por nome
     SELECT p.id INTO v_destinatario_id
     FROM profiles p
     WHERE LOWER(TRIM(p.nome)) = LOWER(TRIM(r.responsavel))
@@ -42,7 +27,6 @@ BEGIN
 
     IF v_destinatario_id IS NULL THEN CONTINUE; END IF;
 
-    -- Evitar spam: só 1 alerta por dia por tarefa
     IF EXISTS (
       SELECT 1 FROM alertas
       WHERE destinatario_id = v_destinatario_id
@@ -51,7 +35,6 @@ BEGIN
         AND created_at >= current_date
     ) THEN CONTINUE; END IF;
 
-    -- Montar título/mensagem conforme proximidade
     IF r.prazo::date = current_date THEN
       v_nivel := 'urgent';
       v_titulo := '🚨 Prazo HOJE: ' || r.titulo;
@@ -73,22 +56,4 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- ── 3. Cron diário às 9h da manhã ──
-DO $$
-BEGIN
-  -- Remover job antigo se existir (idempotente)
-  PERFORM cron.unschedule('gerar-alertas-prazos-diario')
-    WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'gerar-alertas-prazos-diario');
-END $$;
-
-SELECT cron.schedule(
-  'gerar-alertas-prazos-diario',
-  '0 9 * * *',
-  $$SELECT gerar_alertas_prazos();$$
-);
-
--- ── 4. Verificação ──
-SELECT 'Migration aplicada com sucesso' AS status;
-
--- Se quiser testar agora (rodar função imediatamente):
--- SELECT gerar_alertas_prazos();
+SELECT 'Função gerar_alertas_prazos atualizada com tipo=tarefa_prazo' AS status;

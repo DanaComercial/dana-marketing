@@ -2888,7 +2888,10 @@ async function criarAlertaParaId(destinatarioId, titulo, mensagem, nivel, linkRe
     // Busca o nome pro cache do destinatario_nome
     const { data: prof } = await sb.from('profiles')
       .select('nome').eq('id', destinatarioId).maybeSingle();
+    // Deriva o 'tipo' (NOT NULL na tabela) a partir do payload do dados
+    const tipo = (dados && dados.tipo) || 'notificacao';
     const { error } = await sb.from('alertas').insert({
+      tipo,
       titulo, mensagem, nivel: nivel || 'info', lido: false,
       destinatario_id: destinatarioId,
       destinatario_nome: prof?.nome || null,
