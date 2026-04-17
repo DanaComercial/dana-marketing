@@ -1826,38 +1826,45 @@ select.input { cursor: pointer; }
     border-bottom: 1px solid var(--border);
   }
 
-  /* Gráficos de barras: comprimir + rotacionar labels */
+  /* Gráficos de barras: comprimir + texto truncado (sem rotação) */
   #ec-grafico, #lf-grafico,
   [id$="-grafico"] {
-    gap: 2px !important;
-    padding: 4px 0 26px 0 !important;  /* padding embaixo pros labels rotacionados */
+    gap: 1px !important;
+    padding: 4px 0 !important;
     width: 100% !important;
     overflow: hidden !important;
-    font-size: 9px !important;
+    font-size: 7px !important;
     align-items: flex-end !important;
   }
   #ec-grafico > div, #lf-grafico > div,
   [id$="-grafico"] > div {
     min-width: 0 !important;
     flex: 1 1 0 !important;
-    font-size: 9px !important;
+    max-width: calc(100% / 13) !important;
+    font-size: 7px !important;
     position: relative;
+    overflow: hidden !important;
   }
-  /* Label do mês (última linha de texto dentro do bar): rotaciona -45deg */
-  #ec-grafico > div > div:last-child,
-  #lf-grafico > div > div:last-child,
-  [id$="-grafico"] > div > div:last-child {
-    transform: rotate(-45deg) translateY(18px) !important;
-    transform-origin: left top !important;
-    font-size: 8.5px !important;
+  /* Label do mês: trunca com ellipsis em vez de rotacionar */
+  #ec-grafico > div > div,
+  #lf-grafico > div > div,
+  [id$="-grafico"] > div > div {
+    font-size: 7px !important;
     white-space: nowrap !important;
-    position: absolute !important;
-    bottom: -2px !important;
-    left: 0 !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+    max-width: 100% !important;
+    text-align: center !important;
+    transform: none !important;
   }
   /* Valor em cima da barra */
   #ec-grafico span, #lf-grafico span,
-  [id$="-grafico"] span { font-size: 8.5px !important; }
+  [id$="-grafico"] span {
+    font-size: 7px !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+    max-width: 100% !important;
+  }
 
   /* Tabs de criativos: flex-wrap em 2-3 linhas (sem scroll horizontal) */
   .cri-tabs {
@@ -1871,13 +1878,20 @@ select.input { cursor: pointer; }
   .persona-tabs { flex-wrap: wrap !important; overflow: visible !important; }
   .persona-tab { flex: 1 1 auto !important; min-width: 0 !important; font-size: 11.5px; padding: 6px 10px; text-align: center; }
 
-  /* Kanban: ao invés de horizontal, vira uma coluna empilhada */
+  /* Kanban: MANTÉM scroll horizontal (exceção) — empilhar em coluna causou sobreposição */
   .kanban-wrap, .kanban-board {
-    overflow: visible !important;
-    flex-direction: column !important;
-    gap: 10px !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch !important;
+    display: flex !important;
+    flex-direction: row !important;
   }
-  .kanban-col { min-width: 100% !important; max-width: 100% !important; width: 100% !important; }
+  .kanban-col {
+    min-width: 280px !important;
+    max-width: 280px !important;
+    width: 280px !important;
+    flex-shrink: 0 !important;
+  }
 
   /* Tabelas: quebrar texto em vez de scroll */
   table { font-size: 11px; min-width: 0 !important; width: 100% !important; table-layout: fixed; }
@@ -2270,35 +2284,16 @@ select.input { cursor: pointer; }
     white-space: nowrap;
   }
 
-  /* ═ TAREFAS · KANBAN em coluna única (era 6432px!) ═ */
-  #kanban-board, #kanban-board.kanban, .kanban {
+  /* ═ KANBAN · mantém scroll horizontal (layout original com colunas lado a lado) ═ */
+  #kanban-board, #kanban-board.kanban {
     display: flex !important;
-    flex-direction: column !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    overflow: visible !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch !important;
     gap: 10px !important;
   }
-  .kanban-col {
-    min-width: 100% !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    flex: initial !important;
-  }
-  .kanban-col-head, .kanban-col-title { max-width: 100% !important; }
-  .kanban-body, [id^="col-"].kanban-body {
-    max-width: 100% !important;
-    overflow: visible !important;
-  }
-  .k-card, .k-card-link {
-    max-width: 100% !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-  }
   .k-card-title { white-space: normal !important; word-break: break-word !important; }
-  /* Esconder texto "scroll horizontal para ver mais" */
-  [class*="kanban"] [class*="scroll-hint"],
-  [class*="kanban"] [class*="hscroll"] { display: none !important; }
 
   /* ═ RELATÓRIO EXECUTIVO · rank-num (#4, #6 cortados) ═ */
   .rank-num {
@@ -12552,6 +12547,32 @@ function renderScoringTable(data, filtro) {
   if(!container) return;
 
   const cores = { VIP:'ativo', Frequente:'prod', Ocasional:'plan', 'Em Risco':'pause', Inativo:'rev' };
+  const fmtR = v => 'R$' + Math.round(v || 0).toLocaleString('pt-BR');
+  const fmtD = v => v ? new Date(v).toLocaleDateString('pt-BR') : '—';
+
+  // Mobile: renderiza cards com labels inline (nao tabela)
+  if (window.innerWidth <= 768) {
+    container.innerHTML = filtered.slice(0,100).map(c => {
+      const corBarra = c.score>=80?'var(--green)':c.score>=60?'var(--blue)':c.score>=40?'var(--amber)':'var(--red)';
+      return `<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:11.5px">
+        <div style="font-weight:700;font-size:12.5px;color:var(--text);margin-bottom:6px;word-break:break-word">${c.contato_nome}</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span class="chip ${cores[c.segmento]||''}" style="font-size:10px">${c.segmento}</span>
+          <div style="flex:1;height:4px;border-radius:2px;background:var(--border);overflow:hidden"><div style="height:100%;width:${c.score}%;background:${corBarra}"></div></div>
+          <span style="font-size:11px;font-weight:600">${c.score}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:10.5px;color:var(--text3)">
+          <div>Total: <strong style="color:var(--green)">${fmtR(c.total_gasto)}</strong></div>
+          <div>Pedidos: <strong style="color:var(--text)">${c.total_pedidos}</strong></div>
+          <div>Ticket: <strong style="color:var(--text)">${fmtR(c.ticket_medio)}</strong></div>
+          <div>Última: <strong style="color:var(--text)">${fmtD(c.ultima_compra)}</strong></div>
+        </div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  // Desktop: tabela normal
   container.innerHTML = `<table><thead><tr><th>Cliente</th><th>Score</th><th>Segmento</th><th>Total Gasto</th><th>Pedidos</th><th>Ticket</th><th>Última Compra</th><th>Dias</th></tr></thead><tbody>
     ${filtered.slice(0,100).map(c => `<tr>
       <td class="em">${c.contato_nome}</td>
