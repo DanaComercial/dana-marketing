@@ -5429,12 +5429,88 @@ updateDynamicField('foto');
 
   <!-- Tab: Brand Kit -->
   <div id="bv-tab-brandkit" class="bv-tab-panel" style="display:none">
-    <div class="card" style="text-align:center;padding:40px 20px">
-      <div style="font-size:36px;margin-bottom:10px;opacity:0.4">✨</div>
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;margin-bottom:6px">Brand Kit Global</div>
-      <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Logos, paleta, tipografia, fotos de produto e templates reutilizáveis.</div>
-      <div style="display:inline-block;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--surface2);color:var(--text3);letter-spacing:0.5px">FASE 3 · EM BREVE</div>
+
+    <!-- Header com identidade visual fixa -->
+    <div class="g2 mb20">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">🎨 Paleta da Marca</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+          <div style="width:64px;height:64px;background:#0a0a0a;border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-size:9.5px;font-weight:700;cursor:pointer" onclick="navigator.clipboard?.writeText('#0a0a0a');showToast('#0a0a0a copiado')" title="Clique pra copiar">#0a0a0a</div>
+          <div style="width:64px;height:64px;background:#ffffff;border:1.5px solid #e2e2e2;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#0a0a0a;font-size:9.5px;font-weight:700;cursor:pointer" onclick="navigator.clipboard?.writeText('#ffffff');showToast('#ffffff copiado')" title="Clique pra copiar">#ffffff</div>
+          <div style="width:64px;height:64px;background:#f5f5f5;border:1.5px solid #e2e2e2;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#555;font-size:9.5px;font-weight:700;cursor:pointer" onclick="navigator.clipboard?.writeText('#f5f5f5');showToast('#f5f5f5 copiado')" title="Clique pra copiar">#f5f5f5</div>
+          <div style="width:64px;height:64px;background:#1a7a3a;border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-size:9.5px;font-weight:700;cursor:pointer" onclick="navigator.clipboard?.writeText('#1a7a3a');showToast('#1a7a3a copiado')" title="Clique pra copiar">#1a7a3a</div>
+          <div style="width:64px;height:64px;background:#c0392b;border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-size:9.5px;font-weight:700;cursor:pointer" onclick="navigator.clipboard?.writeText('#c0392b');showToast('#c0392b copiado')" title="Clique pra copiar">#c0392b</div>
+        </div>
+        <div style="font-size:11px;color:var(--text3)">Clique em qualquer cor para copiar o hex</div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:12px">✏️ Tipografia</div>
+        <div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:10px">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;line-height:1;margin-bottom:3px">Syne Bold 800</div>
+          <div style="font-size:10.5px;color:var(--text3)">Títulos e headlines</div>
+        </div>
+        <div style="padding:10px;background:var(--surface2);border-radius:8px">
+          <div style="font-family:'DM Sans',sans-serif;font-weight:400;font-size:15px;line-height:1;margin-bottom:3px">DM Sans Regular 400</div>
+          <div style="font-size:10.5px;color:var(--text3)">Corpo de texto e UI</div>
+        </div>
+      </div>
     </div>
+
+    <!-- Biblioteca de assets -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap">
+      <div>
+        <div class="card-title" style="font-size:14px">📦 Biblioteca de Assets</div>
+        <div class="card-sub" id="bk-count-sub">Logos, fotos, templates e documentos reutilizáveis</div>
+      </div>
+      <div style="display:flex;gap:6px" id="bk-actions">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bk-file-input').click()">📷 Arquivo</button>
+        <button class="btn btn-ghost btn-sm" onclick="bkToggleAddLink()">🔗 Link</button>
+      </div>
+    </div>
+
+    <!-- Filtros de categoria -->
+    <div class="tabs mb16">
+      <div class="tab active" onclick="filterBrandkit(this,'todos')">Todos</div>
+      <div class="tab" onclick="filterBrandkit(this,'logo')">🏷 Logos</div>
+      <div class="tab" onclick="filterBrandkit(this,'foto')">📸 Fotos</div>
+      <div class="tab" onclick="filterBrandkit(this,'template')">🎨 Templates</div>
+      <div class="tab" onclick="filterBrandkit(this,'documento')">📄 Documentos</div>
+      <div class="tab" onclick="filterBrandkit(this,'outro')">📎 Outros</div>
+    </div>
+
+    <input type="file" id="bk-file-input" multiple style="display:none" onchange="uploadBrandkit(this.files)">
+    <div style="font-size:10.5px;color:var(--text3);margin-bottom:8px">💡 Limite: 50 MB por arquivo. Arquivos maiores → sobe no Drive e adiciona como <strong>Link</strong>.</div>
+    <div id="bk-add-link" style="display:none;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:2fr 1.5fr 1.2fr auto;gap:6px">
+        <input class="input" type="url" id="bk-link-url" placeholder="https://...">
+        <input class="input" id="bk-link-nome" placeholder="Nome">
+        <select class="input" id="bk-link-categoria">
+          <option value="logo">🏷 Logo</option>
+          <option value="foto">📸 Foto</option>
+          <option value="template" selected>🎨 Template</option>
+          <option value="documento">📄 Documento</option>
+          <option value="outro">📎 Outro</option>
+        </select>
+        <button type="button" class="btn btn-primary btn-sm" onclick="adicionarLinkBrandkit()">Adicionar</button>
+      </div>
+    </div>
+    <div id="bk-upload-categoria" style="display:none;margin-bottom:10px;padding:10px;background:var(--surface2);border-radius:8px">
+      <label class="label" style="margin-bottom:6px">Categoria dos arquivos a enviar:</label>
+      <select class="input" id="bk-upload-cat-select">
+        <option value="logo">🏷 Logo</option>
+        <option value="foto" selected>📸 Foto</option>
+        <option value="template">🎨 Template</option>
+        <option value="documento">📄 Documento</option>
+        <option value="outro">📎 Outro</option>
+      </select>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn btn-ghost btn-sm" onclick="bkCancelarUpload()" style="flex:1">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="bkConfirmarUpload()" style="flex:1">Enviar arquivos</button>
+      </div>
+    </div>
+    <div id="bk-upload-status" style="font-size:11px;color:var(--text3);margin-bottom:8px"></div>
+
+    <div id="bk-list"><div style="text-align:center;color:var(--text3);font-size:12.5px;padding:40px">Carregando...</div></div>
   </div>
 </div></div>
 
@@ -5533,6 +5609,25 @@ updateDynamicField('foto');
     <div style="display:flex;gap:8px">
       <button class="btn btn-ghost" onclick="closeModal('excluir-material')" style="flex:1">Cancelar</button>
       <button class="btn btn-primary" onclick="confirmarExcluirMaterial()" style="flex:1;background:var(--red);border-color:var(--red)">Remover</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Excluir item Brand Kit -->
+<div class="modal-overlay" id="modal-excluir-brandkit">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--red)">🗑 Remover do Brand Kit</div>
+      <button class="modal-close" onclick="closeModal('excluir-brandkit')">×</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">
+      Remover <strong id="del-brandkit-nome" style="color:var(--text)"></strong> do Brand Kit?
+      <br><br>
+      <span style="color:var(--red);font-size:12px">⚠️ O arquivo será deletado permanentemente.</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="closeModal('excluir-brandkit')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarExcluirBrandkit()" style="flex:1;background:var(--red);border-color:var(--red)">Remover</button>
     </div>
   </div>
 </div>
@@ -6817,6 +6912,7 @@ function switchBriefingTab(btn, tab) {
   if (panel) panel.style.display = '';
   // Carrega conteúdo da aba se necessário
   if (tab === 'materiais') loadMateriaisGlobal();
+  if (tab === 'brandkit') loadBrandkit();
 }
 
 function podeCriarBriefing() {
@@ -7314,6 +7410,274 @@ async function confirmarExcluirMaterial() {
     loadMateriaisGlobal();
 
     _materialExcluirId = null;
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BRAND KIT GLOBAL (Fase 3)
+// ═══════════════════════════════════════════════════════════
+let _brandkitCache = [];
+let _brandkitFiltro = 'todos';
+let _brandkitFilesStash = [];
+
+function podeCriarBrandkit() {
+  return userPermissoes['brandkit_criar'] !== false || currentProfile?.cargo === 'admin';
+}
+function podeExcluirBrandkit() {
+  return userPermissoes['brandkit_excluir'] !== false || currentProfile?.cargo === 'admin';
+}
+
+function labelCategoria(cat) {
+  return { logo: '🏷 Logo', foto: '📸 Foto', template: '🎨 Template', documento: '📄 Documento', outro: '📎 Outro' }[cat] || cat;
+}
+
+async function loadBrandkit() {
+  const list = document.getElementById('bk-list');
+  const countEl = document.getElementById('bk-count-sub');
+  const actionsEl = document.getElementById('bk-actions');
+  if (!list) return;
+
+  // Aplica permissões
+  const canCreate = podeCriarBrandkit();
+  if (actionsEl) actionsEl.style.display = canCreate ? '' : 'none';
+
+  try {
+    const { data, error } = await sb.from('brandkit_itens')
+      .select('*')
+      .order('categoria')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+
+    _brandkitCache = data || [];
+    renderBrandkit();
+
+    if (countEl) {
+      const n = _brandkitCache.length;
+      countEl.textContent = n === 0
+        ? 'Nenhum asset adicionado ainda — comece enviando o logo ou fotos de produto'
+        : `${n} asset${n===1?'':'s'} na biblioteca`;
+    }
+  } catch (e) {
+    console.error('loadBrandkit:', e);
+    list.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px;text-align:center">Erro ao carregar: ${esc(e.message || e)}</div>`;
+  }
+}
+
+function filterBrandkit(btn, cat) {
+  document.querySelectorAll('#bv-tab-brandkit > .tabs > .tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  _brandkitFiltro = cat;
+  renderBrandkit();
+}
+
+function renderBrandkit() {
+  const list = document.getElementById('bk-list');
+  if (!list) return;
+
+  const filtro = _brandkitFiltro || 'todos';
+  const items = filtro === 'todos' ? _brandkitCache : _brandkitCache.filter(m => m.categoria === filtro);
+
+  if (!items.length) {
+    list.innerHTML = `<div style="text-align:center;padding:40px 20px;background:var(--white);border:1px dashed var(--border);border-radius:12px">
+      <div style="font-size:36px;opacity:0.3;margin-bottom:8px">${filtro === 'todos' ? '📦' : (labelCategoria(filtro).split(' ')[0])}</div>
+      <div style="font-size:13px;color:var(--text2)">Nenhum ${filtro === 'todos' ? 'asset' : 'item nesta categoria'}</div>
+      ${podeCriarBrandkit() ? `<div style="font-size:11.5px;color:var(--text3);margin-top:4px">Use os botões acima pra adicionar arquivos ou links</div>` : ''}
+    </div>`;
+    return;
+  }
+
+  const fmtData = (s) => {
+    if (!s) return '—';
+    const d = new Date(s);
+    return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+  };
+
+  const canDelete = podeExcluirBrandkit();
+
+  list.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px">' +
+    items.map(m => {
+      const nome = esc(m.nome || 'Sem nome');
+      const urlEsc = (m.url || '').replace(/"/g,'&quot;').replace(/'/g,"\\'");
+      const tipo = m.tipo || 'outro';
+      const cat = m.categoria || 'outro';
+      const deleteBtn = canDelete ? `<button onclick="event.stopPropagation();abrirModalExcluirBrandkit('${m.id}')" style="position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,0.7);color:white;border:none;cursor:pointer;font-size:14px;line-height:1" title="Remover">×</button>` : '';
+
+      const thumb = tipo === 'imagem'
+        ? `<div style="position:relative;aspect-ratio:4/3;overflow:hidden;background:var(--surface2)"><img src="${urlEsc}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">${deleteBtn}</div>`
+        : `<div style="position:relative;aspect-ratio:4/3;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:44px">${iconeTipo(tipo)}${deleteBtn}</div>`;
+
+      return `<div class="card" style="padding:0;overflow:hidden;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,0.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''" onclick="window.open('${urlEsc}','_blank')">
+        ${thumb}
+        <div style="padding:10px 12px">
+          <div style="font-size:12.5px;font-weight:700;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:4px">${nome}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--text3)">
+            <span>${labelCategoria(cat)}</span>
+            <span>${fmtData(m.created_at)}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+}
+
+function bkToggleAddLink() {
+  if (!podeCriarBrandkit()) { showToast('Sem permissão'); return; }
+  const el = document.getElementById('bk-add-link');
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+  if (el.style.display === '') setTimeout(() => document.getElementById('bk-link-url')?.focus(), 100);
+}
+
+function uploadBrandkit(files) {
+  // Stash files e pede categoria antes de enviar
+  if (!podeCriarBrandkit()) { showToast('Sem permissão'); return; }
+  if (!files || !files.length) return;
+
+  // Valida tamanho antes
+  const tooBig = Array.from(files).filter(f => f.size > MAX_UPLOAD_BYTES);
+  if (tooBig.length) {
+    const nomes = tooBig.map(f => `"${f.name}" (${(f.size/1024/1024).toFixed(1)} MB)`).join(', ');
+    showToast('Arquivo muito grande: ' + nomes + ' — máximo 50 MB');
+  }
+  _brandkitFilesStash = Array.from(files).filter(f => f.size <= MAX_UPLOAD_BYTES);
+  if (!_brandkitFilesStash.length) {
+    document.getElementById('bk-file-input').value = '';
+    return;
+  }
+
+  document.getElementById('bk-upload-categoria').style.display = '';
+  document.getElementById('bk-upload-status').textContent = `${_brandkitFilesStash.length} arquivo(s) prontos — escolha a categoria e confirme`;
+}
+
+function bkCancelarUpload() {
+  _brandkitFilesStash = [];
+  document.getElementById('bk-upload-categoria').style.display = 'none';
+  document.getElementById('bk-upload-status').textContent = '';
+  document.getElementById('bk-file-input').value = '';
+}
+
+async function bkConfirmarUpload() {
+  if (!_brandkitFilesStash.length) return;
+  const categoria = document.getElementById('bk-upload-cat-select')?.value || 'outro';
+  const statusEl = document.getElementById('bk-upload-status');
+  document.getElementById('bk-upload-categoria').style.display = 'none';
+
+  statusEl.textContent = `Enviando ${_brandkitFilesStash.length} arquivo(s)...`;
+  let ok = 0;
+  let erros = [];
+
+  for (const file of _brandkitFilesStash) {
+    try {
+      const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+      const filename = 'brandkit-' + categoria + '-' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
+
+      const { error: upErr } = await sb.storage.from('kanban').upload(filename, file, { cacheControl: '3600', upsert: false });
+      if (upErr) throw upErr;
+
+      const { data: urlData } = sb.storage.from('kanban').getPublicUrl(filename);
+      const tipo = detectTipoMaterial(file);
+
+      const { error: insErr } = await sb.from('brandkit_itens').insert({
+        nome: file.name,
+        categoria,
+        url: urlData.publicUrl,
+        tipo,
+        mime_type: file.type || null,
+        tamanho: file.size || null,
+        storage_path: filename,
+        criado_por: currentUser?.id || null,
+        criado_por_nome: currentProfile?.nome || 'Anônimo',
+      });
+      if (insErr) throw insErr;
+      ok++;
+    } catch (e) {
+      console.error('Upload brandkit error:', e);
+      erros.push(`"${file.name}": ${e.message}`);
+    }
+  }
+
+  _brandkitFilesStash = [];
+  document.getElementById('bk-file-input').value = '';
+
+  if (statusEl) {
+    statusEl.textContent = ok > 0 && !erros.length
+      ? `✓ ${ok} arquivo(s) enviado(s)`
+      : ok > 0 ? `✓ ${ok} ok, ${erros.length} falhou` : `✗ Falhou em ${erros.length} arquivo(s)`;
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 5000);
+  }
+
+  if (ok > 0) {
+    logActivity('adicionou_brandkit', `${ok} arquivo(s) em ${categoria}`, 'briefingvisual');
+    loadBrandkit();
+  }
+}
+
+async function adicionarLinkBrandkit() {
+  if (!podeCriarBrandkit()) { showToast('Sem permissão'); return; }
+  const url = document.getElementById('bk-link-url')?.value?.trim();
+  const nome = document.getElementById('bk-link-nome')?.value?.trim();
+  const categoria = document.getElementById('bk-link-categoria')?.value || 'template';
+  if (!url) { showToast('Coloque a URL'); return; }
+  if (!/^https?:\/\//.test(url)) { showToast('URL deve começar com http:// ou https://'); return; }
+
+  let displayNome = nome;
+  if (!displayNome) {
+    try {
+      const u = new URL(url);
+      displayNome = u.hostname.replace('www.', '');
+    } catch { displayNome = url; }
+  }
+
+  try {
+    const { error } = await sb.from('brandkit_itens').insert({
+      nome: displayNome,
+      categoria,
+      url,
+      tipo: detectTipoMaterial(url),
+      criado_por: currentUser?.id || null,
+      criado_por_nome: currentProfile?.nome || 'Anônimo',
+    });
+    if (error) throw error;
+
+    document.getElementById('bk-link-url').value = '';
+    document.getElementById('bk-link-nome').value = '';
+    document.getElementById('bk-add-link').style.display = 'none';
+
+    showToast('✓ Link adicionado ao Brand Kit');
+    logActivity('adicionou_brandkit', displayNome, 'briefingvisual');
+    loadBrandkit();
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+let _brandkitExcluirId = null;
+
+function abrirModalExcluirBrandkit(id) {
+  if (!podeExcluirBrandkit()) { showToast('Sem permissão'); return; }
+  const m = _brandkitCache.find(x => x.id === id);
+  if (!m) return;
+  _brandkitExcluirId = id;
+  const nomeEl = document.getElementById('del-brandkit-nome');
+  if (nomeEl) nomeEl.textContent = '"' + (m.nome || '—') + '"';
+  openModal('excluir-brandkit');
+}
+
+async function confirmarExcluirBrandkit() {
+  if (!_brandkitExcluirId) return;
+  const m = _brandkitCache.find(x => x.id === _brandkitExcluirId);
+  if (!m) return;
+  try {
+    if (m.storage_path) {
+      const { error: stErr } = await sb.storage.from('kanban').remove([m.storage_path]);
+      if (stErr) console.warn('Storage remove warning:', stErr.message);
+    }
+    const { error } = await sb.from('brandkit_itens').delete().eq('id', _brandkitExcluirId);
+    if (error) throw error;
+
+    closeModal('excluir-brandkit');
+    showToast('✓ Item removido do Brand Kit');
+    logActivity('removeu_brandkit', m.nome || '—', 'briefingvisual');
+    _brandkitExcluirId = null;
+    loadBrandkit();
   } catch (e) { showToast('Erro: ' + e.message); }
 }
 
@@ -10687,7 +11051,7 @@ async function loadAdminPermissoes() {
   const cargos = [...new Set(_permData.map(p => p.cargo))].filter(c => c !== 'admin');
   let secoes = [...new Set(_permData.map(p => p.secao))].filter(s => s !== 'admin');
   // Garantir que permissoes de ações existem
-  ['calendario_criar','calendario_excluir','tarefas_criar','tarefas_excluir','briefing_criar','briefing_editar','briefing_excluir'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
+  ['calendario_criar','calendario_excluir','tarefas_criar','tarefas_excluir','briefing_criar','briefing_editar','briefing_excluir','brandkit_criar','brandkit_excluir'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
   const secaoLabels = {...VIEW_META,
     calendario_criar: { title: '✏️ Criar Eventos (Calendário)' },
     calendario_excluir: { title: '🗑 Excluir Eventos (Calendário)' },
@@ -10696,6 +11060,8 @@ async function loadAdminPermissoes() {
     briefing_criar: { title: '✏️ Criar Briefing (Briefing Visual)' },
     briefing_editar: { title: '✏️ Editar Briefing (Briefing Visual)' },
     briefing_excluir: { title: '🗑 Excluir Briefing (Briefing Visual)' },
+    brandkit_criar: { title: '✏️ Adicionar ao Brand Kit' },
+    brandkit_excluir: { title: '🗑 Remover do Brand Kit' },
   };
   const map = {};
   _permData.forEach(p => { map[p.cargo+'_'+p.secao] = p; });
