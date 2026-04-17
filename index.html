@@ -2869,6 +2869,27 @@ select.input { cursor: pointer; }
 
 <script>
 // ═══════════════════════════════════════════════════════════
+// NOTIFICAÇÕES PERSONALIZADAS — helper
+// ═══════════════════════════════════════════════════════════
+async function criarAlertaPara(userNome, titulo, mensagem, nivel, linkRef, linkLabel, dados) {
+  if (!userNome) return;
+  try {
+    // Resolve nome → profile_id
+    const { data: prof } = await sb.from('profiles')
+      .select('id, nome').ilike('nome', userNome.trim()).limit(1).maybeSingle();
+    if (!prof) { console.warn('criarAlertaPara: user não encontrado:', userNome); return; }
+    // Não criar alerta se destinatário é o próprio usuário fazendo a ação
+    if (prof.id === currentUser?.id) return;
+    await sb.from('alertas').insert({
+      titulo, mensagem, nivel: nivel || 'info', lido: false,
+      destinatario_id: prof.id, destinatario_nome: prof.nome,
+      link_ref: linkRef || null, link_label: linkLabel || null,
+      dados: dados || null,
+    });
+  } catch (e) { console.warn('criarAlertaPara:', e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════
 // CRIATIVOS — workflow de aprovação (Fase 1)
 // ═══════════════════════════════════════════════════════════
 let _criativosCache = [];
@@ -3222,6 +3243,20 @@ async function confirmarAprovarArte() {
       feedback: null,  // limpa feedback anterior se foi reprovada antes
     }).eq('id', _criAprovarId);
     if (error) throw error;
+
+    // Notifica o designer
+    if (c.designer_nome) {
+      const quem = currentProfile?.nome || 'alguém';
+      await criarAlertaPara(
+        c.designer_nome,
+        '✅ Sua arte foi aprovada!',
+        `"${c.titulo}" foi aprovada por ${quem}.` + (comentario ? ' Comentário: "' + comentario + '"' : ''),
+        'ok',
+        'criativos', 'Ver criativo',
+        { criativo_id: c.id, tipo: 'criativo_aprovado' }
+      );
+    }
+
     closeCriModal('aprovar');
     showToast('✓ Arte aprovada');
     logActivity('aprovou_arte', c.titulo, 'criativos');
@@ -3269,6 +3304,20 @@ async function confirmarReprovarArte() {
       feedback_em: new Date().toISOString(),
     }).eq('id', _criReprovarId);
     if (error) throw error;
+
+    // Notifica o designer
+    if (c?.designer_nome) {
+      const quem = currentProfile?.nome || 'alguém';
+      await criarAlertaPara(
+        c.designer_nome,
+        '🔁 Sua arte precisa de ajustes',
+        `"${c.titulo}" foi reprovada por ${quem}. Feedback: "${feedback}"`,
+        'warn',
+        'criativos', 'Ver feedback',
+        { criativo_id: c.id, tipo: 'criativo_reprovado' }
+      );
+    }
+
     closeCriModal('reprovar');
     showToast('Feedback enviado ao designer');
     logActivity('reprovou_arte', c?.titulo || '—', 'criativos');
@@ -8143,8 +8192,13 @@ function setupRealtimeSubscriptions() {
 
   sb.channel('realtime-alertas')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'alertas' }, (payload) => {
-      loadAlertas();
-      if(payload.new?.titulo) showToast('Alerta: ' + payload.new.titulo);
+      const a = payload.new;
+      // Só recarrega + mostra toast se for global ou pra este usuário
+      const paraMim = !a?.destinatario_id || a.destinatario_id === currentUser?.id;
+      if (paraMim) {
+        loadAlertas();
+        if (a?.titulo) showToast('🔔 ' + a.titulo);
+      }
     })
     .subscribe();
 
@@ -8164,7 +8218,14 @@ function setupRealtimeSubscriptions() {
 let _alertasCache = [];
 async function loadAlertas() {
   try {
-    const { data } = await sb.from('alertas').select('*').order('created_at', { ascending: false }).limit(20);
+    // Filtra: alertas globais (destinatario_id IS NULL) OU do usuário logado
+    let query = sb.from('alertas').select('*').order('created_at', { ascending: false }).limit(30);
+    if (currentUser?.id) {
+      query = query.or(`destinatario_id.is.null,destinatario_id.eq.${currentUser.id}`);
+    } else {
+      query = query.is('destinatario_id', null);
+    }
+    const { data } = await query;
     _alertasCache = data || [];
     const container = document.getElementById('alertas-container');
     const countLabel = document.getElementById('alertas-count-label');
@@ -8181,10 +8242,12 @@ async function loadAlertas() {
         const nivelLabel = { urgent:'Urgente', warn:'Atenção', info:'Info', ok:'Positivo' };
         const cls = a.lido ? '' : ' unread';
         const tempo = timeAgo(new Date(a.created_at));
+        const linkHtml = a.link_ref ? `<div style="margin-top:6px"><a onclick="event.stopPropagation();abrirLinkAlerta('${a.link_ref}',${a.id});" style="font-size:11px;color:var(--blue);font-weight:600;cursor:pointer;text-decoration:underline">${a.link_label || 'Abrir'} →</a></div>` : '';
         return `<div class="notif-item${cls}" onclick="marcarAlertaLido(${a.id},this)">
           <div class="notif-type ${nivelMap[a.nivel]||'info'}">${nivelLabel[a.nivel]||'Info'}</div>
           <div class="notif-title">${a.titulo}</div>
           ${a.mensagem ? '<div class="notif-body">'+a.mensagem+'</div>' : ''}
+          ${linkHtml}
           <div class="notif-time">${tempo}</div>
         </div>`;
       }).join('');
@@ -8201,6 +8264,21 @@ async function marcarAlertaLido(id, el) {
   const naoLidas = document.querySelectorAll('.notif-item.unread').length;
   if(countLabel) countLabel.textContent = naoLidas > 0 ? naoLidas + ' não lidas' : 'tudo lido';
   updateNotifDot();
+}
+
+// Abre o link de referência do alerta (ex: link_ref='criativos' navega pra seção)
+function abrirLinkAlerta(ref, alertaId) {
+  if (alertaId) marcarAlertaLido(alertaId);
+  // Tenta resolver ref como viewId ou slug
+  let viewId = ref;
+  if (VIEW_SLUG_TO_ID && VIEW_SLUG_TO_ID[ref]) viewId = VIEW_SLUG_TO_ID[ref];
+  const navEl = document.querySelector('[onclick*="\''+viewId+'\'"]');
+  if (navEl) {
+    go(navEl, viewId);
+    // Fecha o dropdown de alertas
+    const dropdown = document.getElementById('notif-dropdown');
+    if (dropdown) dropdown.classList.remove('open');
+  }
 }
 
 function timeAgo(date) {
