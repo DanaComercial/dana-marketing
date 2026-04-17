@@ -4123,71 +4123,11 @@ if(whn) whn.addEventListener('input', () => {
           <button class="btn btn-ghost btn-sm" onclick="addConcorrente()">+ Adicionar</button>
         </div>
 
-        <!-- Dana (voce) -->
-        <div class="comp-row" style="background:var(--green-bg);border-radius:10px;padding:12px;margin-bottom:6px">
-          <div class="comp-avatar" style="background:var(--black);color:white;font-size:10px">DJ</div>
-          <div class="comp-info">
-            <div class="comp-name" style="color:var(--green)">Dana Jalecos Exclusivos (Voce)</div>
-            <div class="comp-handle">@danajalecos · 63k seg. · danajalecos.com.br</div>
-            <div class="comp-activity">Fundada em 2016 por Daniela Binhotti Santos. Fabrica + loja em Picarras SC, loja em Balneario Camboriu SC. 72+ canais de venda no Bling. Diferencial: atendimento consultivo B2B + eventos presenciais.</div>
-          </div>
-          <div class="comp-tag" style="background:var(--green-bg);color:var(--green);border:1px solid var(--green)">Voce</div>
-        </div>
+        <!-- Lista dinâmica (Dana + concorrentes, tudo vindo do Supabase) -->
+        <div id="concorrentes-lista"><div style="padding:20px;text-align:center;color:var(--text3);font-size:12px">Carregando concorrentes...</div></div>
 
-        <!-- Dra. Cherie -->
-        <div class="comp-row">
-          <div class="comp-avatar">DC</div>
-          <div class="comp-info">
-            <div class="comp-name">Dra. Cherie</div>
-            <div class="comp-handle">@dra.cherie · 1M seg. · dracherie.com.br</div>
-            <div class="comp-activity">Fundada em 2014 por Ana Carolina e Ana Cecilia Navarro (SP). Faturamento ~R$60M. 8 lojas fisicas + e-commerce. Lancou linhas "Cherie For Men" e "Cherie For Teams". Expansao acelerada — nova loja em Sao Jose dos Campos.</div>
-          </div>
-          <div class="comp-tag alert">Lider · 16x maior</div>
-        </div>
-
-        <!-- Farcoo -->
-        <div class="comp-row">
-          <div class="comp-avatar">FC</div>
-          <div class="comp-info">
-            <div class="comp-name">Farcoo</div>
-            <div class="comp-handle">@farcoo · 263k seg. · farcoo.com</div>
-            <div class="comp-activity">Liderada por Barbara Ganzarolli. Posicionamento ultra-premium: "Isso nao e um jaleco. E UM FARCOO." Design autoral, bordados a mao, producao propria. 1.296 posts. Colecoes femininas e masculinas bem segmentadas.</div>
-          </div>
-          <div class="comp-tag alert">Premium · 4x maior</div>
-        </div>
-
-        <!-- Jalecos Conforto -->
-        <div class="comp-row">
-          <div class="comp-avatar">JC</div>
-          <div class="comp-info">
-            <div class="comp-name">Jalecos Conforto</div>
-            <div class="comp-handle">@jalecosconforto · 77k seg. · jalecosconforto.com.br</div>
-            <div class="comp-activity">Posicionamento: "Conforto, Praticidade e Elegancia." 1.104 posts. Scrubs e pijamas cirurgicos. Entrega para todo Brasil. Frete fixo e gratis. Blog ativo com conteudo para veterinarios e biomedicos.</div>
-          </div>
-          <div class="comp-tag info">Proximo · 1.2x maior</div>
-        </div>
-
-        <!-- Grafitte -->
-        <div class="comp-row">
-          <div class="comp-avatar">GJ</div>
-          <div class="comp-info">
-            <div class="comp-name">Grafitte Jalecos</div>
-            <div class="comp-handle">@grafittejalecos · grafittejalecos.com.br</div>
-            <div class="comp-activity">Scrubs e jalecos de performance e estilo. E-commerce ativo + Mercado Livre. Publico-alvo: estudantes de medicina e profissionais de saude. Promocoes frequentes.</div>
-          </div>
-          <div class="comp-tag info">E-commerce</div>
-        </div>
-
-        <!-- Comparativo rapido -->
-        <div style="margin-top:14px;padding:14px;background:var(--surface3);border-radius:10px">
-          <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px">Comparativo de Alcance Instagram</div>
-          <div style="display:flex;flex-direction:column;gap:6px">
-            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;width:100px;text-align:right;color:var(--text3)">Dra. Cherie</span><div style="flex:1;height:16px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:100%;height:100%;background:#dc2626;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:9px;color:white;font-weight:700">1M</div></div></div>
-            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;width:100px;text-align:right;color:var(--text3)">Farcoo</span><div style="flex:1;height:16px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:26.3%;height:100%;background:#d97706;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:9px;color:white;font-weight:700">263k</div></div></div>
-            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;width:100px;text-align:right;color:var(--text3)">Jalecos Conforto</span><div style="flex:1;height:16px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:7.7%;height:100%;background:#1a4fa0;border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:9px;color:white;font-weight:700">77k</div></div></div>
-            <div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;width:100px;text-align:right;font-weight:700;color:var(--green)">Dana Jalecos</span><div style="flex:1;height:16px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:6.3%;height:100%;background:var(--green);border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:9px;color:white;font-weight:700">63k</div></div></div>
-          </div>
-        </div>
+        <!-- Comparativo dinâmico -->
+        <div id="concorrentes-comparativo" style="margin-top:14px"></div>
       </div>
       <div class="card">
         <div class="card-title" style="margin-bottom:4px">Influenciadores para Parcerias</div>
@@ -4583,23 +4523,255 @@ function renderNews() {
   if (countEl) countEl.textContent = _newsCache.length + ' noticias';
 }
 
+// ═══════════════════════════════════════════════════════════
+// CONCORRENTES — CRUD com links por plataforma
+// ═══════════════════════════════════════════════════════════
+let _concorrentesCache = [];
+let _concorrenteEditandoId = null;
+let _concorrenteExcluirId = null;
+
+async function loadConcorrentes() {
+  try {
+    // Ordenar: marca própria primeiro, depois por seguidores DESC
+    const { data, error } = await sb.from('concorrentes')
+      .select('*')
+      .order('eh_propria_marca', { ascending: false })
+      .order('seguidores', { ascending: false, nullsFirst: false });
+    if (error) throw error;
+    _concorrentesCache = data || [];
+    renderConcorrentes();
+    renderConcorrentesComparativo();
+  } catch (e) {
+    console.error('loadConcorrentes:', e);
+    const el = document.getElementById('concorrentes-lista');
+    if (el) el.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px">Erro: ${esc(e.message || e)}</div>`;
+  }
+}
+
+// Gera URL do Socialblade a partir do URL do YouTube
+function socialbladeFromYoutube(url) {
+  try {
+    const m = url.match(/youtube\.com\/(@[^\/\?#]+|c\/[^\/\?#]+|channel\/UC[^\/\?#]+|user\/[^\/\?#]+)/i);
+    if (m) {
+      const path = m[1];
+      if (path.startsWith('@')) return 'https://socialblade.com/youtube/c/' + path.slice(1);
+      if (path.toLowerCase().startsWith('c/')) return 'https://socialblade.com/youtube/c/' + path.slice(2);
+      if (path.toLowerCase().startsWith('channel/')) return 'https://socialblade.com/youtube/channel/' + path.slice(8);
+      if (path.toLowerCase().startsWith('user/')) return 'https://socialblade.com/youtube/user/' + path.slice(5);
+    }
+  } catch {}
+  return 'https://socialblade.com/';
+}
+
+function fmtSeguidores(n) {
+  if (!n) return '—';
+  if (n >= 1_000_000) return (n/1_000_000).toFixed(1).replace(/\.0$/,'') + 'M';
+  if (n >= 1_000) return Math.round(n/1000) + 'k';
+  return String(n);
+}
+
+function iniciaisNome(nome) {
+  return (nome || '').split(/\s+/).filter(Boolean).slice(0,2).map(p => p[0]?.toUpperCase() || '').join('') || '?';
+}
+
+function renderConcorrentes() {
+  const lista = document.getElementById('concorrentes-lista');
+  if (!lista) return;
+
+  if (!_concorrentesCache.length) {
+    lista.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text3);font-size:12.5px;background:var(--surface2);border-radius:10px">
+      Nenhum concorrente cadastrado ainda. Clique em <strong>+ Adicionar</strong> pra começar.
+    </div>`;
+    return;
+  }
+
+  const canEdit = currentProfile?.cargo === 'admin' || userPermissoes['mercado'] !== false;
+
+  lista.innerHTML = _concorrentesCache.map(c => {
+    const nome = esc(c.nome || 'Sem nome');
+    const iniciais = iniciaisNome(c.nome);
+    const seg = fmtSeguidores(c.seguidores);
+    const tag = c.tag ? esc(c.tag) : '';
+    const hasIG = !!c.link_instagram;
+    const hasTT = !!c.link_tiktok;
+    const hasYT = !!c.link_youtube;
+    const hasSite = !!c.site;
+    const ehDana = !!c.eh_propria_marca;
+
+    // Monta metadados da linha handle/site
+    const handleParts = [];
+    if (hasIG) {
+      try { const m = c.link_instagram.match(/instagram\.com\/(@?)([^\/\?#]+)/); if (m) handleParts.push('@' + m[2]); } catch {}
+    } else if (hasTT) {
+      try { const m = c.link_tiktok.match(/tiktok\.com\/@?([^\/\?#]+)/); if (m) handleParts.push('@' + m[1]); } catch {}
+    }
+    if (c.seguidores) handleParts.push(seg + ' seg.');
+    if (hasSite) {
+      try { const u = new URL(c.site); handleParts.push(u.hostname.replace('www.','')); } catch { handleParts.push(c.site); }
+    }
+    const handleLine = handleParts.join(' · ');
+
+    // Botões de plataforma (só aparecem se o link existe)
+    const btns = [];
+    if (hasIG) btns.push(`<a href="${esc(c.link_instagram)}" target="_blank" onclick="event.stopPropagation()" class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px;text-decoration:none" title="Abrir Instagram">📸 IG</a>`);
+    if (hasTT) btns.push(`<a href="${esc(c.link_tiktok)}" target="_blank" onclick="event.stopPropagation()" class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px;text-decoration:none" title="Abrir TikTok">🎵 TT</a>`);
+    if (hasYT) {
+      btns.push(`<a href="${esc(c.link_youtube)}" target="_blank" onclick="event.stopPropagation()" class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px;text-decoration:none" title="Abrir YouTube">▶ YT</a>`);
+      btns.push(`<a href="${esc(socialbladeFromYoutube(c.link_youtube))}" target="_blank" onclick="event.stopPropagation()" class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px;text-decoration:none" title="Ver crescimento no Socialblade">📊 Socialblade</a>`);
+    }
+    if (hasSite) btns.push(`<a href="${esc(c.site)}" target="_blank" onclick="event.stopPropagation()" class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px;text-decoration:none" title="Abrir site">🌐 Site</a>`);
+    if (canEdit) {
+      btns.push(`<button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px" onclick="event.stopPropagation();abrirModalEditarConcorrente('${c.id}')" title="Editar">✏️</button>`);
+      // Dana não pode ser excluída (só editada) — é a marca própria
+      if (!ehDana) btns.push(`<button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px;color:var(--red)" onclick="event.stopPropagation();abrirModalExcluirConcorrente('${c.id}')" title="Excluir">🗑</button>`);
+    }
+
+    // Estilo especial pra Dana (marca própria)
+    const rowStyle = ehDana
+      ? 'background:var(--green-bg);border-radius:10px;padding:12px;margin-bottom:6px;flex-wrap:wrap'
+      : 'flex-wrap:wrap';
+    const avatarStyle = ehDana ? 'background:var(--black);color:white;font-size:10px' : '';
+    const nomeStyle = ehDana ? 'color:var(--green)' : '';
+    const nomeExtra = ehDana ? ' <span style="font-weight:500;color:var(--text3)">(Você)</span>' : '';
+    const tagHtml = tag
+      ? (ehDana
+          ? `<div class="comp-tag" style="background:var(--green-bg);color:var(--green);border:1px solid var(--green)">${tag}</div>`
+          : `<div class="comp-tag alert">${tag}</div>`)
+      : '';
+
+    return `<div class="comp-row" style="${rowStyle}">
+      <div class="comp-avatar" ${avatarStyle ? `style="${avatarStyle}"` : ''}>${iniciais}</div>
+      <div class="comp-info" style="min-width:0">
+        <div class="comp-name" ${nomeStyle ? `style="${nomeStyle}"` : ''}>${nome}${nomeExtra}</div>
+        <div class="comp-handle">${handleLine || '—'}</div>
+        ${c.observacoes ? `<div class="comp-activity">${esc(c.observacoes)}</div>` : ''}
+        <div style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap">${btns.join('')}</div>
+      </div>
+      ${tagHtml}
+    </div>`;
+  }).join('');
+}
+
+function renderConcorrentesComparativo() {
+  const el = document.getElementById('concorrentes-comparativo');
+  if (!el) return;
+  const comSeg = _concorrentesCache.filter(c => c.seguidores && c.seguidores > 0);
+  if (!comSeg.length) { el.innerHTML = ''; return; }
+
+  const todos = comSeg.map(c => ({
+    nome: c.nome,
+    seg: c.seguidores,
+    cor: c.eh_propria_marca ? 'var(--green)' : '#dc2626',
+    eDana: !!c.eh_propria_marca
+  }));
+  todos.sort((a, b) => b.seg - a.seg);
+  const max = todos[0]?.seg || 1;
+
+  el.innerHTML = `<div style="padding:14px;background:var(--surface3);border-radius:10px">
+    <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px">Comparativo de Alcance (seguidores)</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${todos.map(t => `<div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;width:110px;text-align:right;${t.eDana?'font-weight:700;color:var(--green)':'color:var(--text3)'}">${esc(t.nome)}</span>
+        <div style="flex:1;height:16px;background:var(--border);border-radius:4px;overflow:hidden">
+          <div style="width:${Math.round(t.seg/max*100)}%;height:100%;background:${t.cor};border-radius:4px;display:flex;align-items:center;padding-left:6px;font-size:9px;color:white;font-weight:700">${fmtSeguidores(t.seg)}</div>
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
 function addConcorrente() {
+  _concorrenteEditandoId = null;
+  document.getElementById('mkt-conc-modal-title').textContent = '🎯 Adicionar Concorrente ao Radar';
+  document.getElementById('mkt-conc-btn').textContent = 'Adicionar ao radar';
   document.getElementById('mkt-conc-nome').value = '';
-  document.getElementById('mkt-conc-handle').value = '';
+  document.getElementById('mkt-conc-tag').value = '';
+  document.getElementById('mkt-conc-ig').value = '';
+  document.getElementById('mkt-conc-tt').value = '';
+  document.getElementById('mkt-conc-yt').value = '';
+  document.getElementById('mkt-conc-site').value = '';
+  document.getElementById('mkt-conc-seg').value = '';
+  document.getElementById('mkt-conc-plat').value = 'instagram';
   document.getElementById('mkt-conc-obs').value = '';
   openModal('add-concorrente');
   setTimeout(() => document.getElementById('mkt-conc-nome')?.focus(), 100);
 }
 
-function confirmarAddConcorrente() {
+function abrirModalEditarConcorrente(id) {
+  const c = _concorrentesCache.find(x => x.id === id);
+  if (!c) return;
+  _concorrenteEditandoId = id;
+  document.getElementById('mkt-conc-modal-title').textContent = '✏️ Editar Concorrente';
+  document.getElementById('mkt-conc-btn').textContent = 'Salvar alterações';
+  document.getElementById('mkt-conc-nome').value = c.nome || '';
+  document.getElementById('mkt-conc-tag').value = c.tag || '';
+  document.getElementById('mkt-conc-ig').value = c.link_instagram || '';
+  document.getElementById('mkt-conc-tt').value = c.link_tiktok || '';
+  document.getElementById('mkt-conc-yt').value = c.link_youtube || '';
+  document.getElementById('mkt-conc-site').value = c.site || '';
+  document.getElementById('mkt-conc-seg').value = c.seguidores || '';
+  document.getElementById('mkt-conc-plat').value = c.plataforma_principal || 'instagram';
+  document.getElementById('mkt-conc-obs').value = c.observacoes || '';
+  openModal('add-concorrente');
+}
+
+async function confirmarAddConcorrente() {
   const nome = document.getElementById('mkt-conc-nome').value.trim();
-  const handle = document.getElementById('mkt-conc-handle').value.trim();
-  const obs = document.getElementById('mkt-conc-obs').value.trim();
-  if (!nome && !handle) { showToast('Preencha o nome ou o @'); return; }
-  const display = nome || handle;
-  closeModal('add-concorrente');
-  showToast('✓ "' + display + '" adicionado ao radar de concorrentes');
-  if (typeof logActivity === 'function') logActivity('adicionou_concorrente', display, 'mercado');
+  if (!nome) { showToast('Nome é obrigatório'); return; }
+  const seguidores = +document.getElementById('mkt-conc-seg').value || null;
+  const payload = {
+    nome,
+    tag: document.getElementById('mkt-conc-tag').value.trim() || null,
+    link_instagram: document.getElementById('mkt-conc-ig').value.trim() || null,
+    link_tiktok: document.getElementById('mkt-conc-tt').value.trim() || null,
+    link_youtube: document.getElementById('mkt-conc-yt').value.trim() || null,
+    site: document.getElementById('mkt-conc-site').value.trim() || null,
+    seguidores,
+    plataforma_principal: document.getElementById('mkt-conc-plat').value,
+    seguidores_atualizado_em: seguidores ? new Date().toISOString() : null,
+    observacoes: document.getElementById('mkt-conc-obs').value.trim() || null,
+  };
+
+  try {
+    if (_concorrenteEditandoId) {
+      const { error } = await sb.from('concorrentes').update(payload).eq('id', _concorrenteEditandoId);
+      if (error) throw error;
+      showToast('✓ Concorrente atualizado');
+      logActivity('editou_concorrente', nome, 'mercado');
+    } else {
+      payload.criado_por = currentUser?.id || null;
+      payload.criado_por_nome = currentProfile?.nome || 'Anônimo';
+      const { error } = await sb.from('concorrentes').insert(payload);
+      if (error) throw error;
+      showToast('✓ Concorrente adicionado ao radar');
+      logActivity('adicionou_concorrente', nome, 'mercado');
+    }
+    closeModal('add-concorrente');
+    _concorrenteEditandoId = null;
+    loadConcorrentes();
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+function abrirModalExcluirConcorrente(id) {
+  const c = _concorrentesCache.find(x => x.id === id);
+  if (!c) return;
+  _concorrenteExcluirId = id;
+  document.getElementById('del-conc-nome').textContent = '"' + (c.nome || '') + '"';
+  openModal('del-concorrente');
+}
+
+async function confirmarExcluirConcorrente() {
+  if (!_concorrenteExcluirId) return;
+  const c = _concorrentesCache.find(x => x.id === _concorrenteExcluirId);
+  try {
+    const { error } = await sb.from('concorrentes').delete().eq('id', _concorrenteExcluirId);
+    if (error) throw error;
+    closeModal('del-concorrente');
+    showToast('✓ Concorrente removido');
+    logActivity('removeu_concorrente', c?.nome || '—', 'mercado');
+    _concorrenteExcluirId = null;
+    loadConcorrentes();
+  } catch (e) { showToast('Erro: ' + e.message); }
 }
 
 function prospectar(handle) {
@@ -4622,28 +4794,85 @@ window.addEventListener('load', () => {
 </script>
 </div>
 
-<!-- Modal: Adicionar Concorrente ao Radar -->
+<!-- Modal: Adicionar/Editar Concorrente no Radar -->
 <div class="modal-overlay" id="modal-add-concorrente">
-  <div class="modal" style="max-width:460px">
+  <div class="modal" style="max-width:540px">
     <div class="modal-header">
-      <div class="modal-title">🎯 Adicionar Concorrente ao Radar</div>
+      <div class="modal-title" id="mkt-conc-modal-title">🎯 Adicionar Concorrente ao Radar</div>
       <button class="modal-close" onclick="closeModal('add-concorrente')">×</button>
     </div>
-    <div class="form-row">
-      <label class="label">Nome da marca</label>
-      <input class="input" id="mkt-conc-nome" placeholder="Ex: Jalecos Premium, Farcoo, etc." onkeydown="if(event.key==='Enter')confirmarAddConcorrente();if(event.key==='Escape')closeModal('add-concorrente')">
+    <div class="form-row-2">
+      <div>
+        <label class="label">Nome da marca *</label>
+        <input class="input" id="mkt-conc-nome" placeholder="Ex: Farcoo, Dra. Cherie...">
+      </div>
+      <div>
+        <label class="label">Tag (opcional)</label>
+        <input class="input" id="mkt-conc-tag" placeholder="Ex: Premium · 4x maior">
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div>
+        <label class="label">📸 Instagram (URL completa)</label>
+        <input class="input" type="url" id="mkt-conc-ig" placeholder="https://instagram.com/marca">
+      </div>
+      <div>
+        <label class="label">🎵 TikTok (URL completa)</label>
+        <input class="input" type="url" id="mkt-conc-tt" placeholder="https://tiktok.com/@marca">
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div>
+        <label class="label">▶ YouTube (URL completa)</label>
+        <input class="input" type="url" id="mkt-conc-yt" placeholder="https://youtube.com/@marca">
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">Se preenchido, aparece botão Socialblade</div>
+      </div>
+      <div>
+        <label class="label">🌐 Site (opcional)</label>
+        <input class="input" type="url" id="mkt-conc-site" placeholder="https://marca.com.br">
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div>
+        <label class="label">Seguidores (nº)</label>
+        <input class="input" type="number" min="0" id="mkt-conc-seg" placeholder="Ex: 263000">
+      </div>
+      <div>
+        <label class="label">Plataforma principal</label>
+        <select class="input" id="mkt-conc-plat">
+          <option value="instagram">📸 Instagram</option>
+          <option value="tiktok">🎵 TikTok</option>
+          <option value="youtube">▶ YouTube</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
     </div>
     <div class="form-row">
-      <label class="label">@ do Instagram / TikTok (opcional)</label>
-      <input class="input" id="mkt-conc-handle" placeholder="@concorrente" onkeydown="if(event.key==='Enter')confirmarAddConcorrente();if(event.key==='Escape')closeModal('add-concorrente')">
-    </div>
-    <div class="form-row">
-      <label class="label">Observações (opcional)</label>
-      <textarea class="input" id="mkt-conc-obs" rows="2" placeholder="Nicho, preços, diferencial, o que prestar atenção..."></textarea>
+      <label class="label">Observações</label>
+      <textarea class="input" id="mkt-conc-obs" rows="3" placeholder="Posicionamento, preços, diferencial, o que prestar atenção..."></textarea>
     </div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-ghost" onclick="closeModal('add-concorrente')" style="flex:1">Cancelar</button>
-      <button class="btn btn-primary" onclick="confirmarAddConcorrente()" style="flex:1">Adicionar ao radar</button>
+      <button class="btn btn-primary" onclick="confirmarAddConcorrente()" style="flex:1" id="mkt-conc-btn">Adicionar ao radar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Excluir concorrente -->
+<div class="modal-overlay" id="modal-del-concorrente">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--red)">🗑 Remover Concorrente</div>
+      <button class="modal-close" onclick="closeModal('del-concorrente')">×</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">
+      Remover <strong id="del-conc-nome" style="color:var(--text)"></strong> do radar?
+      <br><br>
+      <span style="color:var(--red);font-size:12px">⚠️ Essa ação não pode ser desfeita.</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="closeModal('del-concorrente')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarExcluirConcorrente()" style="flex:1;background:var(--red);border-color:var(--red)">Remover</button>
     </div>
   </div>
 </div>
@@ -7321,6 +7550,7 @@ function go(el, viewId) {
   if (viewId === 'briefingvisual') { if (typeof loadBriefings === 'function') loadBriefings(); }
   if (viewId === 'canaisaquisicao') { if (typeof loadCanaisAquisicao === 'function') loadCanaisAquisicao(); }
   if (viewId === 'criativos') { if (typeof loadCriativos === 'function') loadCriativos(); }
+  if (viewId === 'mercado') { if (typeof loadConcorrentes === 'function') loadConcorrentes(); }
   if (viewId === 'calendario') { if (typeof loadCalendario==='function') loadCalendario(); if (typeof loadTarefas==='function' && !_tarefasCache?.length) loadTarefas(); else if (typeof renderCalendario==='function') setTimeout(renderCalendario, 100); }
 }
 
@@ -9164,6 +9394,13 @@ function setupRealtimeSubscriptions() {
   sb.channel('realtime-canais')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'canais_aquisicao' }, () => {
       if (typeof loadCanaisAquisicao === 'function') loadCanaisAquisicao();
+    })
+    .subscribe();
+
+  // Concorrentes (radar de mercado) — sincroniza entre PCs
+  sb.channel('realtime-concorrentes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'concorrentes' }, () => {
+      if (typeof loadConcorrentes === 'function') loadConcorrentes();
     })
     .subscribe();
 

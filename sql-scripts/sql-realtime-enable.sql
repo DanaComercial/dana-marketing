@@ -17,7 +17,8 @@ DECLARE
     'materiais_briefing',
     'brandkit_itens',
     'canais_aquisicao',
-    'revendas_parceiros'
+    'revendas_parceiros',
+    'concorrentes'
   ];
   t TEXT;
 BEGIN
