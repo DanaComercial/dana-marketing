@@ -2819,6 +2819,22 @@ select.input { cursor: pointer; }
   </div>
 </div>
 
+<!-- MODAL: Aprovar arte (com comentário opcional) -->
+<div class="modal-overlay" id="modal-cri-aprovar">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header"><div class="modal-title" style="color:var(--green)">✓ Aprovar Arte</div><button class="modal-close" onclick="closeCriModal('aprovar')">×</button></div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:8px">Arte: <strong id="cri-apr-nome" style="color:var(--text)"></strong></div>
+    <div class="form-row">
+      <label class="label">Comentário (opcional)</label>
+      <textarea class="input" id="cri-apr-comentario" rows="3" placeholder="Elogio, observação ou nota pro designer — pode deixar em branco"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="closeCriModal('aprovar')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarAprovarArte()" style="flex:1;background:var(--green);border-color:var(--green)">Aprovar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Reprovar arte com feedback -->
 <div class="modal-overlay" id="modal-cri-reprovar">
   <div class="modal" style="max-width:460px">
@@ -2979,6 +2995,7 @@ function renderGridCriativos(list, status) {
       actions = `<div class="arte-actions" style="margin-top:10px">
         <button class="btn-ver" onclick="window.open('${urlEsc}','_blank')" style="flex:1">👁 Abrir arquivo</button>
         ${canApprove ? `<button class="btn btn-ghost btn-sm" style="flex:none;padding:6px 10px" onclick="desfazerAprovacao('${c.id}')" title="Voltar pra aguardando">↩</button>` : ''}
+        ${canDelete ? `<button class="btn btn-ghost btn-sm" style="flex:none;padding:6px 10px;color:var(--red)" onclick="abrirModalExcluirCriativo('${c.id}')" title="Excluir">🗑</button>` : ''}
       </div>`;
     } else {
       actions = `<div class="arte-actions" style="margin-top:10px">
@@ -2997,6 +3014,11 @@ function renderGridCriativos(list, status) {
     const aprovadoInfo = (c.status === 'aprovado' && c.aprovado_por_nome)
       ? `<div style="font-size:10.5px;color:var(--green);font-weight:600;margin-top:4px">✓ Aprovado por ${esc(c.aprovado_por_nome)} · ${fmtData(c.aprovado_em)}</div>`
       : '';
+    const aprovacaoComentario = (c.status === 'aprovado' && c.aprovacao_comentario)
+      ? `<div style="margin-top:8px;padding:8px 10px;background:rgba(26,122,58,0.08);border-left:3px solid var(--green);border-radius:6px;font-size:11.5px;color:var(--text2);line-height:1.4">
+          <strong style="color:var(--green)">💬 Comentário:</strong> ${esc(c.aprovacao_comentario)}
+        </div>`
+      : '';
 
     return `<div class="arte-card ${c.status}">
       ${thumb}
@@ -3005,6 +3027,7 @@ function renderGridCriativos(list, status) {
         <div class="arte-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nome}</div>
         <div class="arte-meta">Designer: ${designer} · ${fmtData(c.created_at)}</div>
         ${aprovadoInfo}
+        ${aprovacaoComentario}
         ${feedbackBlock}
         ${actions}
       </div>
@@ -3170,22 +3193,39 @@ async function enviarArte() {
   }
 }
 
-// ── Aprovar ──
-async function aprovarArte(id) {
+// ── Aprovar (abre modal com comentário opcional) ──
+let _criAprovarId = null;
+
+function aprovarArte(id) {
   if (!podeAprovarCriativo()) { showToast('Sem permissão pra aprovar'); return; }
   const c = _criativosCache.find(x => x.id === id);
   if (!c) return;
+  _criAprovarId = id;
+  document.getElementById('cri-apr-nome').textContent = c.titulo || '—';
+  document.getElementById('cri-apr-comentario').value = '';
+  openCriModal('aprovar');
+  setTimeout(() => document.getElementById('cri-apr-comentario')?.focus(), 100);
+}
+
+async function confirmarAprovarArte() {
+  if (!_criAprovarId) return;
+  const c = _criativosCache.find(x => x.id === _criAprovarId);
+  if (!c) return;
+  const comentario = document.getElementById('cri-apr-comentario').value.trim() || null;
   try {
     const { error } = await sb.from('criativos').update({
       status: 'aprovado',
       aprovado_por: currentUser?.id || null,
       aprovado_por_nome: currentProfile?.nome || 'Anônimo',
       aprovado_em: new Date().toISOString(),
-      feedback: null,  // limpa feedback anterior se havia
-    }).eq('id', id);
+      aprovacao_comentario: comentario,
+      feedback: null,  // limpa feedback anterior se foi reprovada antes
+    }).eq('id', _criAprovarId);
     if (error) throw error;
+    closeCriModal('aprovar');
     showToast('✓ Arte aprovada');
     logActivity('aprovou_arte', c.titulo, 'criativos');
+    _criAprovarId = null;
     loadCriativos();
   } catch (e) { showToast('Erro: ' + e.message); }
 }
