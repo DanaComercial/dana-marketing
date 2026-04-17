@@ -21,7 +21,8 @@ const BLING_CLIENT_SECRET = 'b2844954fea8b4d935c7aadc1f7f7d99c064792b2c9c2eecc2a
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 const DEFAULT_INICIO = '2026-01-01'
-const DEFAULT_LIMITE = 300
+const DEFAULT_LIMITE = 150    // 300 estourava o tempo do Edge Runtime; 150 cabe em ~60s
+const MAX_LIMITE = 200
 
 async function blingFetch(path: string, token: string): Promise<any> {
   for (let i = 0; i < 3; i++) {
@@ -76,7 +77,7 @@ Deno.serve(async (req) => {
     let body: { limite?: number; inicio?: string } = {}
     try { if (req.method === 'POST') body = await req.json() } catch {}
     const inicio = body.inicio || DEFAULT_INICIO
-    const limite = Math.min(500, body.limite || DEFAULT_LIMITE)
+    const limite = Math.min(MAX_LIMITE, body.limite || DEFAULT_LIMITE)
 
     console.log(`BACKFILL · janela: ${inicio} → hoje · limite ${limite}`)
     const token = await getToken()
@@ -146,7 +147,7 @@ Deno.serve(async (req) => {
         batch.map(async (pedidoId) => {
           try {
             const resp = await blingFetch(`pedidos/vendas/${pedidoId}`, token)
-            const pedido = resp.data
+            const pedido = resp?.data   // defensive: blingFetch pode retornar undefined em caso de falha de rede
             if (!pedido || !pedido.itens || pedido.itens.length === 0) {
               return [{
                 pedido_id: pedidoId,
@@ -179,10 +180,10 @@ Deno.serve(async (req) => {
 
       const todosItens = results.flat().filter(i => i.pedido_id)
       if (todosItens.length > 0) {
-        const { error } = await supabase.from('pedidos_itens').upsert(todosItens, {
+        const upsertResult = await supabase.from('pedidos_itens').upsert(todosItens, {
           onConflict: 'pedido_id,produto_id',
         })
-        if (error) console.error('Upsert itens error:', error.message)
+        if (upsertResult?.error) console.error('Upsert itens error:', upsertResult.error.message)
         else totalItens += todosItens.length
       }
 
