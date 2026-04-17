@@ -7016,11 +7016,27 @@ async function confirmarExcluirBriefing() {
   const b = _briefingsCache.find(x => x.id === _briefingAtivoId);
   if (!b) return;
   try {
+    // 1. Buscar storage_paths dos materiais antes do cascade apagar os registros
+    const { data: mats, error: matsErr } = await sb.from('materiais_briefing')
+      .select('storage_path')
+      .eq('briefing_id', _briefingAtivoId);
+    if (matsErr) console.warn('Busca de materiais:', matsErr.message);
+
+    // 2. Deletar arquivos do Storage (ignora links externos que não têm storage_path)
+    const paths = (mats || []).map(m => m.storage_path).filter(Boolean);
+    if (paths.length) {
+      const { error: stErr } = await sb.storage.from('kanban').remove(paths);
+      if (stErr) console.warn('Storage remove warning:', stErr.message);
+    }
+
+    // 3. Deletar o briefing (cascade remove as linhas de materiais_briefing)
     const { error } = await sb.from('briefings_campanha').delete().eq('id', _briefingAtivoId);
     if (error) throw error;
+
     closeModal('excluir-briefing');
     closeModal('ver-briefing');
-    showToast('✓ Briefing excluído');
+    const msg = paths.length ? `✓ Briefing e ${paths.length} arquivo(s) excluído(s)` : '✓ Briefing excluído';
+    showToast(msg);
     logActivity('excluiu_briefing', b.titulo, 'briefingvisual');
     loadBriefings();
   } catch (e) { showToast('Erro: ' + e.message); }
