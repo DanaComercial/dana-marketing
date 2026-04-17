@@ -1586,6 +1586,9 @@ select.input { cursor: pointer; }
     <div class="nav-item active" onclick="go(this,'home')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 6l6-4 6 4v8H10V9H6v5H2z"/></svg></div>Dashboard
     </div>
+    <div class="nav-item" onclick="go(this,'canaisaquisicao')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 2v12M2 8h12"/></svg></div>Canais de Aquisição
+    </div>
     <div class="nav-item" onclick="go(this,'campanhas')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 6h14M5 2v2M11 2v2"/></svg></div>Campanhas
       <span class="nav-badge">3</span>
@@ -1966,6 +1969,131 @@ select.input { cursor: pointer; }
 </div>
 
 <!-- ════════ CAMPANHAS ════════ -->
+<!-- ════════ CANAIS DE AQUISIÇÃO ════════ -->
+<div class="view" id="view-canaisaquisicao">
+<div style="padding:24px 28px">
+
+  <!-- Header -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap">
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px">Canais de Aquisição</div>
+      <div style="font-size:12.5px;color:var(--text3);margin-top:3px">Fontes de tráfego e investimento estratégico do seu negócio</div>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="abrirModalNovoCanal()" id="ca-btn-novo">+ Adicionar canal</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid mb20">
+    <div class="kpi-card dark"><div class="kpi-label">Canais Ativos</div><div class="kpi-value" id="ca-kpi-ativos">0</div><div class="kpi-change up">Em operação</div></div>
+    <div class="kpi-card"><div class="kpi-label">Investimento/Mês</div><div class="kpi-value" id="ca-kpi-invest">R$ 0</div><div class="kpi-change up" id="ca-kpi-invest-sub">Total mensal ativo</div></div>
+    <div class="kpi-card"><div class="kpi-label">Canais Pagos</div><div class="kpi-value" id="ca-kpi-pagos">0</div><div class="kpi-change up">Tráfego pago ativo</div></div>
+    <div class="kpi-card"><div class="kpi-label">Canais Orgânicos</div><div class="kpi-value" id="ca-kpi-organicos">0</div><div class="kpi-change up">Conteúdo e relacionamento</div></div>
+  </div>
+
+  <!-- Duas colunas: Pagos + Orgânicos -->
+  <div class="g2">
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">💰 Canais Pagos</div>
+          <div class="card-sub" id="ca-pagos-sub">R$ 0 investidos mensalmente</div>
+        </div>
+      </div>
+      <div id="ca-lista-pagos"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">🌱 Canais Orgânicos</div>
+          <div class="card-sub">Foco em conteúdo e relacionamento</div>
+        </div>
+      </div>
+      <div id="ca-lista-organicos"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+    </div>
+  </div>
+
+  <!-- Placeholder sobre integração futura -->
+  <div class="card mt20" style="background:var(--surface2)">
+    <div style="font-size:12.5px;color:var(--text2);line-height:1.6">
+      <strong>💡 Integração futura:</strong> quando Meta Ads, Google Ads ou TikTok Ads forem conectados em <strong onclick="document.querySelector('[onclick*=apis]')?.click()" style="cursor:pointer;text-decoration:underline">Conectar APIs</strong>, os canais pagos desta página serão atualizados automaticamente com dados reais de investimento, ROAS e performance.
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- Modal: Novo/Editar Canal de Aquisição -->
+<div class="modal-overlay" id="modal-canal-aquisicao">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-header">
+      <div class="modal-title" id="ca-modal-title">+ Novo Canal de Aquisição</div>
+      <button class="modal-close" onclick="closeModal('canal-aquisicao')">×</button>
+    </div>
+    <div class="form-row">
+      <label class="label">Nome do canal *</label>
+      <input class="input" id="ca-input-nome" placeholder="Ex: Meta Ads, Instagram orgânico, SEO, Influenciadoras...">
+    </div>
+    <div class="form-row-2">
+      <div>
+        <label class="label">Tipo *</label>
+        <select class="input" id="ca-input-tipo" onchange="caToggleInvestimento()">
+          <option value="pago">💰 Pago</option>
+          <option value="organico">🌱 Orgânico</option>
+        </select>
+      </div>
+      <div>
+        <label class="label">Status</label>
+        <select class="input" id="ca-input-status">
+          <option value="ativo">✅ Ativo</option>
+          <option value="pausado">⏸ Pausado</option>
+          <option value="inativo">⛔ Inativo</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div id="ca-input-investimento-wrap">
+        <label class="label">Investimento/mês (R$)</label>
+        <input class="input" type="number" min="0" step="50" id="ca-input-investimento" placeholder="0">
+      </div>
+      <div>
+        <label class="label">Responsável</label>
+        <select class="input" id="ca-input-responsavel"><option value="">Sem responsável</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="label">Link externo (opcional)</label>
+      <input class="input" type="url" id="ca-input-link" placeholder="https://business.facebook.com/... ou link da plataforma">
+    </div>
+    <div class="form-row">
+      <label class="label">Observações</label>
+      <textarea class="input" id="ca-input-obs" rows="2" placeholder="Metas, estratégia, notas..."></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-ghost" onclick="closeModal('canal-aquisicao')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarCanalAquisicao()" style="flex:1" id="ca-btn-salvar">Salvar canal</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Excluir Canal -->
+<div class="modal-overlay" id="modal-excluir-canal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--red)">🗑 Excluir Canal</div>
+      <button class="modal-close" onclick="closeModal('excluir-canal')">×</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">
+      Excluir o canal <strong id="del-canal-nome" style="color:var(--text)"></strong>?
+      <br><br>
+      <span style="color:var(--red);font-size:12px">⚠️ Essa ação não pode ser desfeita.</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="closeModal('excluir-canal')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarExcluirCanal()" style="flex:1;background:var(--red);border-color:var(--red)">Excluir</button>
+    </div>
+  </div>
+</div>
+
 <div class="view" id="view-campanhas">
 <div style="padding:24px 28px">
 
@@ -6493,6 +6621,7 @@ updateDynamicField('foto');
 // ── VIEWS CONFIG ──
 const VIEW_META = {
   home:         { title: 'Dashboard', sub: 'Visão geral · Dana Jalecos Exclusivos', action: 'Nova Campanha' },
+  canaisaquisicao: { title: 'Canais de Aquisição', sub: 'Fontes de tráfego e investimento estratégico', action: '' },
   campanhas:    { title: 'Campanhas', sub: 'Execução e performance de anúncios pagos', action: '' },
   criativos:    { title: 'Criativos', sub: 'Artes, vídeos e calendário de publicação', action: 'Novo Criativo' },
   influenciadores: { title: 'Influenciadores', sub: 'Ranking, cupons e radar de novos perfis', action: 'Adicionar Influenciadora' },
@@ -6564,6 +6693,7 @@ function go(el, viewId) {
   if (viewId === 'admin') loadAdminUsers();
   if (viewId === 'perfil') loadPerfilView();
   if (viewId === 'briefingvisual') { if (typeof loadBriefings === 'function') loadBriefings(); }
+  if (viewId === 'canaisaquisicao') { if (typeof loadCanaisAquisicao === 'function') loadCanaisAquisicao(); }
   if (viewId === 'calendario') { if (typeof loadCalendario==='function') loadCalendario(); if (typeof loadTarefas==='function' && !_tarefasCache?.length) loadTarefas(); else if (typeof renderCalendario==='function') setTimeout(renderCalendario, 100); }
 }
 
@@ -7707,6 +7837,217 @@ async function confirmarExcluirBrandkit() {
     logActivity('removeu_brandkit', m.nome || '—', 'briefingvisual');
     _brandkitExcluirId = null;
     loadBrandkit();
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CANAIS DE AQUISIÇÃO
+// ═══════════════════════════════════════════════════════════
+let _canaisCache = [];
+let _canalEditandoId = null;
+let _canalExcluirId = null;
+
+function podeCriarCanal() {
+  return userPermissoes['canal_aquisicao_criar'] !== false || currentProfile?.cargo === 'admin';
+}
+function podeEditarCanal() {
+  return userPermissoes['canal_aquisicao_editar'] !== false || currentProfile?.cargo === 'admin';
+}
+function podeExcluirCanal() {
+  return userPermissoes['canal_aquisicao_excluir'] !== false || currentProfile?.cargo === 'admin';
+}
+
+async function loadCanaisAquisicao() {
+  const listaPagos = document.getElementById('ca-lista-pagos');
+  const listaOrg = document.getElementById('ca-lista-organicos');
+  const btnNovo = document.getElementById('ca-btn-novo');
+  if (!listaPagos) return;
+
+  if (btnNovo) btnNovo.style.display = podeCriarCanal() ? '' : 'none';
+
+  try {
+    const { data, error } = await sb.from('canais_aquisicao')
+      .select('*')
+      .order('tipo')
+      .order('nome');
+    if (error) throw error;
+    _canaisCache = data || [];
+    renderCanaisAquisicao();
+  } catch (e) {
+    console.error('loadCanaisAquisicao:', e);
+    listaPagos.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px">Erro ao carregar: ${esc(e.message || e)}</div>`;
+    listaOrg.innerHTML = '';
+  }
+}
+
+function renderCanaisAquisicao() {
+  const ativos = _canaisCache.filter(c => c.status === 'ativo');
+  const pagos = _canaisCache.filter(c => c.tipo === 'pago');
+  const organicos = _canaisCache.filter(c => c.tipo === 'organico');
+  const pagosAtivos = pagos.filter(c => c.status === 'ativo');
+  const orgAtivos = organicos.filter(c => c.status === 'ativo');
+  const investTotal = pagosAtivos.reduce((sum, c) => sum + (+c.investimento_mensal || 0), 0);
+
+  const fmtR = (v) => {
+    if (v >= 1000) return 'R$ ' + (v/1000).toFixed(1).replace('.0','') + 'k';
+    return 'R$ ' + Math.round(v).toLocaleString('pt-BR');
+  };
+
+  // KPIs
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('ca-kpi-ativos', ativos.length);
+  set('ca-kpi-invest', fmtR(investTotal));
+  set('ca-kpi-invest-sub', pagosAtivos.length + ' canal' + (pagosAtivos.length === 1 ? '' : 'is') + ' pago' + (pagosAtivos.length === 1 ? '' : 's') + ' ativo' + (pagosAtivos.length === 1 ? '' : 's'));
+  set('ca-kpi-pagos', pagosAtivos.length);
+  set('ca-kpi-organicos', orgAtivos.length);
+
+  const subPagos = document.getElementById('ca-pagos-sub');
+  if (subPagos) subPagos.textContent = fmtR(investTotal) + ' investidos mensalmente';
+
+  const canEdit = podeEditarCanal();
+  const canDelete = podeExcluirCanal();
+
+  const statusChip = (s) => {
+    if (s === 'ativo') return '<span class="chip ativo">Ativo</span>';
+    if (s === 'pausado') return '<span class="chip rev">Pausado</span>';
+    return '<span class="chip" style="background:#f0f0f0;color:#999">Inativo</span>';
+  };
+
+  const renderList = (list, emptyMsg) => {
+    if (!list.length) {
+      return `<div style="text-align:center;padding:24px;background:var(--surface2);border:1px dashed var(--border);border-radius:8px;font-size:12px;color:var(--text3)">${emptyMsg}</div>`;
+    }
+    return list.map(c => {
+      const actions = (canEdit || canDelete) ? `<div style="display:flex;gap:4px">
+        ${canEdit ? `<button onclick="event.stopPropagation();abrirModalEditarCanal('${c.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:4px 6px;color:var(--text3)" title="Editar">✏️</button>` : ''}
+        ${canDelete ? `<button onclick="event.stopPropagation();abrirModalExcluirCanal('${c.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;padding:4px 6px;color:var(--red)" title="Excluir">×</button>` : ''}
+      </div>` : '';
+
+      const linkBtn = c.link ? `<a href="${esc(c.link)}" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;color:var(--blue);text-decoration:none;font-weight:600">Abrir ↗</a>` : '';
+      const invest = (+c.investimento_mensal || 0);
+      const showInvest = c.tipo === 'pago' && invest > 0;
+
+      return `<div style="padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--white)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <div style="flex:1;min-width:0">
+            <div class="em" style="font-size:13px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis">${esc(c.nome)}</div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              ${statusChip(c.status)}
+              ${showInvest ? `<span style="font-size:11px;font-weight:700;color:var(--green)">${fmtR(invest)}/mês</span>` : ''}
+              ${linkBtn}
+            </div>
+          </div>
+          ${actions}
+        </div>
+        ${c.responsavel ? `<div style="font-size:11px;color:var(--text3);margin-top:4px">👤 ${esc(c.responsavel)}</div>` : ''}
+        ${c.observacoes ? `<div style="font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.4">${esc(c.observacoes)}</div>` : ''}
+      </div>`;
+    }).join('');
+  };
+
+  document.getElementById('ca-lista-pagos').innerHTML = renderList(pagos, 'Nenhum canal pago cadastrado');
+  document.getElementById('ca-lista-organicos').innerHTML = renderList(organicos, 'Nenhum canal orgânico cadastrado');
+}
+
+function caToggleInvestimento() {
+  const tipo = document.getElementById('ca-input-tipo')?.value;
+  const wrap = document.getElementById('ca-input-investimento-wrap');
+  if (wrap) wrap.style.display = tipo === 'pago' ? '' : 'none';
+}
+
+function abrirModalNovoCanal() {
+  if (!podeCriarCanal()) { showToast('Sem permissão'); return; }
+  _canalEditandoId = null;
+  document.getElementById('ca-modal-title').textContent = '+ Novo Canal de Aquisição';
+  document.getElementById('ca-input-nome').value = '';
+  document.getElementById('ca-input-tipo').value = 'pago';
+  document.getElementById('ca-input-status').value = 'ativo';
+  document.getElementById('ca-input-investimento').value = '';
+  document.getElementById('ca-input-link').value = '';
+  document.getElementById('ca-input-obs').value = '';
+  caToggleInvestimento();
+  fillResponsavelSelect('ca-input-responsavel', '');
+  openModal('canal-aquisicao');
+  setTimeout(() => document.getElementById('ca-input-nome')?.focus(), 100);
+}
+
+function abrirModalEditarCanal(id) {
+  if (!podeEditarCanal()) { showToast('Sem permissão'); return; }
+  const c = _canaisCache.find(x => x.id === id);
+  if (!c) return;
+  _canalEditandoId = id;
+  document.getElementById('ca-modal-title').textContent = '✏️ Editar Canal';
+  document.getElementById('ca-input-nome').value = c.nome || '';
+  document.getElementById('ca-input-tipo').value = c.tipo || 'pago';
+  document.getElementById('ca-input-status').value = c.status || 'ativo';
+  document.getElementById('ca-input-investimento').value = c.investimento_mensal || '';
+  document.getElementById('ca-input-link').value = c.link || '';
+  document.getElementById('ca-input-obs').value = c.observacoes || '';
+  caToggleInvestimento();
+  fillResponsavelSelect('ca-input-responsavel', c.responsavel || '');
+  openModal('canal-aquisicao');
+}
+
+async function salvarCanalAquisicao() {
+  const nome = document.getElementById('ca-input-nome')?.value?.trim();
+  if (!nome) { showToast('Nome é obrigatório'); return; }
+
+  const tipo = document.getElementById('ca-input-tipo').value;
+  const status = document.getElementById('ca-input-status').value;
+  const investimento = tipo === 'pago' ? (+document.getElementById('ca-input-investimento').value || 0) : 0;
+  const responsavel = document.getElementById('ca-input-responsavel').value || null;
+  const link = document.getElementById('ca-input-link').value.trim() || null;
+  const observacoes = document.getElementById('ca-input-obs').value.trim() || null;
+
+  const payload = {
+    nome, tipo, status,
+    investimento_mensal: investimento,
+    responsavel, link, observacoes,
+    external_platform: 'manual',
+  };
+
+  try {
+    if (_canalEditandoId) {
+      const { error } = await sb.from('canais_aquisicao').update(payload).eq('id', _canalEditandoId);
+      if (error) throw error;
+      showToast('✓ Canal atualizado');
+      logActivity('editou_canal', nome, 'canaisaquisicao');
+    } else {
+      payload.criado_por = currentUser?.id || null;
+      payload.criado_por_nome = currentProfile?.nome || 'Anônimo';
+      const { error } = await sb.from('canais_aquisicao').insert(payload);
+      if (error) throw error;
+      showToast('✓ Canal criado');
+      logActivity('criou_canal', nome, 'canaisaquisicao');
+    }
+    closeModal('canal-aquisicao');
+    _canalEditandoId = null;
+    loadCanaisAquisicao();
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+function abrirModalExcluirCanal(id) {
+  if (!podeExcluirCanal()) { showToast('Sem permissão'); return; }
+  const c = _canaisCache.find(x => x.id === id);
+  if (!c) return;
+  _canalExcluirId = id;
+  const nomeEl = document.getElementById('del-canal-nome');
+  if (nomeEl) nomeEl.textContent = '"' + (c.nome || '') + '"';
+  openModal('excluir-canal');
+}
+
+async function confirmarExcluirCanal() {
+  if (!_canalExcluirId) return;
+  const c = _canaisCache.find(x => x.id === _canalExcluirId);
+  if (!c) return;
+  try {
+    const { error } = await sb.from('canais_aquisicao').delete().eq('id', _canalExcluirId);
+    if (error) throw error;
+    closeModal('excluir-canal');
+    showToast('✓ Canal excluído');
+    logActivity('excluiu_canal', c.nome, 'canaisaquisicao');
+    _canalExcluirId = null;
+    loadCanaisAquisicao();
   } catch (e) { showToast('Erro: ' + e.message); }
 }
 
@@ -11087,7 +11428,7 @@ async function loadAdminPermissoes() {
   const cargos = [...new Set(_permData.map(p => p.cargo))].filter(c => c !== 'admin');
   let secoes = [...new Set(_permData.map(p => p.secao))].filter(s => s !== 'admin');
   // Garantir que permissoes de ações existem
-  ['calendario_criar','calendario_excluir','tarefas_criar','tarefas_excluir','briefing_criar','briefing_editar','briefing_excluir','brandkit_criar','brandkit_excluir'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
+  ['calendario_criar','calendario_excluir','tarefas_criar','tarefas_excluir','briefing_criar','briefing_editar','briefing_excluir','brandkit_criar','brandkit_excluir','canal_aquisicao_criar','canal_aquisicao_editar','canal_aquisicao_excluir'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
   const secaoLabels = {...VIEW_META,
     calendario_criar: { title: '✏️ Criar Eventos (Calendário)' },
     calendario_excluir: { title: '🗑 Excluir Eventos (Calendário)' },
@@ -11098,6 +11439,9 @@ async function loadAdminPermissoes() {
     briefing_excluir: { title: '🗑 Excluir Briefing (Briefing Visual)' },
     brandkit_criar: { title: '✏️ Adicionar ao Brand Kit' },
     brandkit_excluir: { title: '🗑 Remover do Brand Kit' },
+    canal_aquisicao_criar: { title: '✏️ Criar Canal (Canais de Aquisição)' },
+    canal_aquisicao_editar: { title: '✏️ Editar Canal (Canais de Aquisição)' },
+    canal_aquisicao_excluir: { title: '🗑 Excluir Canal (Canais de Aquisição)' },
   };
   const map = {};
   _permData.forEach(p => { map[p.cargo+'_'+p.secao] = p; });
