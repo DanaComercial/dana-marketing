@@ -5437,9 +5437,46 @@ updateDynamicField('foto');
     <div id="bv-modal-body" style="font-size:13px;color:var(--text2);line-height:1.6"></div>
     <div style="display:flex;gap:8px;margin-top:16px;border-top:1px solid var(--border);padding-top:16px" id="bv-modal-actions">
       <button class="btn btn-ghost btn-sm" onclick="imprimirBriefing()">🖨 Imprimir</button>
-      <button class="btn btn-ghost btn-sm" onclick="duplicarBriefing()" id="bv-btn-duplicar">📋 Duplicar</button>
-      <button class="btn btn-ghost btn-sm" onclick="excluirBriefing()" id="bv-btn-excluir" style="color:var(--red)">🗑 Excluir</button>
+      <button class="btn btn-ghost btn-sm" onclick="abrirModalDuplicar()" id="bv-btn-duplicar">📋 Duplicar</button>
+      <button class="btn btn-ghost btn-sm" onclick="abrirModalExcluir()" id="bv-btn-excluir" style="color:var(--red)">🗑 Excluir</button>
       <button class="btn btn-primary btn-sm" onclick="closeModal('ver-briefing')" style="margin-left:auto">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Duplicar Briefing -->
+<div class="modal-overlay" id="modal-duplicar-briefing">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <div class="modal-title">📋 Duplicar Briefing</div>
+      <button class="modal-close" onclick="closeModal('duplicar-briefing')">×</button>
+    </div>
+    <div class="form-row">
+      <label class="label">Nome da cópia</label>
+      <input class="input" id="dup-input-nome" placeholder="Ex: Campanha Inverno (cópia)" onkeydown="if(event.key==='Enter')confirmarDuplicarBriefing();if(event.key==='Escape')closeModal('duplicar-briefing')">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-ghost" onclick="closeModal('duplicar-briefing')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarDuplicarBriefing()" style="flex:1">Duplicar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Excluir Briefing -->
+<div class="modal-overlay" id="modal-excluir-briefing">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--red)">🗑 Excluir Briefing</div>
+      <button class="modal-close" onclick="closeModal('excluir-briefing')">×</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">
+      Tem certeza que quer excluir o briefing <strong id="del-briefing-nome" style="color:var(--text)"></strong>?
+      <br><br>
+      <span style="color:var(--red);font-size:12px">⚠️ Essa ação não pode ser desfeita.</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="closeModal('excluir-briefing')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarExcluirBriefing()" style="flex:1;background:var(--red);border-color:var(--red)">Excluir</button>
     </div>
   </div>
 </div>
@@ -6865,12 +6902,24 @@ function imprimirBriefing() {
   logActivity('imprimiu_briefing', titulo, 'briefingvisual');
 }
 
-async function duplicarBriefing() {
+function abrirModalDuplicar() {
   if (!podeCriarBriefing()) { showToast('Sem permissão'); return; }
   const b = _briefingsCache.find(x => x.id === _briefingAtivoId);
   if (!b) return;
-  const novoTitulo = prompt('Nome da cópia:', (b.titulo || '') + ' (cópia)');
-  if (!novoTitulo) return;
+  const input = document.getElementById('dup-input-nome');
+  if (input) {
+    input.value = (b.titulo || '') + ' (cópia)';
+    setTimeout(() => { input.focus(); input.select(); }, 100);
+  }
+  openModal('duplicar-briefing');
+}
+
+async function confirmarDuplicarBriefing() {
+  const b = _briefingsCache.find(x => x.id === _briefingAtivoId);
+  if (!b) return;
+  const input = document.getElementById('dup-input-nome');
+  const novoTitulo = input?.value?.trim();
+  if (!novoTitulo) { showToast('Dê um nome pra cópia'); input?.focus(); return; }
   try {
     const dup = { ...b };
     delete dup.id; delete dup.created_at; delete dup.updated_at;
@@ -6879,6 +6928,7 @@ async function duplicarBriefing() {
     dup.criado_por_nome = currentProfile?.nome || 'Anônimo';
     const { error } = await sb.from('briefings_campanha').insert(dup);
     if (error) throw error;
+    closeModal('duplicar-briefing');
     closeModal('ver-briefing');
     showToast('✓ Briefing duplicado');
     logActivity('duplicou_briefing', novoTitulo, 'briefingvisual');
@@ -6886,14 +6936,22 @@ async function duplicarBriefing() {
   } catch (e) { showToast('Erro: ' + e.message); }
 }
 
-async function excluirBriefing() {
+function abrirModalExcluir() {
   if (!podeExcluirBriefing()) { showToast('Sem permissão'); return; }
   const b = _briefingsCache.find(x => x.id === _briefingAtivoId);
   if (!b) return;
-  if (!confirm(`Excluir o briefing "${b.titulo}"? Essa ação não pode ser desfeita.`)) return;
+  const nomeEl = document.getElementById('del-briefing-nome');
+  if (nomeEl) nomeEl.textContent = '"' + (b.titulo || '') + '"';
+  openModal('excluir-briefing');
+}
+
+async function confirmarExcluirBriefing() {
+  const b = _briefingsCache.find(x => x.id === _briefingAtivoId);
+  if (!b) return;
   try {
     const { error } = await sb.from('briefings_campanha').delete().eq('id', _briefingAtivoId);
     if (error) throw error;
+    closeModal('excluir-briefing');
     closeModal('ver-briefing');
     showToast('✓ Briefing excluído');
     logActivity('excluiu_briefing', b.titulo, 'briefingvisual');
