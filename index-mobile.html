@@ -1917,6 +1917,12 @@ select.input { cursor: pointer; }
   [style*="grid-template-columns:repeat(4"] {
     grid-template-columns: 1fr 1fr !important;
   }
+  /* auto-fill / auto-fit com minmax() → sempre 1 coluna */
+  [style*="auto-fill"],
+  [style*="auto-fit"],
+  [style*="minmax("] {
+    grid-template-columns: 1fr !important;
+  }
 
   /* Qualquer elemento com width/min-width fixa em px quebra */
   [style*="min-width:"][style*="px"],
@@ -2146,25 +2152,29 @@ select.input { cursor: pointer; }
   }
 
   /* ═══ BRIEFINGS SALVOS: descrição quebra linha ═══ */
-  [id*="bv-galeria"] *,
-  .briefing-card *,
-  [class*="briefing-desc"],
-  [class*="briefing-quote"] {
+  /* Container correto é #bv-briefings-list (auto-fill 280px estourava em mobile) */
+  #bv-briefings-list {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  #bv-briefings-list > .card,
+  #bv-briefings-list > div {
+    padding: 12px 14px !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+  /* Todos os textos dentro do card do briefing quebram linha */
+  #bv-briefings-list *,
+  #bv-briefings-list > div > div {
     white-space: normal !important;
     word-break: break-word !important;
     overflow-wrap: break-word !important;
     overflow: visible !important;
     text-overflow: initial !important;
-  }
-  /* Card inteiro do briefing com padding menor e texto reduzido */
-  [id*="bv-galeria"] [class*="card"],
-  .briefing-card {
-    padding: 12px 14px !important;
-  }
-  [id*="bv-galeria"] [style*="font-style:italic"],
-  [id*="bv-galeria"] [style*="font-style: italic"] {
-    font-size: 12px !important;
-    line-height: 1.5 !important;
+    max-width: 100% !important;
   }
 
   /* ═══ BRIEFINGS SALVOS: título e botão menores ═══ */
