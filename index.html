@@ -3212,8 +3212,25 @@ async function enviarArte() {
     try {
       const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
       const filename = 'criativo-' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
-      const { error: upErr } = await sb.storage.from('kanban').upload(filename, file, { cacheControl: '3600', upsert: false });
-      if (upErr) throw upErr;
+      console.log('📤 Upload criativo:', {
+        filename, size: (file.size/1024/1024).toFixed(2)+'MB',
+        mime: file.type, ext
+      });
+      const { error: upErr, data: upData } = await sb.storage.from('kanban').upload(filename, file, { cacheControl: '3600', upsert: false });
+      if (upErr) {
+        console.error('📤 Erro upload detalhado:', upErr);
+        // Tentar extrair detalhes úteis
+        let msg = upErr.message || 'Falha no upload';
+        if (upErr.statusCode === '413' || msg.includes('too large') || msg.includes('maximum')) {
+          msg = `Arquivo muito grande (${(file.size/1024/1024).toFixed(1)} MB). O bucket pode estar configurado abaixo de 48 MB.`;
+        } else if (upErr.statusCode === '403' || msg.includes('permission')) {
+          msg = 'Sem permissão no Storage. Verifique policies do bucket kanban.';
+        } else if (upErr.statusCode === '400') {
+          msg = `HTTP 400: ${upErr.message || 'bad request'}. Pode ser MIME (${file.type || 'vazio'}), tamanho (${(file.size/1024/1024).toFixed(1)} MB) ou caractere no filename. Tente outro arquivo.`;
+        }
+        throw new Error(msg);
+      }
+      console.log('📤 Upload OK:', upData);
       const { data: urlData } = sb.storage.from('kanban').getPublicUrl(filename);
       payload.arquivo_url = urlData.publicUrl;
       payload.storage_path = filename;
@@ -3222,8 +3239,8 @@ async function enviarArte() {
       payload.tamanho = file.size || null;
     } catch (e) {
       console.error('Upload criativo:', e);
-      showToast('Erro no upload: ' + e.message);
-      statusEl.innerHTML = `<span style="color:var(--red)">Erro: ${esc(e.message)}</span>`;
+      showToast('Erro: ' + e.message);
+      statusEl.innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`;
       if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Enviar para aprovação'; }
       return;
     }
@@ -7395,8 +7412,9 @@ function bvToggleAddLink() {
   if (el.style.display === '') setTimeout(() => document.getElementById('bv-mat-link-url')?.focus(), 100);
 }
 
-// Limite do Supabase Storage plano gratuito: 50 MiB por arquivo
-const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+// Limite do Supabase Storage plano gratuito: 50 MB.
+// Usamos 48 MB (em MiB) como teto client-side pra ter margem segura contra overhead da requisição.
+const MAX_UPLOAD_BYTES = 48 * 1024 * 1024;
 
 async function uploadMateriaisBriefing(files) {
   if (!_briefingAtivoId) { showToast('Briefing não identificado'); return; }
