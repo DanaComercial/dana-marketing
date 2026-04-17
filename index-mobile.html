@@ -2104,24 +2104,67 @@ select.input { cursor: pointer; }
   .roi-row-label { font-size: 11px !important; }
   .roi-row-val { font-size: 13px !important; }
 
-  /* ═══ TENDÊNCIAS DE BUSCA: scroll horizontal só nos cards ═══ */
-  /* Cards "em alta" e "crescimento consistente" podem ter scroll horizontal */
-  #tendencias-alta, #tendencias-crescimento, #tendencias-queda,
-  [id^="kw-trending"], [id*="trending-"],
-  .trending-grid, .em-alta-grid {
+  /* ═══ TENDÊNCIAS DE BUSCA (.trend-grid): scroll horizontal ═══ */
+  .trend-grid {
     display: flex !important;
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
+    -webkit-overflow-scrolling: touch !important;
     gap: 8px !important;
     padding-bottom: 8px !important;
+    grid-template-columns: none !important;
   }
-  #tendencias-alta > div, #tendencias-crescimento > div, #tendencias-queda > div,
-  [id^="kw-trending"] > div,
-  .trending-grid > div, .em-alta-grid > div {
+  .trend-grid .trend-item,
+  .trend-grid > div {
     flex: 0 0 165px !important;
     min-width: 165px !important;
     max-width: 165px !important;
+    width: 165px !important;
+  }
+
+  /* ═══ MAPA DE INTENÇÕES (#kw-wheel): 1 grupo por linha ═══ */
+  #kw-wheel {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    flex-wrap: initial !important;
+  }
+  #kw-wheel > div {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    flex: initial !important;
+  }
+  /* Itens internos do mapa: quebra texto, não corta */
+  #kw-wheel > div > div > div[style*="max-width"],
+  #kw-wheel > div > div > div[style*="text-overflow"] {
+    max-width: 100% !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: initial !important;
+    word-break: break-word !important;
+  }
+
+  /* ═══ BRIEFINGS SALVOS: descrição quebra linha ═══ */
+  [id*="bv-galeria"] *,
+  .briefing-card *,
+  [class*="briefing-desc"],
+  [class*="briefing-quote"] {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    overflow: visible !important;
+    text-overflow: initial !important;
+  }
+  /* Card inteiro do briefing com padding menor e texto reduzido */
+  [id*="bv-galeria"] [class*="card"],
+  .briefing-card {
+    padding: 12px 14px !important;
+  }
+  [id*="bv-galeria"] [style*="font-style:italic"],
+  [id*="bv-galeria"] [style*="font-style: italic"] {
+    font-size: 12px !important;
+    line-height: 1.5 !important;
   }
 
   /* ═══ BRIEFINGS SALVOS: título e botão menores ═══ */
