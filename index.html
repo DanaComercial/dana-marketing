@@ -2793,9 +2793,19 @@ select.input { cursor: pointer; }
       <select class="input" id="cri-up-designer"><option value="">Selecionar...</option></select>
     </div>
     <div class="form-row">
-      <label class="label">Arquivo *</label>
-      <input type="file" id="cri-up-file" accept="image/*,video/*,.pdf" style="display:block;width:100%;padding:10px;border:1.5px dashed var(--border);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:12.5px">
-      <div style="font-size:10.5px;color:var(--text3);margin-top:4px">💡 Limite 50 MB. Aceita JPG/PNG/GIF/WEBP, MP4/MOV, PDF.</div>
+      <label class="label">Origem da arte *</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+        <button type="button" id="cri-up-mode-arquivo" onclick="criSetUploadMode('arquivo')" class="btn btn-primary btn-sm" style="padding:8px">📷 Arquivo</button>
+        <button type="button" id="cri-up-mode-link" onclick="criSetUploadMode('link')" class="btn btn-ghost btn-sm" style="padding:8px">🔗 Link externo</button>
+      </div>
+      <div id="cri-up-arquivo-wrap">
+        <input type="file" id="cri-up-file" accept="image/*,video/*,.pdf" style="display:block;width:100%;padding:10px;border:1.5px dashed var(--border);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:12.5px">
+        <div style="font-size:10.5px;color:var(--text3);margin-top:4px">💡 Limite 50 MB. Aceita JPG/PNG/GIF/WEBP, MP4/MOV, PDF.</div>
+      </div>
+      <div id="cri-up-link-wrap" style="display:none">
+        <input class="input" type="url" id="cri-up-link" placeholder="https://drive.google.com/... ou https://canva.com/... ou https://youtube.com/...">
+        <div style="font-size:10.5px;color:var(--text3);margin-top:4px">💡 Use links de Drive, Canva, YouTube, Dropbox, Pinterest — não ocupa espaço no Storage.</div>
+      </div>
     </div>
     <div class="form-row">
       <label class="label">Observações (opcional)</label>
@@ -3018,6 +3028,32 @@ function closeCriModal(id) {
 }
 
 // ── Upload Arte ──
+let _criUploadMode = 'arquivo';
+
+function criSetUploadMode(mode) {
+  _criUploadMode = mode;
+  const arquivoWrap = document.getElementById('cri-up-arquivo-wrap');
+  const linkWrap = document.getElementById('cri-up-link-wrap');
+  const btnArq = document.getElementById('cri-up-mode-arquivo');
+  const btnLink = document.getElementById('cri-up-mode-link');
+  if (mode === 'arquivo') {
+    arquivoWrap.style.display = '';
+    linkWrap.style.display = 'none';
+    btnArq.className = 'btn btn-primary btn-sm';
+    btnArq.style.padding = '8px';
+    btnLink.className = 'btn btn-ghost btn-sm';
+    btnLink.style.padding = '8px';
+  } else {
+    arquivoWrap.style.display = 'none';
+    linkWrap.style.display = '';
+    btnArq.className = 'btn btn-ghost btn-sm';
+    btnArq.style.padding = '8px';
+    btnLink.className = 'btn btn-primary btn-sm';
+    btnLink.style.padding = '8px';
+    setTimeout(() => document.getElementById('cri-up-link')?.focus(), 80);
+  }
+}
+
 async function abrirModalEnviarArte() {
   if (!podeCriarCriativo()) { showToast('Sem permissão'); return; }
 
@@ -3036,7 +3072,9 @@ async function abrirModalEnviarArte() {
   document.getElementById('cri-up-formato').value = 'reels';
   document.getElementById('cri-up-obs').value = '';
   document.getElementById('cri-up-file').value = '';
+  document.getElementById('cri-up-link').value = '';
   document.getElementById('cri-up-status').textContent = '';
+  criSetUploadMode('arquivo');
   openCriModal('upload-arte');
   setTimeout(() => document.getElementById('cri-up-titulo')?.focus(), 100);
 }
@@ -3048,57 +3086,78 @@ async function enviarArte() {
   const briefingId = document.getElementById('cri-up-briefing').value || null;
   const formato = document.getElementById('cri-up-formato').value;
   const designer = document.getElementById('cri-up-designer').value || null;
-  const fileInput = document.getElementById('cri-up-file');
-  const file = fileInput?.files?.[0];
   const observacoes = document.getElementById('cri-up-obs').value.trim() || null;
   const statusEl = document.getElementById('cri-up-status');
   const btnEl = document.getElementById('cri-up-btn');
 
   if (!titulo) { showToast('Título é obrigatório'); return; }
-  if (!file) { showToast('Selecione um arquivo'); return; }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    showToast('Arquivo acima de 50 MB (atual: ' + (file.size/1024/1024).toFixed(1) + ' MB)');
-    return;
-  }
 
-  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Enviando...'; }
-  statusEl.textContent = 'Fazendo upload...';
+  // Validação conforme o modo
+  let payload = {
+    titulo,
+    briefing_id: briefingId,
+    formato,
+    designer_nome: designer,
+    status: 'aguardando',
+    observacoes,
+    versao: 1,
+  };
 
-  try {
-    const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
-    const filename = 'criativo-' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
-
-    const { error: upErr } = await sb.storage.from('kanban').upload(filename, file, { cacheControl: '3600', upsert: false });
-    if (upErr) throw upErr;
-
-    const { data: urlData } = sb.storage.from('kanban').getPublicUrl(filename);
-
-    // Buscar título do briefing se vinculado
-    let briefingTitulo = null;
-    if (briefingId) {
-      const { data: b } = await sb.from('briefings_campanha').select('titulo').eq('id', briefingId).single();
-      briefingTitulo = b?.titulo || null;
+  if (_criUploadMode === 'link') {
+    const url = document.getElementById('cri-up-link').value.trim();
+    if (!url) { showToast('Cole a URL do link'); return; }
+    if (!/^https?:\/\//.test(url)) { showToast('URL deve começar com http:// ou https://'); return; }
+    payload.arquivo_url = url;
+    payload.storage_path = null;
+    payload.tipo = detectTipoMaterial(url);
+    payload.mime_type = null;
+    payload.tamanho = null;
+  } else {
+    const fileInput = document.getElementById('cri-up-file');
+    const file = fileInput?.files?.[0];
+    if (!file) { showToast('Selecione um arquivo'); return; }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      showToast('Arquivo acima de 50 MB (' + (file.size/1024/1024).toFixed(1) + ' MB). Use Link se for maior.');
+      return;
     }
 
-    const { error: insErr } = await sb.from('criativos').insert({
-      titulo,
-      briefing_id: briefingId,
-      briefing_titulo: briefingTitulo,
-      arquivo_url: urlData.publicUrl,
-      storage_path: filename,
-      tipo: detectTipoMaterial(file),
-      mime_type: file.type || null,
-      tamanho: file.size || null,
-      formato,
-      designer_nome: designer,
-      status: 'aguardando',
-      observacoes,
-      versao: 1,
-    });
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Enviando...'; }
+    statusEl.textContent = 'Fazendo upload...';
+
+    try {
+      const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+      const filename = 'criativo-' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
+      const { error: upErr } = await sb.storage.from('kanban').upload(filename, file, { cacheControl: '3600', upsert: false });
+      if (upErr) throw upErr;
+      const { data: urlData } = sb.storage.from('kanban').getPublicUrl(filename);
+      payload.arquivo_url = urlData.publicUrl;
+      payload.storage_path = filename;
+      payload.tipo = detectTipoMaterial(file);
+      payload.mime_type = file.type || null;
+      payload.tamanho = file.size || null;
+    } catch (e) {
+      console.error('Upload criativo:', e);
+      showToast('Erro no upload: ' + e.message);
+      statusEl.innerHTML = `<span style="color:var(--red)">Erro: ${esc(e.message)}</span>`;
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Enviar para aprovação'; }
+      return;
+    }
+  }
+
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Salvando...'; }
+
+  try {
+    // Buscar título do briefing se vinculado
+    if (briefingId) {
+      const { data: b } = await sb.from('briefings_campanha').select('titulo').eq('id', briefingId).single();
+      payload.briefing_titulo = b?.titulo || null;
+    }
+
+    const { error: insErr } = await sb.from('criativos').insert(payload);
     if (insErr) throw insErr;
 
     closeCriModal('upload-arte');
-    showToast('✓ Arte enviada para aprovação!');
+    showToast(_criUploadMode === 'link' ? '✓ Link enviado para aprovação!' : '✓ Arte enviada para aprovação!');
     logActivity('enviou_arte', titulo, 'criativos');
     loadCriativos();
     switchCri(document.querySelector('.cri-tab'), 'aguardando');
