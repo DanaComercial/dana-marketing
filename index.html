@@ -5401,7 +5401,70 @@ updateDynamicField('foto');
 </div><!-- /view-apis -->
 </div><!-- /fix: fechar div extra de apis -->
 
-<div class="view" id="view-briefingvisual"><div style="padding:24px 28px"><div class="card"><div class="card-title">Briefing Visual</div><div class="card-sub" style="margin-top:6px">Documento gerado pelo Construtor de Campanha, pronto para impressão.</div></div></div></div>
+<div class="view" id="view-briefingvisual"><div style="padding:24px 28px">
+  <div style="margin-bottom:16px">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">Briefing Visual</div>
+    <div style="font-size:12.5px;color:var(--text3);margin-top:3px">Briefings salvos, materiais de campanha e brand kit</div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs mb20">
+    <div class="tab active" onclick="switchBriefingTab(this,'salvos')">📋 Briefings Salvos</div>
+    <div class="tab" onclick="switchBriefingTab(this,'materiais')">🎨 Materiais</div>
+    <div class="tab" onclick="switchBriefingTab(this,'brandkit')">✨ Brand Kit</div>
+  </div>
+
+  <!-- Tab: Briefings Salvos -->
+  <div id="bv-tab-salvos" class="bv-tab-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap">
+      <div>
+        <div class="card-title" style="font-size:14px">Briefings Salvos</div>
+        <div class="card-sub" id="bv-count-sub">Documentos gerados pelo Construtor de Campanha</div>
+      </div>
+      <button class="btn btn-primary btn-sm" id="bv-btn-novo" onclick="irParaConstrutor()">+ Novo Briefing (Construtor)</button>
+    </div>
+    <div id="bv-briefings-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">
+      <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12.5px;padding:40px">Carregando briefings...</div>
+    </div>
+  </div>
+
+  <!-- Tab: Materiais -->
+  <div id="bv-tab-materiais" class="bv-tab-panel" style="display:none">
+    <div class="card" style="text-align:center;padding:40px 20px">
+      <div style="font-size:36px;margin-bottom:10px;opacity:0.4">🎨</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;margin-bottom:6px">Biblioteca de Materiais</div>
+      <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Upload de imagens, PDFs, vídeos e copies anexados a cada briefing.</div>
+      <div style="display:inline-block;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--surface2);color:var(--text3);letter-spacing:0.5px">FASE 2 · EM BREVE</div>
+    </div>
+  </div>
+
+  <!-- Tab: Brand Kit -->
+  <div id="bv-tab-brandkit" class="bv-tab-panel" style="display:none">
+    <div class="card" style="text-align:center;padding:40px 20px">
+      <div style="font-size:36px;margin-bottom:10px;opacity:0.4">✨</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;margin-bottom:6px">Brand Kit Global</div>
+      <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Logos, paleta, tipografia, fotos de produto e templates reutilizáveis.</div>
+      <div style="display:inline-block;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--surface2);color:var(--text3);letter-spacing:0.5px">FASE 3 · EM BREVE</div>
+    </div>
+  </div>
+</div></div>
+
+<!-- Modal: Ver Briefing (completo + print) -->
+<div class="modal-overlay" id="modal-ver-briefing">
+  <div class="modal" style="max-width:720px" id="bv-modal-content">
+    <div class="modal-header">
+      <div class="modal-title" id="bv-modal-title">Briefing</div>
+      <button class="modal-close" onclick="closeModal('ver-briefing')">×</button>
+    </div>
+    <div id="bv-modal-body" style="font-size:13px;color:var(--text2);line-height:1.6"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;border-top:1px solid var(--border);padding-top:16px" id="bv-modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="imprimirBriefing()">🖨 Imprimir</button>
+      <button class="btn btn-ghost btn-sm" onclick="duplicarBriefing()" id="bv-btn-duplicar">📋 Duplicar</button>
+      <button class="btn btn-ghost btn-sm" onclick="excluirBriefing()" id="bv-btn-excluir" style="color:var(--red)">🗑 Excluir</button>
+      <button class="btn btn-primary btn-sm" onclick="closeModal('ver-briefing')" style="margin-left:auto">Fechar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ════════ MEU PERFIL ════════ -->
 <div class="view" id="view-perfil"><div style="padding:24px 28px">
@@ -6318,6 +6381,7 @@ function go(el, viewId) {
   // Carregar dados especiais
   if (viewId === 'admin') loadAdminUsers();
   if (viewId === 'perfil') loadPerfilView();
+  if (viewId === 'briefingvisual') { if (typeof loadBriefings === 'function') loadBriefings(); }
   if (viewId === 'calendario') { if (typeof loadCalendario==='function') loadCalendario(); if (typeof loadTarefas==='function' && !_tarefasCache?.length) loadTarefas(); else if (typeof renderCalendario==='function') setTimeout(renderCalendario, 100); }
 }
 
@@ -6629,10 +6693,234 @@ function updateBriefing() {
   set('brief-cta', cta);
 }
 
-function saveBriefing() {
-  showToast('✓ Campanha salva com sucesso!');
+async function saveBriefing() {
+  if (!podeCriarBriefing()) { showToast('Sem permissão para criar briefing'); return; }
+
+  const titulo = document.getElementById('camp-name')?.value?.trim() || 'Campanha sem nome';
+  const quote = document.getElementById('camp-msg')?.value?.trim() || '';
+  const gancho = document.getElementById('copy-gancho')?.value?.trim() || '';
+  const cta = document.getElementById('copy-cta')?.value?.trim() || '';
+  const orcamento = +document.getElementById('m-invest')?.value || null;
+
+  const payload = {
+    titulo,
+    publico: cbData.pub || null,
+    problema: cbData.prob || null,
+    conceito: cbData.promise || null,
+    headline: titulo,
+    quote,
+    gancho,
+    cta,
+    orcamento,
+    canais: 'Meta Ads + Instagram',
+    dados: { ...cbData, quote, gancho, cta, orcamento, salvoEm: new Date().toISOString() },
+    criado_por: currentUser?.id || null,
+    criado_por_nome: currentProfile?.nome || 'Anônimo',
+  };
+
+  try {
+    const { error } = await sb.from('briefings_campanha').insert(payload);
+    if (error) throw error;
+    showToast('✓ Briefing salvo!');
+    logActivity('criou_briefing', titulo, 'briefingvisual');
+    // Recarrega lista se o usuário estiver na tela Briefing Visual
+    if (typeof loadBriefings === 'function') loadBriefings();
+  } catch (e) {
+    console.error('saveBriefing:', e);
+    showToast('Erro ao salvar briefing: ' + (e.message || e));
+  }
   closeModal('nova-campanha');
   saveData();
+}
+
+// ── BRIEFING VISUAL (Fase 1: Briefings Salvos) ──
+let _briefingsCache = [];
+let _briefingAtivoId = null;
+
+function switchBriefingTab(btn, tab) {
+  document.querySelectorAll('#view-briefingvisual .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.bv-tab-panel').forEach(p => p.style.display = 'none');
+  const panel = document.getElementById('bv-tab-' + tab);
+  if (panel) panel.style.display = '';
+}
+
+function podeCriarBriefing() {
+  return userPermissoes['briefing_criar'] !== false || currentProfile?.cargo === 'admin';
+}
+function podeEditarBriefing() {
+  return userPermissoes['briefing_editar'] !== false || currentProfile?.cargo === 'admin';
+}
+function podeExcluirBriefing() {
+  return userPermissoes['briefing_excluir'] !== false || currentProfile?.cargo === 'admin';
+}
+
+function irParaConstrutor() {
+  if (!podeCriarBriefing()) { showToast('Sem permissão'); return; }
+  const navEl = document.querySelector('[onclick*=construtor]');
+  if (navEl) go(navEl, 'construtor');
+}
+
+async function loadBriefings() {
+  const list = document.getElementById('bv-briefings-list');
+  const countSub = document.getElementById('bv-count-sub');
+  const btnNovo = document.getElementById('bv-btn-novo');
+  if (!list) return;
+
+  if (btnNovo) btnNovo.style.display = podeCriarBriefing() ? '' : 'none';
+
+  try {
+    const { data, error } = await sb.from('briefings_campanha')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) throw error;
+
+    _briefingsCache = data || [];
+
+    if (countSub) {
+      countSub.textContent = _briefingsCache.length
+        ? `${_briefingsCache.length} briefing${_briefingsCache.length === 1 ? '' : 's'} salvo${_briefingsCache.length === 1 ? '' : 's'}`
+        : 'Nenhum briefing salvo ainda';
+    }
+
+    if (!_briefingsCache.length) {
+      list.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px 20px;background:var(--white);border:1px dashed var(--border);border-radius:12px">
+        <div style="font-size:36px;opacity:0.3;margin-bottom:8px">📋</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px">Nenhum briefing salvo ainda</div>
+        <div style="font-size:11.5px;color:var(--text3);margin-bottom:14px">Use o Construtor de Campanha pra gerar seu primeiro briefing</div>
+        ${podeCriarBriefing() ? '<button class="btn btn-primary btn-sm" onclick="irParaConstrutor()">Abrir Construtor</button>' : ''}
+      </div>`;
+      return;
+    }
+
+    const fmtData = (s) => {
+      if (!s) return '—';
+      const d = new Date(s);
+      return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+    };
+    const fmtR = (v) => v ? 'R$ ' + Math.round(v).toLocaleString('pt-BR') : '—';
+
+    list.innerHTML = _briefingsCache.map(b => `
+      <div class="card" style="padding:16px;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,0.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''" onclick="abrirBriefing('${b.id}')">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px">
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;line-height:1.3;color:var(--text)">${esc(b.titulo || 'Sem título')}</div>
+        </div>
+        ${b.publico ? `<div style="display:inline-block;font-size:10px;font-weight:700;padding:3px 8px;border-radius:5px;background:var(--surface2);color:var(--text2);margin-bottom:8px">${esc(b.publico)}</div>` : ''}
+        ${b.quote ? `<div style="font-size:12px;color:var(--text3);line-height:1.5;margin-bottom:10px;font-style:italic">"${esc(b.quote.length > 100 ? b.quote.slice(0,100) + '…' : b.quote)}"</div>` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">
+          <span>${esc(b.criado_por_nome || '—')}</span>
+          <span>${fmtData(b.created_at)}</span>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error('loadBriefings:', e);
+    list.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--red);font-size:12px;padding:20px">Erro ao carregar: ${esc(e.message || String(e))}</div>`;
+  }
+}
+
+function abrirBriefing(id) {
+  const b = _briefingsCache.find(x => x.id === id);
+  if (!b) { showToast('Briefing não encontrado'); return; }
+  _briefingAtivoId = id;
+
+  const fmtR = (v) => v ? 'R$ ' + Math.round(v).toLocaleString('pt-BR') : '—';
+  const fmtData = (s) => {
+    if (!s) return '—';
+    const d = new Date(s);
+    return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+  };
+
+  document.getElementById('bv-modal-title').textContent = b.titulo || 'Briefing';
+
+  const body = document.getElementById('bv-modal-body');
+  body.innerHTML = `
+    <div id="bv-print-area">
+      <div style="border-bottom:2px solid var(--text);padding-bottom:10px;margin-bottom:16px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--text3);text-transform:uppercase">Briefing de Campanha · Dana Jalecos Exclusivos</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;margin-top:6px">${esc(b.titulo || '—')}</div>
+      </div>
+
+      ${b.quote ? `<div style="font-style:italic;font-size:14px;color:var(--text2);padding:12px 16px;background:var(--surface2);border-left:3px solid var(--text);border-radius:0 6px 6px 0;margin-bottom:16px">"${esc(b.quote)}"</div>` : ''}
+
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px">
+        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:1px;margin-bottom:3px">Público</div><div class="em">${esc(b.publico || '—')}</div></div>
+        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:1px;margin-bottom:3px">Problema</div><div class="em">${esc(b.problema || '—')}</div></div>
+        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:1px;margin-bottom:3px">Conceito</div><div class="em">${esc(b.conceito || '—')}</div></div>
+        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:1px;margin-bottom:3px">Canais</div><div class="em">${esc(b.canais || '—')}</div></div>
+        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:1px;margin-bottom:3px">Investimento</div><div class="em">${fmtR(b.orcamento)}</div></div>
+        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:1px;margin-bottom:3px">Criado em</div><div class="em">${fmtData(b.created_at)}</div></div>
+      </div>
+
+      ${b.gancho ? `<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:1px;margin-bottom:4px">💡 Gancho</div><div style="font-size:13px;color:var(--text2);font-style:italic">${esc(b.gancho)}</div></div>` : ''}
+      ${b.cta ? `<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text3);letter-spacing:1px;margin-bottom:4px">🎯 CTA</div><div style="font-size:13px;color:var(--text2)">${esc(b.cta)}</div></div>` : ''}
+
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">Criado por: ${esc(b.criado_por_nome || '—')}</div>
+    </div>
+  `;
+
+  // Aplica permissões nos botões
+  const btnDup = document.getElementById('bv-btn-duplicar');
+  const btnDel = document.getElementById('bv-btn-excluir');
+  if (btnDup) btnDup.style.display = podeCriarBriefing() ? '' : 'none';
+  if (btnDel) btnDel.style.display = podeExcluirBriefing() ? '' : 'none';
+
+  openModal('ver-briefing');
+}
+
+function imprimirBriefing() {
+  const area = document.getElementById('bv-print-area');
+  if (!area) { window.print(); return; }
+  const win = window.open('', '_blank', 'width=800,height=900');
+  if (!win) { showToast('Permita popups pra imprimir'); return; }
+  const b = _briefingsCache.find(x => x.id === _briefingAtivoId);
+  const titulo = b?.titulo || 'Briefing';
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titulo)} · Dana Jalecos</title>
+    <style>
+      body { font-family: 'DM Sans', -apple-system, system-ui, sans-serif; color: #0a0a0a; max-width: 780px; margin: 30px auto; padding: 0 30px; line-height: 1.6; }
+      .em { font-weight: 700; color: #0a0a0a; }
+      h1 { font-family: 'Syne', sans-serif; font-weight: 800; }
+      @media print { body { margin: 0; padding: 20px; } button { display: none; } }
+    </style></head><body>${area.innerHTML}<script>setTimeout(()=>window.print(),200);<\/script></body></html>`);
+  win.document.close();
+  logActivity('imprimiu_briefing', titulo, 'briefingvisual');
+}
+
+async function duplicarBriefing() {
+  if (!podeCriarBriefing()) { showToast('Sem permissão'); return; }
+  const b = _briefingsCache.find(x => x.id === _briefingAtivoId);
+  if (!b) return;
+  const novoTitulo = prompt('Nome da cópia:', (b.titulo || '') + ' (cópia)');
+  if (!novoTitulo) return;
+  try {
+    const dup = { ...b };
+    delete dup.id; delete dup.created_at; delete dup.updated_at;
+    dup.titulo = novoTitulo;
+    dup.criado_por = currentUser?.id || null;
+    dup.criado_por_nome = currentProfile?.nome || 'Anônimo';
+    const { error } = await sb.from('briefings_campanha').insert(dup);
+    if (error) throw error;
+    closeModal('ver-briefing');
+    showToast('✓ Briefing duplicado');
+    logActivity('duplicou_briefing', novoTitulo, 'briefingvisual');
+    loadBriefings();
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+async function excluirBriefing() {
+  if (!podeExcluirBriefing()) { showToast('Sem permissão'); return; }
+  const b = _briefingsCache.find(x => x.id === _briefingAtivoId);
+  if (!b) return;
+  if (!confirm(`Excluir o briefing "${b.titulo}"? Essa ação não pode ser desfeita.`)) return;
+  try {
+    const { error } = await sb.from('briefings_campanha').delete().eq('id', _briefingAtivoId);
+    if (error) throw error;
+    closeModal('ver-briefing');
+    showToast('✓ Briefing excluído');
+    logActivity('excluiu_briefing', b.titulo, 'briefingvisual');
+    loadBriefings();
+  } catch (e) { showToast('Erro: ' + e.message); }
 }
 
 // ── PERSONAS ──
@@ -9920,12 +10208,15 @@ async function loadAdminPermissoes() {
   const cargos = [...new Set(_permData.map(p => p.cargo))].filter(c => c !== 'admin');
   let secoes = [...new Set(_permData.map(p => p.secao))].filter(s => s !== 'admin');
   // Garantir que permissoes de ações existem
-  ['calendario_criar','calendario_excluir','tarefas_criar','tarefas_excluir'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
+  ['calendario_criar','calendario_excluir','tarefas_criar','tarefas_excluir','briefing_criar','briefing_editar','briefing_excluir'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
   const secaoLabels = {...VIEW_META,
     calendario_criar: { title: '✏️ Criar Eventos (Calendário)' },
     calendario_excluir: { title: '🗑 Excluir Eventos (Calendário)' },
     tarefas_criar: { title: '✏️ Criar Tarefas (Kanban)' },
     tarefas_excluir: { title: '🗑 Excluir Tarefas (Kanban)' },
+    briefing_criar: { title: '✏️ Criar Briefing (Briefing Visual)' },
+    briefing_editar: { title: '✏️ Editar Briefing (Briefing Visual)' },
+    briefing_excluir: { title: '🗑 Excluir Briefing (Briefing Visual)' },
   };
   const map = {};
   _permData.forEach(p => { map[p.cargo+'_'+p.secao] = p; });
