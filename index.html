@@ -5460,6 +5460,7 @@ updateDynamicField('foto');
         </div>
       </div>
       <input type="file" id="bv-mat-file-input" multiple style="display:none" onchange="uploadMateriaisBriefing(this.files)">
+      <div style="font-size:10.5px;color:var(--text3);margin-bottom:8px">💡 Limite: 50 MB por arquivo. Vídeos maiores → sobe no YouTube/Drive e adiciona como <strong>Link</strong>.</div>
       <div id="bv-mat-add-link" style="display:none;margin-bottom:10px">
         <div style="display:flex;gap:6px">
           <input class="input" type="url" id="bv-mat-link-url" placeholder="https://..." style="flex:2">
@@ -7155,6 +7156,9 @@ function bvToggleAddLink() {
   if (el.style.display === '') setTimeout(() => document.getElementById('bv-mat-link-url')?.focus(), 100);
 }
 
+// Limite do Supabase Storage plano gratuito: 50 MiB por arquivo
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
 async function uploadMateriaisBriefing(files) {
   if (!_briefingAtivoId) { showToast('Briefing não identificado'); return; }
   if (!podeEditarBriefing() && !podeCriarBriefing()) { showToast('Sem permissão'); return; }
@@ -7163,10 +7167,26 @@ async function uploadMateriaisBriefing(files) {
   const statusEl = document.getElementById('bv-mat-upload-status');
   const inputEl = document.getElementById('bv-mat-file-input');
 
-  statusEl.textContent = `Enviando ${files.length} arquivo(s)...`;
-  let ok = 0;
+  // Validar tamanho antes de tentar enviar
+  const tooBig = Array.from(files).filter(f => f.size > MAX_UPLOAD_BYTES);
+  if (tooBig.length) {
+    const nomes = tooBig.map(f => `"${f.name}" (${(f.size/1024/1024).toFixed(1)} MB)`).join(', ');
+    showToast('Arquivo muito grande: ' + nomes + ' — máximo 50 MB');
+    if (statusEl) statusEl.innerHTML = `<span style="color:var(--red)">⚠ ${tooBig.length} arquivo(s) acima de 50 MB — use Link (YouTube/Drive) pra arquivos maiores</span>`;
+    if (inputEl) inputEl.value = '';
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 8000);
+    // Se TODOS os arquivos são grandes demais, não tenta enviar nenhum
+    if (tooBig.length === files.length) return;
+  }
 
-  for (const file of files) {
+  const validFiles = Array.from(files).filter(f => f.size <= MAX_UPLOAD_BYTES);
+  if (!validFiles.length) return;
+
+  statusEl.textContent = `Enviando ${validFiles.length} arquivo(s)...`;
+  let ok = 0;
+  let erros = [];
+
+  for (const file of validFiles) {
     try {
       const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
       const filename = 'briefing-' + _briefingAtivoId.slice(0,8) + '-' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
@@ -7192,12 +7212,25 @@ async function uploadMateriaisBriefing(files) {
       ok++;
     } catch (e) {
       console.error('Upload material error:', e);
-      showToast('Erro: ' + (e.message || 'falha no upload'));
+      const msg = (e.message || '').toLowerCase();
+      if (msg.includes('exceeded the maximum')) {
+        erros.push(`"${file.name}" muito grande`);
+      } else {
+        erros.push(`"${file.name}": ${e.message}`);
+      }
     }
   }
 
-  statusEl.textContent = ok > 0 ? `✓ ${ok} arquivo(s) enviado(s)` : '';
-  setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+  if (erros.length) {
+    showToast('Erro em ' + erros.length + ' arquivo(s)');
+    console.warn('Erros upload:', erros);
+  }
+
+  if (statusEl) {
+    if (ok > 0 && !erros.length) statusEl.textContent = `✓ ${ok} arquivo(s) enviado(s)`;
+    else if (ok > 0 && erros.length) statusEl.innerHTML = `<span style="color:var(--amber)">✓ ${ok} ok, ${erros.length} falhou</span>`;
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 5000);
+  }
   if (inputEl) inputEl.value = '';
 
   if (ok > 0) {
