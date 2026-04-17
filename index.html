@@ -1643,9 +1643,6 @@ select.input { cursor: pointer; }
     <div class="nav-item" onclick="go(this,'provasocial')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.4l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg></div>Prova Social
     </div>
-    <div class="nav-item" onclick="go(this,'branding')">
-      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.2 3.2l1.4 1.4M11.4 11.4l1.4 1.4"/></svg></div>Branding
-    </div>
     <div class="nav-item" onclick="go(this,'apis')" style="position:relative">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 8H2.5A1.5 1.5 0 011 6.5v-2A1.5 1.5 0 012.5 3h11A1.5 1.5 0 0115 4.5v2A1.5 1.5 0 0113.5 8H11"/><rect x="5" y="6" width="6" height="7" rx="1"/></svg></div>Conectar APIs
       <div style="width:7px;height:7px;background:var(--red);border-radius:50%;margin-left:auto"></div>
@@ -4736,45 +4733,6 @@ updateDynamicField('foto');
   </div>
 </div></div>
 
-<div class="view" id="view-branding"><div style="padding:24px 28px">
-  <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;margin-bottom:4px">Branding Dana Jalecos</div>
-  <div style="font-size:12.5px;color:var(--text3);margin-bottom:20px">Identidade visual e portfilio de produtos — dados reais do Bling</div>
-  <div class="g2 mb20">
-    <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Paleta e Tipografia</div>
-      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-        <div style="width:60px;height:60px;background:#0a0a0a;border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:700">#0a0a0a</div>
-        <div style="width:60px;height:60px;background:#ffffff;border:1.5px solid #e2e2e2;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">#ffffff</div>
-        <div style="width:60px;height:60px;background:#f5f5f5;border:1.5px solid #e2e2e2;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">#f5f5f5</div>
-        <div style="width:60px;height:60px;background:#1a7a3a;border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:700">Green</div>
-        <div style="width:60px;height:60px;background:#c0392b;border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:700">Red</div>
-      </div>
-      <div style="margin-bottom:10px"><span style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px">Syne Bold 800</span> — Titulos</div>
-      <div><span style="font-family:'DM Sans',sans-serif;font-size:14px">DM Sans Regular 400</span> — Corpo de texto</div>
-    </div>
-    <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Categorias de Produto (Bling — 38 categorias)</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <span class="chip ativo">Jalecos</span>
-        <span class="chip ativo">Scrubs / Pijamas Cirurgicos</span>
-        <span class="chip prod">Toucas</span>
-        <span class="chip prod">Gorros</span>
-        <span class="chip prod">Dolmas</span>
-        <span class="chip prod">Aventais</span>
-        <span class="chip plan">Turbantes</span>
-        <span class="chip plan">Mascaras</span>
-        <span class="chip plan">Camisetas</span>
-        <span class="chip plan">Macacoes</span>
-        <span class="chip plan">Tenis</span>
-        <span class="chip plan">Plus Size</span>
-        <span class="chip rev">Kit Cirurgico Odontologico</span>
-      </div>
-      <div style="margin-top:14px;font-size:12px;color:var(--text3)">Modelos de Jalecos: <strong>Manuela, Isabel, Chloe, Samuel, Manoel, Heloisa, Clara, Benicio</strong></div>
-      <div style="margin-top:6px;font-size:12px;color:var(--text3)">Linhas Scrub: <strong>Tradicional, Comfy, Glamour</strong> (Masc. e Fem.)</div>
-      <div style="margin-top:6px;font-size:12px;color:var(--text3)">Tamanhos: <strong>PPP ao G3</strong> — modelagem inclusiva</div>
-    </div>
-  </div>
-</div></div>
 <!-- ════════ CONECTAR APIs ════════ -->
 <div class="view" id="view-apis">
 <div style="padding:0">
@@ -5455,6 +5413,40 @@ updateDynamicField('foto');
         <div style="padding:10px;background:var(--surface2);border-radius:8px">
           <div style="font-family:'DM Sans',sans-serif;font-weight:400;font-size:15px;line-height:1;margin-bottom:3px">DM Sans Regular 400</div>
           <div style="font-size:10.5px;color:var(--text3)">Corpo de texto e UI</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Portfólio de produtos (dados da marca) -->
+    <div class="card mb20">
+      <div class="card-title" style="margin-bottom:12px">👕 Portfólio de Produtos (Bling · 38 categorias)</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+        <span class="chip ativo">Jalecos</span>
+        <span class="chip ativo">Scrubs / Pijamas Cirúrgicos</span>
+        <span class="chip prod">Toucas</span>
+        <span class="chip prod">Gorros</span>
+        <span class="chip prod">Dolmas</span>
+        <span class="chip prod">Aventais</span>
+        <span class="chip plan">Turbantes</span>
+        <span class="chip plan">Máscaras</span>
+        <span class="chip plan">Camisetas</span>
+        <span class="chip plan">Macacões</span>
+        <span class="chip plan">Tênis</span>
+        <span class="chip plan">Plus Size</span>
+        <span class="chip rev">Kit Cirúrgico Odontológico</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+        <div style="padding:10px 12px;background:var(--surface2);border-radius:8px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:4px">Modelos de Jalecos</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.5">Manuela · Isabel · Chloe · Samuel · Manoel · Heloisa · Clara · Benicio</div>
+        </div>
+        <div style="padding:10px 12px;background:var(--surface2);border-radius:8px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:4px">Linhas Scrub</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.5">Tradicional · Comfy · Glamour <span style="color:var(--text3)">(Masc. e Fem.)</span></div>
+        </div>
+        <div style="padding:10px 12px;background:var(--surface2);border-radius:8px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:4px">Tamanhos</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.5"><strong>PPP ao G3</strong> — modelagem inclusiva</div>
         </div>
       </div>
     </div>
@@ -6511,7 +6503,6 @@ const VIEW_META = {
   comunidade:   { title: 'Comunidade e CRM', sub: 'Segmentos, disparos e métricas', action: '' },
   marketplaces: { title: 'Marketplaces', sub: 'Mercado Livre e Shopee', action: '' },
   provasocial:  { title: 'Prova Social', sub: 'UGC, depoimentos e aprovação', action: 'Novo Conteúdo' },
-  branding:     { title: 'Branding', sub: 'Paleta, tipografia, logos e templates', action: '' },
   apis:         { title: 'Conectar APIs', sub: 'Integrações externas', action: '' },
   tarefas:      { title: 'Tarefas e Kanban', sub: 'Arraste os cards entre colunas', action: 'Nova Tarefa' },
   roi:          { title: 'Calculadora de ROI', sub: 'Simule campanhas e valide viabilidade financeira', action: '' },
