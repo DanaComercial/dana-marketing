@@ -1725,6 +1725,12 @@ select.input { cursor: pointer; }
         <span>Alertas <span style="font-size:10px;color:var(--text3);font-weight:500" id="alertas-count-label">carregando...</span></span>
         <a onclick="event.stopPropagation();marcarTodasAlertasLidas()" style="font-size:11px;font-weight:600;color:var(--blue);cursor:pointer;text-decoration:underline" id="mark-all-read-btn">Marcar todas lidas</a>
       </div>
+      <!-- Filtros -->
+      <div style="display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface2)">
+        <div class="notif-filter active" onclick="filterAlertas('naolidas')" data-filter="naolidas" style="padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:var(--black);color:white">Não lidas <span class="notif-filter-count" data-count="naolidas">0</span></div>
+        <div class="notif-filter" onclick="filterAlertas('lidas')" data-filter="lidas" style="padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;color:var(--text2)">Lidas <span class="notif-filter-count" data-count="lidas">0</span></div>
+        <div class="notif-filter" onclick="filterAlertas('todas')" data-filter="todas" style="padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;color:var(--text2)">Todas</div>
+      </div>
       <div id="alertas-container" style="max-height:420px;overflow-y:auto">
         <div style="padding:16px;font-size:12px;color:var(--text3);text-align:center">Carregando alertas...</div>
       </div>
@@ -2920,13 +2926,15 @@ async function criarAlertaPara(userNome, titulo, mensagem, nivel, linkRef, linkL
 async function marcarTodasAlertasLidas() {
   if (!currentUser?.id) return;
   try {
-    // Marca tanto os pessoais quanto os globais que o user vê
     const ids = _alertasCache.filter(a => !a.lido).map(a => a.id);
     if (!ids.length) { showToast('Tudo já lido'); return; }
     const { error } = await sb.from('alertas').update({ lido: true }).in('id', ids);
     if (error) throw error;
+    // Atualiza cache em memória (UI reativa)
+    _alertasCache.forEach(a => { if (ids.includes(a.id)) a.lido = true; });
+    renderAlertasContainer();
+    updateNotifDot();
     showToast(`✓ ${ids.length} alerta(s) marcado(s) como lidos`);
-    loadAlertas();
   } catch (e) { showToast('Erro: ' + e.message); }
 }
 
@@ -6766,8 +6774,10 @@ function markRead(el) {
   updateNotifDot();
 }
 function updateNotifDot() {
-  const unread = document.querySelectorAll('.notif-item.unread').length;
+  // Usa _alertasCache (confiável) em vez do DOM (que pode estar filtrado)
+  const unread = (typeof _alertasCache !== 'undefined' ? _alertasCache : []).filter(a => !a.lido).length;
   const dot = document.getElementById('notif-dot');
+  if (!dot) return;
   dot.style.display = unread > 0 ? '' : 'none';
 }
 document.addEventListener('click', e => {
@@ -8276,10 +8286,28 @@ function setupRealtimeSubscriptions() {
 
 // ── ALERTAS INTELIGENTES ──
 let _alertasCache = [];
+let _alertasFiltro = 'naolidas'; // 'naolidas' | 'lidas' | 'todas'
+
+function filterAlertas(filtro) {
+  _alertasFiltro = filtro;
+  document.querySelectorAll('.notif-filter').forEach(f => {
+    if (f.dataset.filter === filtro) {
+      f.classList.add('active');
+      f.style.background = 'var(--black)';
+      f.style.color = 'white';
+    } else {
+      f.classList.remove('active');
+      f.style.background = 'transparent';
+      f.style.color = 'var(--text2)';
+    }
+  });
+  renderAlertasContainer();
+}
+
 async function loadAlertas() {
   try {
     // Filtra: alertas globais (destinatario_id IS NULL) OU do usuário logado
-    let query = sb.from('alertas').select('*').order('created_at', { ascending: false }).limit(30);
+    let query = sb.from('alertas').select('*').order('created_at', { ascending: false }).limit(50);
     if (currentUser?.id) {
       query = query.or(`destinatario_id.is.null,destinatario_id.eq.${currentUser.id}`);
     } else {
@@ -8287,44 +8315,69 @@ async function loadAlertas() {
     }
     const { data } = await query;
     _alertasCache = data || [];
-    const container = document.getElementById('alertas-container');
-    const countLabel = document.getElementById('alertas-count-label');
-    if(!container) return;
-
-    const naoLidas = _alertasCache.filter(a => !a.lido).length;
-    if(countLabel) countLabel.textContent = naoLidas > 0 ? naoLidas + ' não lidas' : 'tudo lido';
-
-    if(_alertasCache.length === 0) {
-      container.innerHTML = '<div style="padding:16px;font-size:12px;color:var(--text3);text-align:center">Nenhum alerta no momento</div>';
-    } else {
-      container.innerHTML = _alertasCache.map(a => {
-        const nivelMap = { urgent:'urgent', warn:'warn', info:'info', ok:'ok' };
-        const nivelLabel = { urgent:'Urgente', warn:'Atenção', info:'Info', ok:'Positivo' };
-        const cls = a.lido ? '' : ' unread';
-        const tempo = timeAgo(new Date(a.created_at));
-        // Serializa dados (criativo_id, tarefa_id, etc) pra o deep-link abrir o item
-        const dadosAttr = a.dados ? esc(JSON.stringify(a.dados)) : '';
-        const linkHtml = a.link_ref ? `<div style="margin-top:6px"><a onclick='event.stopPropagation();abrirLinkAlerta("${a.link_ref}",${a.id},${dadosAttr ? "JSON.parse(this.dataset.dados)" : "null"});' data-dados='${dadosAttr}' style="font-size:11px;color:var(--blue);font-weight:600;cursor:pointer;text-decoration:underline">${a.link_label || 'Abrir'} →</a></div>` : '';
-        return `<div class="notif-item${cls}" onclick="marcarAlertaLido(${a.id},this)">
-          <div class="notif-type ${nivelMap[a.nivel]||'info'}">${nivelLabel[a.nivel]||'Info'}</div>
-          <div class="notif-title">${a.titulo}</div>
-          ${a.mensagem ? '<div class="notif-body">'+a.mensagem+'</div>' : ''}
-          ${linkHtml}
-          <div class="notif-time">${tempo}</div>
-        </div>`;
-      }).join('');
-    }
+    renderAlertasContainer();
     updateNotifDot();
   } catch(e) { console.warn('Alertas error:', e.message); }
+}
+
+function renderAlertasContainer() {
+  const container = document.getElementById('alertas-container');
+  const countLabel = document.getElementById('alertas-count-label');
+  if(!container) return;
+
+  const naoLidas = _alertasCache.filter(a => !a.lido).length;
+  const lidas = _alertasCache.filter(a => a.lido).length;
+  if(countLabel) countLabel.textContent = naoLidas > 0 ? naoLidas + ' não lidas' : 'tudo lido';
+
+  // Atualiza contadores nos botões de filtro
+  const countNaoLidas = document.querySelector('.notif-filter-count[data-count="naolidas"]');
+  const countLidas = document.querySelector('.notif-filter-count[data-count="lidas"]');
+  if (countNaoLidas) countNaoLidas.textContent = `(${naoLidas})`;
+  if (countLidas) countLidas.textContent = `(${lidas})`;
+
+  // Aplica filtro atual
+  const lista = _alertasCache.filter(a => {
+    if (_alertasFiltro === 'naolidas') return !a.lido;
+    if (_alertasFiltro === 'lidas') return a.lido;
+    return true; // todas
+  });
+
+  if(!lista.length) {
+    const msgs = {
+      naolidas: '🎉 Nenhum alerta novo',
+      lidas: 'Nenhum alerta lido ainda',
+      todas: 'Nenhum alerta no momento'
+    };
+    container.innerHTML = `<div style="padding:24px 16px;font-size:12px;color:var(--text3);text-align:center">${msgs[_alertasFiltro]}</div>`;
+    return;
+  }
+
+  container.innerHTML = lista.map(a => {
+    const nivelMap = { urgent:'urgent', warn:'warn', info:'info', ok:'ok' };
+    const nivelLabel = { urgent:'Urgente', warn:'Atenção', info:'Info', ok:'Positivo' };
+    const cls = a.lido ? '' : ' unread';
+    const tempo = timeAgo(new Date(a.created_at));
+    const dadosAttr = a.dados ? esc(JSON.stringify(a.dados)) : '';
+    const linkHtml = a.link_ref ? `<div style="margin-top:6px"><a onclick='event.stopPropagation();abrirLinkAlerta("${a.link_ref}",${a.id},${dadosAttr ? "JSON.parse(this.dataset.dados)" : "null"});' data-dados='${dadosAttr}' style="font-size:11px;color:var(--blue);font-weight:600;cursor:pointer;text-decoration:underline">${a.link_label || 'Abrir'} →</a></div>` : '';
+    return `<div class="notif-item${cls}" onclick="marcarAlertaLido(${a.id},this)">
+      <div class="notif-type ${nivelMap[a.nivel]||'info'}">${nivelLabel[a.nivel]||'Info'}</div>
+      <div class="notif-title">${a.titulo}</div>
+      ${a.mensagem ? '<div class="notif-body">'+a.mensagem+'</div>' : ''}
+      ${linkHtml}
+      <div class="notif-time">${tempo}</div>
+    </div>`;
+  }).join('');
 }
 
 async function marcarAlertaLido(id, el) {
   logActivity('leu_alerta', 'Alerta #' + id, 'alertas');
   if(el) el.classList.remove('unread');
+  // Atualiza cache antes de ir pro banco (UI reativa imediata)
+  const cached = _alertasCache.find(a => a.id === id);
+  if (cached) cached.lido = true;
   await sb.from('alertas').update({ lido: true }).eq('id', id);
-  const countLabel = document.getElementById('alertas-count-label');
-  const naoLidas = document.querySelectorAll('.notif-item.unread').length;
-  if(countLabel) countLabel.textContent = naoLidas > 0 ? naoLidas + ' não lidas' : 'tudo lido';
+  // Re-renderiza pra atualizar contadores dos filtros
+  renderAlertasContainer();
   updateNotifDot();
 }
 
