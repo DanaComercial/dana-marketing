@@ -2469,54 +2469,163 @@ select.input { cursor: pointer; }
 <!-- ════════ INFLUENCIADORES ════════ -->
 <div class="view" id="view-influenciadores">
 <div style="padding:24px 28px">
-  <div class="g21">
-    <div class="card">
-      <div class="card-header">
-        <div><div class="card-title">Ranking de Influenciadores</div><div class="card-sub">Por receita gerada · com cupom ativo</div></div>
-        <button class="btn btn-primary btn-sm" onclick="openModal('nova-inf')">+ Adicionar</button>
-      </div>
-      <table>
-        <thead><tr><th>#</th><th>Influenciadora</th><th>Seguidores</th><th>Engaj.</th><th>Cupom</th><th>Receita</th><th>ROAS</th></tr></thead>
-        <tbody>
-          <tr><td><b>1</b></td><td class="em">@dra.brunaconde</td><td>39k</td><td>Dentista</td><td>—</td><td class="good">Potencial</td><td class="good">Alto</td></tr>
-          <tr><td>2</td><td class="em">@drafernandanichelle</td><td>240k</td><td>Estetica</td><td>—</td><td class="good">Potencial</td><td class="good">Alto</td></tr>
-          <tr><td>3</td><td class="em">@medhelenn</td><td>68k</td><td>Medicina</td><td>—</td><td>Potencial</td><td>Medio</td></tr>
-          <tr><td>4</td><td class="em">@claramilvolts</td><td>83k</td><td>Emergencia</td><td>—</td><td>Potencial</td><td>Medio</td></tr>
-          <tr><td>5</td><td class="em">@vireimedicaeagora</td><td>41k</td><td>Emergencia</td><td>—</td><td>Potencial</td><td>Medio</td></tr>
-        </tbody>
-      </table>
+
+  <!-- Header -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap">
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px">Controle de Influenciadores</div>
+      <div style="font-size:12.5px;color:var(--text3);margin-top:3px">Gerencie parcerias e acompanhe performance de influenciadores</div>
     </div>
-    <div class="card">
-      <div class="card-title" style="margin-bottom:14px">Radar — Perfis em Alta</div>
-      <div class="inf-row">
-        <div class="inf-rank top">1</div>
-        <div class="inf-avatar">SM</div>
-        <div class="inf-info"><div class="inf-name">@samiamarsili</div><div class="inf-sub">Pediatria · 1.4M seg.</div></div>
-        <div><div class="inf-revenue" style="font-size:11.5px;color:var(--green)">Prospectar</div></div>
-      </div>
-      <div class="inf-row">
-        <div class="inf-rank top">2</div>
-        <div class="inf-avatar">GA</div>
-        <div class="inf-info"><div class="inf-name">@drgabrielalmeida</div><div class="inf-sub">Cirurgia · 538k seg.</div></div>
-        <div><div class="inf-revenue" style="font-size:11.5px;color:var(--green)">Prospectar</div></div>
-      </div>
-      <div class="inf-row">
-        <div class="inf-rank">3</div>
-        <div class="inf-avatar">AB</div>
-        <div class="inf-info"><div class="inf-name">@arthurbenozzati</div><div class="inf-sub">Estetica · 377k seg.</div></div>
-        <div><div class="inf-revenue" style="font-size:11.5px;color:var(--text3)">Em analise</div></div>
-      </div>
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-        <div class="card-title" style="margin-bottom:10px;font-size:12.5px">Total por influenciadoras</div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap">
-          <div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:4px">Perfis mapeados</div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px">8</div></div>
-          <div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:4px">Alcance total</div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--green)">2.8M</div></div>
-          <div style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px"><div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:4px">Status</div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px">Prospectar</div></div>
+    <button class="btn btn-primary btn-sm" id="inf-btn-novo" onclick="abrirModalNovoInfluenciador()">+ Novo Influenciador</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid mb20">
+    <div class="kpi-card"><div class="kpi-label">Total de Influenciadores</div><div class="kpi-value" id="inf-kpi-total">0</div><div class="kpi-change up" id="inf-kpi-ativos">0 ativos</div></div>
+    <div class="kpi-card"><div class="kpi-label">Receita Total</div><div class="kpi-value" id="inf-kpi-receita">R$ 0,00</div><div class="kpi-change up" id="inf-kpi-vendas">0 vendas geradas</div></div>
+    <div class="kpi-card"><div class="kpi-label">Taxa de Conversão Média</div><div class="kpi-value" id="inf-kpi-conv">0.00%</div><div class="kpi-change up">Média de todos os influenciadores</div></div>
+    <div class="kpi-card"><div class="kpi-label">Top Performer</div><div class="kpi-value" id="inf-kpi-top">—</div><div class="kpi-change up" id="inf-kpi-top-sub">R$ 0,00</div></div>
+  </div>
+
+  <!-- Tabs (Fase 2 = Referências) -->
+  <div class="tabs mb20">
+    <div class="tab active" onclick="switchInfluTab(this,'lista')">👥 Influenciadores</div>
+    <div class="tab" onclick="switchInfluTab(this,'referencias')">🎬 Referências de Conteúdo <span style="font-size:9px;opacity:0.7;margin-left:4px">Fase 2</span></div>
+  </div>
+
+  <!-- Tab: Lista -->
+  <div id="infl-tab-lista" class="infl-tab-panel">
+    <!-- Filtros -->
+    <div class="card mb20">
+      <div class="card-title" style="margin-bottom:4px">Filtros</div>
+      <div class="card-sub" style="margin-bottom:12px">Filtre influenciadores por status, nicho ou região</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+        <div>
+          <label class="label">Status</label>
+          <select class="input" id="inf-filtro-status" onchange="renderInfluenciadores()">
+            <option value="todos">Todos</option>
+            <option value="ativo">Ativo</option>
+            <option value="pausado">Pausado</option>
+            <option value="inativo">Inativo</option>
+          </select>
+        </div>
+        <div>
+          <label class="label">Nicho</label>
+          <select class="input" id="inf-filtro-nicho" onchange="renderInfluenciadores()">
+            <option value="todos">Todos</option>
+          </select>
+        </div>
+        <div>
+          <label class="label">Região</label>
+          <select class="input" id="inf-filtro-regiao" onchange="renderInfluenciadores()">
+            <option value="todos">Todas</option>
+            <option value="Norte">Norte</option>
+            <option value="Nordeste">Nordeste</option>
+            <option value="Centro Oeste">Centro Oeste</option>
+            <option value="Sudeste">Sudeste</option>
+            <option value="Sul">Sul</option>
+          </select>
         </div>
       </div>
     </div>
+
+    <!-- Tabela -->
+    <div class="card">
+      <div style="margin-bottom:12px">
+        <div class="card-title">Lista de Influenciadores</div>
+        <div class="card-sub" id="inf-lista-count">0 influenciador(es) encontrado(s)</div>
+      </div>
+      <div id="inf-tabela" style="overflow-x:auto">
+        <div style="text-align:center;color:var(--text3);font-size:12px;padding:30px">Carregando...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: Referências (Fase 2) -->
+  <div id="infl-tab-referencias" class="infl-tab-panel" style="display:none">
+    <div class="card" style="text-align:center;padding:40px 20px">
+      <div style="font-size:36px;margin-bottom:10px;opacity:0.4">🎬</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;margin-bottom:6px">Referências de Conteúdo</div>
+      <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Gerencie ideias e referências para criação de conteúdo (Reels, Stories, TikTok...)</div>
+      <div style="display:inline-block;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--surface2);color:var(--text3);letter-spacing:0.5px">FASE 2 · EM BREVE</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- Modal: Novo/Editar Influenciador -->
+<div class="modal-overlay" id="modal-inf-novo">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-header">
+      <div class="modal-title" id="inf-modal-title">+ Novo Influenciador</div>
+      <button class="modal-close" onclick="closeModal('inf-novo')">×</button>
+    </div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:14px" id="inf-modal-sub">Adicione um novo influenciador ao sistema de controle</div>
+    <div class="form-row-2">
+      <div><label class="label">Nome *</label><input class="input" id="inf-nome" placeholder="Nome completo"></div>
+      <div><label class="label">Instagram *</label><input class="input" id="inf-insta" placeholder="@username ou URL"></div>
+    </div>
+    <div class="form-row-2">
+      <div><label class="label">Cidade</label><input class="input" id="inf-cidade" placeholder="Ex: São Paulo"></div>
+      <div><label class="label">Região</label>
+        <select class="input" id="inf-regiao">
+          <option value="">Selecione...</option>
+          <option>Norte</option><option>Nordeste</option><option>Centro Oeste</option><option>Sudeste</option><option>Sul</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div><label class="label">Profissão</label><input class="input" id="inf-profissao" placeholder="Ex: Dentista, Médica..."></div>
+      <div><label class="label">Nicho</label><input class="input" id="inf-nicho" placeholder="Ex: Lifestyle, saúde, odontologia"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div><label class="label">Seguidores</label><input class="input" type="number" min="0" id="inf-seguidores" placeholder="0"></div>
+      <div><label class="label">Início Parceria</label><input class="input" type="date" id="inf-inicio"></div>
+      <div><label class="label">Status</label>
+        <select class="input" id="inf-status">
+          <option value="ativo">Ativo</option>
+          <option value="pausado">Pausado</option>
+          <option value="inativo">Inativo</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row"><label class="label">Contato</label><input class="input" id="inf-contato" placeholder="Email ou telefone"></div>
+    <div class="form-row">
+      <label class="label">Código do Cupom</label>
+      <input class="input" id="inf-cupom" placeholder="Ex: INFLUENCER10">
+      <div style="font-size:10.5px;color:var(--text3);margin-top:3px">Cupom que será vinculado a este influenciador</div>
+    </div>
+    <div class="form-row-2">
+      <div><label class="label">Usos do Cupom</label><input class="input" type="number" min="0" id="inf-usos" placeholder="0"></div>
+      <div><label class="label">Vendas Geradas</label><input class="input" type="number" min="0" id="inf-vendas" placeholder="0"></div>
+    </div>
+    <div class="form-row"><label class="label">Receita (R$)</label><input class="input" type="number" min="0" step="0.01" id="inf-receita" placeholder="0.00"></div>
+    <div class="form-row"><label class="label">Observações</label><textarea class="input" id="inf-obs" rows="2" placeholder="Notas, condições da parceria..."></textarea></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-ghost" onclick="closeModal('inf-novo')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarInfluenciador()" style="flex:1" id="inf-btn-salvar">Criar Influenciador</button>
+    </div>
   </div>
 </div>
+
+<!-- Modal: Excluir Influenciador -->
+<div class="modal-overlay" id="modal-inf-excluir">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--red)">🗑 Remover Influenciador</div>
+      <button class="modal-close" onclick="closeModal('inf-excluir')">×</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">
+      Remover <strong id="inf-del-nome" style="color:var(--text)"></strong> do sistema?
+      <br><br>
+      <span style="color:var(--red);font-size:12px">⚠️ Essa ação não pode ser desfeita.</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="closeModal('inf-excluir')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarExcluirInfluenciador()" style="flex:1;background:var(--red);border-color:var(--red)">Remover</button>
+    </div>
+  </div>
 </div>
 
 <!-- ════════ PERSONAS ════════ -->
@@ -7766,7 +7875,7 @@ const VIEW_META = {
   lojafisica:   { title: 'Loja Física', sub: 'Vendas presenciais (Piçarras + BC) + WhatsApp', action: '' },
   campanhas:    { title: 'Campanhas', sub: 'Execução e performance de anúncios pagos', action: '' },
   criativos:    { title: 'Criativos', sub: 'Artes, vídeos e calendário de publicação', action: 'Novo Criativo' },
-  influenciadores: { title: 'Influenciadores', sub: 'Ranking, cupons e radar de novos perfis', action: 'Adicionar Influenciadora' },
+  influenciadores: { title: 'Influenciadores', sub: 'Controle de parcerias e performance', action: '' },
   personas:     { title: 'Públicos Ideais', sub: '5 personas estratégicas da Dana Jalecos', action: 'Criar Campanha' },
   mercado:      { title: 'Mercado e Tendências', sub: 'Monitoramento ao vivo de concorrentes e tendências', action: '' },
   referencias:  { title: 'Referências', sub: 'Banco de inspiração de criativos e estratégias', action: '' },
@@ -7839,6 +7948,7 @@ function go(el, viewId) {
   if (viewId === 'criativos') { if (typeof loadCriativos === 'function') loadCriativos(); }
   if (viewId === 'mercado') { if (typeof loadConcorrentes === 'function') loadConcorrentes(); }
   if (viewId === 'ecommerce') { if (typeof loadEcommerce === 'function') loadEcommerce(); }
+  if (viewId === 'influenciadores') { if (typeof loadInfluenciadores === 'function') loadInfluenciadores(); }
   if (viewId === 'lojafisica') { if (typeof loadLojaFisica === 'function') loadLojaFisica(); }
   if (viewId === 'calendario') { if (typeof loadCalendario==='function') loadCalendario(); if (typeof loadTarefas==='function' && !_tarefasCache?.length) loadTarefas(); else if (typeof renderCalendario==='function') setTimeout(renderCalendario, 100); }
 }
@@ -7857,7 +7967,7 @@ window.addEventListener('popstate', () => {
 });
 
 function topbarAction() {
-  const views = { home:'nova-campanha', campanhas:'nova-campanha', tarefas:'nova-tarefa', influenciadores:'nova-inf', calendario:'novo-evento' };
+  const views = { home:'nova-campanha', campanhas:'nova-campanha', tarefas:'nova-tarefa', calendario:'novo-evento' };
   const active = document.querySelector('.view.active');
   if(!active) return;
   const id = active.id.replace('view-','');
@@ -9690,6 +9800,13 @@ function setupRealtimeSubscriptions() {
   sb.channel('realtime-concorrentes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'concorrentes' }, () => {
       if (typeof loadConcorrentes === 'function') loadConcorrentes();
+    })
+    .subscribe();
+
+  // Influenciadores — sincroniza entre PCs
+  sb.channel('realtime-influenciadores')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'influenciadores' }, () => {
+      if (typeof loadInfluenciadores === 'function') loadInfluenciadores();
     })
     .subscribe();
 
@@ -12036,6 +12153,275 @@ function copiarTodasKeywords() {
   const text = _keywordsCache.map(k => k.texto).join('\n');
   navigator.clipboard.writeText(text);
   showToast(_keywordsCache.length + ' palavras-chave copiadas');
+}
+
+// ═══════════════════════════════════════════════════════════
+// INFLUENCIADORES (Fase 1)
+// ═══════════════════════════════════════════════════════════
+let _influenciadoresCache = [];
+let _influEditandoId = null;
+let _influExcluirId = null;
+
+function switchInfluTab(btn, tab) {
+  document.querySelectorAll('#view-influenciadores .tabs .tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.querySelectorAll('.infl-tab-panel').forEach(p => p.style.display = 'none');
+  const panel = document.getElementById('infl-tab-' + tab);
+  if (panel) panel.style.display = '';
+}
+
+async function loadInfluenciadores() {
+  try {
+    const { data, error } = await sb.from('influenciadores')
+      .select('*')
+      .order('receita', { ascending: false, nullsFirst: false })
+      .order('seguidores', { ascending: false, nullsFirst: false });
+    if (error) throw error;
+    _influenciadoresCache = data || [];
+    atualizarKPIsInfluenciadores();
+    atualizarFiltroNichos();
+    renderInfluenciadores();
+  } catch (e) {
+    console.error('loadInfluenciadores:', e);
+    const el = document.getElementById('inf-tabela');
+    if (el) el.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px">Erro: ${esc(e.message || e)}</div>`;
+  }
+}
+
+function atualizarKPIsInfluenciadores() {
+  const total = _influenciadoresCache.length;
+  const ativos = _influenciadoresCache.filter(i => i.status === 'ativo').length;
+  const receitaTotal = _influenciadoresCache.reduce((s, i) => s + (+i.receita || 0), 0);
+  const vendasTotal = _influenciadoresCache.reduce((s, i) => s + (+i.vendas_geradas || 0), 0);
+  const usosTotal = _influenciadoresCache.reduce((s, i) => s + (+i.usos_cupom || 0), 0);
+  const conversaoMedia = usosTotal > 0 ? (vendasTotal / usosTotal * 100) : 0;
+  const top = _influenciadoresCache.slice().sort((a, b) => (+b.receita || 0) - (+a.receita || 0))[0];
+  const fmtR = (v) => 'R$ ' + (Math.round(v * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+
+  set('inf-kpi-total', total);
+  set('inf-kpi-ativos', ativos + ' ativos');
+  set('inf-kpi-receita', fmtR(receitaTotal));
+  set('inf-kpi-vendas', vendasTotal + ' vendas geradas');
+  set('inf-kpi-conv', conversaoMedia.toFixed(2) + '%');
+  if (top && top.nome) {
+    set('inf-kpi-top', top.nome.split(' ')[0]);
+    set('inf-kpi-top-sub', fmtR(+top.receita || 0));
+  } else {
+    set('inf-kpi-top', '—');
+    set('inf-kpi-top-sub', 'R$ 0,00');
+  }
+}
+
+function atualizarFiltroNichos() {
+  const sel = document.getElementById('inf-filtro-nicho');
+  if (!sel) return;
+  const atual = sel.value || 'todos';
+  const nichos = [...new Set(_influenciadoresCache.map(i => (i.nicho || '').trim()).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="todos">Todos</option>' + nichos.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  sel.value = atual;
+}
+
+function renderInfluenciadores() {
+  const el = document.getElementById('inf-tabela');
+  const countEl = document.getElementById('inf-lista-count');
+  if (!el) return;
+
+  const fStatus = document.getElementById('inf-filtro-status')?.value || 'todos';
+  const fNicho = document.getElementById('inf-filtro-nicho')?.value || 'todos';
+  const fRegiao = document.getElementById('inf-filtro-regiao')?.value || 'todos';
+
+  const lista = _influenciadoresCache.filter(i => {
+    if (fStatus !== 'todos' && i.status !== fStatus) return false;
+    if (fNicho !== 'todos' && (i.nicho || '').trim() !== fNicho) return false;
+    if (fRegiao !== 'todos' && i.regiao !== fRegiao) return false;
+    return true;
+  });
+
+  if (countEl) countEl.textContent = lista.length + ' influenciador(es) encontrado(s)';
+
+  const canEdit = currentProfile?.cargo === 'admin' || userPermissoes['influenciadores'] !== false;
+  const fmtK = (n) => {
+    if (!n) return '0';
+    if (n >= 1_000_000) return (n/1_000_000).toFixed(1).replace(/\.0$/,'') + 'M';
+    if (n >= 1000) return (n/1000).toFixed(1).replace(/\.0$/,'') + 'k';
+    return String(n);
+  };
+  const fmtR = (v) => 'R$ ' + (Math.round(v * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const statusChip = (s) => {
+    if (s === 'ativo') return '<span class="chip ativo">Ativo</span>';
+    if (s === 'pausado') return '<span class="chip rev">Pausado</span>';
+    return '<span class="chip" style="background:#f0f0f0;color:#888">Inativo</span>';
+  };
+
+  const instaHref = (raw) => {
+    if (!raw) return '#';
+    const t = raw.trim();
+    if (t.startsWith('http')) return t;
+    if (t.startsWith('@')) return 'https://instagram.com/' + t.slice(1);
+    return 'https://instagram.com/' + t;
+  };
+  const instaDisplay = (raw) => {
+    if (!raw) return '—';
+    const t = raw.trim();
+    if (t.startsWith('@')) return t;
+    if (t.startsWith('http')) {
+      try {
+        const u = new URL(t);
+        const parts = u.pathname.split('/').filter(Boolean);
+        return '@' + (parts[0] || t);
+      } catch { return t; }
+    }
+    return '@' + t;
+  };
+
+  if (!lista.length) {
+    el.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text3);font-size:12.5px">Nenhum influenciador encontrado com esses filtros</div>`;
+    return;
+  }
+
+  el.innerHTML = `<table style="width:100%;font-size:12px">
+    <thead><tr>
+      <th>Nome</th>
+      <th>Instagram</th>
+      <th>Nicho</th>
+      <th>Região</th>
+      <th>Status</th>
+      <th style="text-align:right">Seguidores</th>
+      <th style="text-align:right">Usos Cupom</th>
+      <th style="text-align:right">Vendas</th>
+      <th style="text-align:right">Receita</th>
+      <th style="text-align:right">Conversão</th>
+      <th style="width:80px">Ações</th>
+    </tr></thead>
+    <tbody>
+      ${lista.map(i => {
+        const conv = (+i.usos_cupom > 0) ? ((+i.vendas_geradas || 0) / +i.usos_cupom * 100) : 0;
+        return `<tr>
+          <td class="em">${esc(i.nome)}</td>
+          <td><a href="${esc(instaHref(i.instagram))}" target="_blank" style="color:var(--blue);text-decoration:none" onclick="event.stopPropagation()">📸 ${esc(instaDisplay(i.instagram))}</a></td>
+          <td>${i.nicho ? esc(i.nicho) : '<span style="color:var(--text3)">—</span>'}</td>
+          <td>${i.regiao ? esc(i.regiao) : '<span style="color:var(--text3)">—</span>'}</td>
+          <td>${statusChip(i.status)}</td>
+          <td style="text-align:right">${fmtK(i.seguidores)}</td>
+          <td style="text-align:right">${i.usos_cupom || 0}</td>
+          <td style="text-align:right">${i.vendas_geradas || 0}</td>
+          <td style="text-align:right" class="${+i.receita > 0 ? 'good' : ''}">${fmtR(+i.receita || 0)}</td>
+          <td style="text-align:right">${conv.toFixed(2)}%</td>
+          <td>
+            ${canEdit ? `<button class="btn btn-ghost btn-sm" style="padding:3px 6px;font-size:11px" onclick="abrirModalEditarInfluenciador('${i.id}')" title="Editar">✏️</button>
+            <button class="btn btn-ghost btn-sm" style="padding:3px 6px;font-size:11px;color:var(--red)" onclick="abrirModalExcluirInfluenciador('${i.id}')" title="Excluir">🗑</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+function abrirModalNovoInfluenciador() {
+  _influEditandoId = null;
+  document.getElementById('inf-modal-title').textContent = '+ Novo Influenciador';
+  document.getElementById('inf-modal-sub').textContent = 'Adicione um novo influenciador ao sistema de controle';
+  document.getElementById('inf-btn-salvar').textContent = 'Criar Influenciador';
+  ['inf-nome','inf-insta','inf-cidade','inf-regiao','inf-profissao','inf-nicho','inf-seguidores','inf-inicio','inf-contato','inf-cupom','inf-usos','inf-vendas','inf-receita','inf-obs'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('inf-status').value = 'ativo';
+  openModal('inf-novo');
+  setTimeout(() => document.getElementById('inf-nome')?.focus(), 100);
+}
+
+function abrirModalEditarInfluenciador(id) {
+  const i = _influenciadoresCache.find(x => x.id === id);
+  if (!i) return;
+  _influEditandoId = id;
+  document.getElementById('inf-modal-title').textContent = '✏️ Editar Influenciador';
+  document.getElementById('inf-modal-sub').textContent = 'Atualize os dados da parceria';
+  document.getElementById('inf-btn-salvar').textContent = 'Salvar alterações';
+  document.getElementById('inf-nome').value = i.nome || '';
+  document.getElementById('inf-insta').value = i.instagram || '';
+  document.getElementById('inf-cidade').value = i.cidade || '';
+  document.getElementById('inf-regiao').value = i.regiao || '';
+  document.getElementById('inf-profissao').value = i.profissao || '';
+  document.getElementById('inf-nicho').value = i.nicho || '';
+  document.getElementById('inf-seguidores').value = i.seguidores || '';
+  document.getElementById('inf-inicio').value = i.inicio_parceria || '';
+  document.getElementById('inf-status').value = i.status || 'ativo';
+  document.getElementById('inf-contato').value = i.contato || '';
+  document.getElementById('inf-cupom').value = i.codigo_cupom || '';
+  document.getElementById('inf-usos').value = i.usos_cupom || '';
+  document.getElementById('inf-vendas').value = i.vendas_geradas || '';
+  document.getElementById('inf-receita').value = i.receita || '';
+  document.getElementById('inf-obs').value = i.observacoes || '';
+  openModal('inf-novo');
+}
+
+async function salvarInfluenciador() {
+  const nome = document.getElementById('inf-nome').value.trim();
+  const insta = document.getElementById('inf-insta').value.trim();
+  if (!nome) { showToast('Nome é obrigatório'); return; }
+  if (!insta) { showToast('Instagram é obrigatório'); return; }
+
+  const payload = {
+    nome,
+    instagram: insta,
+    cidade: document.getElementById('inf-cidade').value.trim() || null,
+    regiao: document.getElementById('inf-regiao').value || null,
+    profissao: document.getElementById('inf-profissao').value.trim() || null,
+    nicho: document.getElementById('inf-nicho').value.trim() || null,
+    seguidores: +document.getElementById('inf-seguidores').value || 0,
+    inicio_parceria: document.getElementById('inf-inicio').value || null,
+    status: document.getElementById('inf-status').value,
+    contato: document.getElementById('inf-contato').value.trim() || null,
+    codigo_cupom: document.getElementById('inf-cupom').value.trim() || null,
+    usos_cupom: +document.getElementById('inf-usos').value || 0,
+    vendas_geradas: +document.getElementById('inf-vendas').value || 0,
+    receita: +document.getElementById('inf-receita').value || 0,
+    observacoes: document.getElementById('inf-obs').value.trim() || null,
+  };
+
+  try {
+    if (_influEditandoId) {
+      const { error } = await sb.from('influenciadores').update(payload).eq('id', _influEditandoId);
+      if (error) throw error;
+      showToast('✓ Influenciador atualizado');
+      logActivity('editou_influenciador', nome, 'influenciadores');
+    } else {
+      payload.criado_por = currentUser?.id || null;
+      payload.criado_por_nome = currentProfile?.nome || 'Anônimo';
+      const { error } = await sb.from('influenciadores').insert(payload);
+      if (error) throw error;
+      showToast('✓ Influenciador adicionado');
+      logActivity('criou_influenciador', nome, 'influenciadores');
+    }
+    closeModal('inf-novo');
+    _influEditandoId = null;
+    loadInfluenciadores();
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+function abrirModalExcluirInfluenciador(id) {
+  const i = _influenciadoresCache.find(x => x.id === id);
+  if (!i) return;
+  _influExcluirId = id;
+  document.getElementById('inf-del-nome').textContent = '"' + (i.nome || '') + '"';
+  openModal('inf-excluir');
+}
+
+async function confirmarExcluirInfluenciador() {
+  if (!_influExcluirId) return;
+  const i = _influenciadoresCache.find(x => x.id === _influExcluirId);
+  try {
+    const { error } = await sb.from('influenciadores').delete().eq('id', _influExcluirId);
+    if (error) throw error;
+    closeModal('inf-excluir');
+    showToast('✓ Influenciador removido');
+    logActivity('excluiu_influenciador', i?.nome || '—', 'influenciadores');
+    _influExcluirId = null;
+    loadInfluenciadores();
+  } catch (e) { showToast('Erro: ' + e.message); }
 }
 
 // ── MARKETPLACES (Social Selling) ──
