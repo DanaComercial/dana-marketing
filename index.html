@@ -6031,31 +6031,39 @@ updateDynamicField('foto');
   <!-- Tab: Brand Kit -->
   <div id="bv-tab-brandkit" class="bv-tab-panel" style="display:none">
 
-    <!-- Header com identidade visual fixa -->
+    <!-- Header com identidade visual fixa (compacto) -->
     <div class="g2 mb20">
-      <div class="card">
-        <div class="card-title" style="margin-bottom:12px">🎨 Paleta da Marca</div>
-        <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-          <div style="flex:1;min-width:140px;cursor:pointer" onclick="navigator.clipboard?.writeText('#000000');showToast('#000000 copiado')" title="Clique pra copiar">
-            <div style="width:100%;aspect-ratio:1;background:#000000;border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-family:'Syne',sans-serif;font-weight:800;font-size:13px">#000000</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:6px;text-align:center">Preto · Dana Black</div>
+      <div class="card" style="padding:14px 16px">
+        <div class="card-title" style="margin-bottom:10px;font-size:13px">🎨 Paleta da Marca</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 10px;border-radius:6px;background:#000000;flex:1" onclick="navigator.clipboard?.writeText('#000000');showToast('#000000 copiado')" title="Clique pra copiar">
+            <div style="width:22px;height:22px;background:#000;border:1px solid #333;border-radius:4px;flex-shrink:0"></div>
+            <div style="color:white">
+              <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:11px;line-height:1">#000000</div>
+              <div style="font-size:9.5px;opacity:0.7;margin-top:2px">Dana Black</div>
+            </div>
           </div>
-          <div style="flex:1;min-width:140px;cursor:pointer" onclick="navigator.clipboard?.writeText('#FFFFFF');showToast('#FFFFFF copiado')" title="Clique pra copiar">
-            <div style="width:100%;aspect-ratio:1;background:#ffffff;border:1.5px solid #e2e2e2;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#0a0a0a;font-family:'Syne',sans-serif;font-weight:800;font-size:13px">#FFFFFF</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:6px;text-align:center">Branco · Dana White</div>
+          <div style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 10px;border-radius:6px;background:#fff;border:1.5px solid var(--border);flex:1" onclick="navigator.clipboard?.writeText('#FFFFFF');showToast('#FFFFFF copiado')" title="Clique pra copiar">
+            <div style="width:22px;height:22px;background:#fff;border:1px solid #d0d0d0;border-radius:4px;flex-shrink:0"></div>
+            <div style="color:#0a0a0a">
+              <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:11px;line-height:1">#FFFFFF</div>
+              <div style="font-size:9.5px;color:var(--text3);margin-top:2px">Dana White</div>
+            </div>
           </div>
         </div>
-        <div style="font-size:11px;color:var(--text3)">Identidade minimalista preto e branco. Clique numa cor para copiar o hex.</div>
+        <div style="font-size:10.5px;color:var(--text3)">Identidade minimalista. Clique pra copiar.</div>
       </div>
-      <div class="card">
-        <div class="card-title" style="margin-bottom:12px">✏️ Tipografia</div>
-        <div style="padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:10px">
-          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;line-height:1;margin-bottom:3px">Syne Bold 800</div>
-          <div style="font-size:10.5px;color:var(--text3)">Títulos e headlines</div>
-        </div>
-        <div style="padding:10px;background:var(--surface2);border-radius:8px">
-          <div style="font-family:'DM Sans',sans-serif;font-weight:400;font-size:15px;line-height:1;margin-bottom:3px">DM Sans Regular 400</div>
-          <div style="font-size:10.5px;color:var(--text3)">Corpo de texto e UI</div>
+      <div class="card" style="padding:14px 16px">
+        <div class="card-title" style="margin-bottom:10px;font-size:13px">✏️ Tipografia</div>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1;padding:8px 10px;background:var(--surface2);border-radius:6px">
+            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:15px;line-height:1;margin-bottom:2px">Syne 800</div>
+            <div style="font-size:9.5px;color:var(--text3)">Títulos</div>
+          </div>
+          <div style="flex:1;padding:8px 10px;background:var(--surface2);border-radius:6px">
+            <div style="font-family:'DM Sans',sans-serif;font-weight:400;font-size:13px;line-height:1;margin-bottom:2px">DM Sans 400</div>
+            <div style="font-size:9.5px;color:var(--text3)">Corpo</div>
+          </div>
         </div>
       </div>
     </div>
