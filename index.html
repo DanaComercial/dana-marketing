@@ -2695,498 +2695,317 @@ select.input { cursor: pointer; }
 <div style="padding:24px 28px">
 
   <!-- HEADER -->
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:12px;flex-wrap:wrap">
     <div>
       <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--black)">Criativos</div>
-      <div style="font-size:12.5px;color:var(--text3);margin-top:3px">Envio de artes · Aprovação · To-Do de Design · Publicados</div>
+      <div style="font-size:12.5px;color:var(--text3);margin-top:3px">Workflow de aprovação de artes · Fase 1</div>
     </div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-ghost btn-sm" onclick="openCriModal('novo-briefing')">+ Briefing para designer</button>
-      <button class="btn btn-primary btn-sm" onclick="openCriModal('upload-arte')">↑ Enviar arte</button>
+      <button class="btn btn-primary btn-sm" id="cri-btn-enviar" onclick="abrirModalEnviarArte()">↑ Enviar arte</button>
     </div>
   </div>
 
   <!-- TABS -->
   <div class="cri-tabs">
     <div class="cri-tab active" onclick="switchCri(this,'aguardando')">
-      Aguardando Aprovação <span id="badge-aguardando" style="background:var(--amber);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px">3</span>
+      Aguardando Aprovação <span id="badge-aguardando" style="background:var(--amber);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px">0</span>
     </div>
     <div class="cri-tab" onclick="switchCri(this,'aprovados')">
-      Aprovados <span id="badge-aprovados" style="background:var(--green);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px">5</span>
+      Aprovados <span id="badge-aprovados" style="background:var(--green);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px">0</span>
     </div>
-    <div class="cri-tab" onclick="switchCri(this,'todo')">
-      To-Do Design <span id="badge-todo" style="background:var(--grey3);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px">6</span>
+    <div class="cri-tab" onclick="switchCri(this,'reprovados')">
+      Reprovados <span id="badge-reprovados" style="background:var(--red);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px">0</span>
     </div>
-    <div class="cri-tab" onclick="switchCri(this,'publicados')">Publicados</div>
+    <div class="cri-tab" onclick="switchCri(this,'todo')">To-Do Design <span style="font-size:9px;opacity:0.7;margin-left:4px">Fase 2</span></div>
+    <div class="cri-tab" onclick="switchCri(this,'publicados')">Publicados <span style="font-size:9px;opacity:0.7;margin-left:4px">Fase 2</span></div>
+  </div>
+
+  <!-- Filtro por briefing (dinâmico) -->
+  <div class="camp-filter-bar" id="cri-briefing-filter">
+    <div class="camp-filter active" onclick="filterCriBriefing(this,'todos')">Todos briefings</div>
+    <!-- Chips de briefings são populados dinamicamente -->
   </div>
 
   <!-- ── AGUARDANDO APROVAÇÃO ── -->
   <div class="cri-panel active" id="cri-aguardando">
-    <div class="camp-filter-bar">
-      <div class="camp-filter active" onclick="filterCamp(this,'todas')">Todas campanhas</div>
-      <div class="camp-filter" onclick="filterCamp(this,'profissional')">Profissional Liberal</div>
-      <div class="camp-filter" onclick="filterCamp(this,'estudante')">Estudante</div>
-      <div class="camp-filter" onclick="filterCamp(this,'clinicas')">Clínicas</div>
-      <div class="camp-filter" onclick="filterCamp(this,'inverno')">Campanha Inverno</div>
-    </div>
-
-    <div class="arte-grid" id="grid-aguardando">
-
-      <!-- CARD 1 -->
-      <div class="arte-card" id="arte-001" data-camp="profissional">
-        <div class="arte-thumb">
-          <div class="arte-thumb-placeholder"><span>🎨</span><p>REEL · 9:16</p></div>
-          <div class="arte-format-badge video">Reels</div>
-          <div class="arte-new-badge">Novo</div>
-          <div class="status-bar aguardando"></div>
-        </div>
-        <div class="arte-body">
-          <div class="arte-camp">Profissional Liberal Q2</div>
-          <div class="arte-name">Reels_ProfLiberal_01_Final.mp4</div>
-          <div class="arte-meta">Designer: Ana Paula · Enviado há 2h · 00:15</div>
-          <a class="todo-brief-toggle" onclick="toggleArteBriefing('brief-001')">Ver briefing do designer</a>
-          <div class="arte-briefing" id="brief-001">
-            <strong>Conceito:</strong> Gancho emocional — a profissional se olhando no espelho antes e depois do jaleco Dana. Trilha: motivacional suave. CTA final: #VemPraDana<br>
-            <strong>Formato:</strong> 9:16 · 15s · Legenda na tela
-          </div>
-          <div class="arte-actions" style="margin-top:10px">
-            <button class="btn-aprovar" onclick="aprovarArte('arte-001','Reels_ProfLiberal_01_Final','profissional')">✓ Aprovar</button>
-            <button class="btn-reprovar" onclick="toggleFeedback('feedback-001')">✕ Reprovar</button>
-            <button class="btn-ver" onclick="openPreview('Reels_ProfLiberal_01_Final.mp4')">👁 Ver</button>
-          </div>
-          <div class="feedback-box" id="feedback-001">
-            <textarea class="feedback-input" rows="2" placeholder="Descreva o que precisa ser ajustado..." id="txt-feedback-001"></textarea>
-            <div style="display:flex;gap:5px;margin-top:5px">
-              <button class="btn btn-ghost btn-sm" style="flex:1" onclick="toggleFeedback('feedback-001')">Cancelar</button>
-              <button class="btn btn-sm" style="flex:1;background:var(--red);color:white;border:none;cursor:pointer;border-radius:6px;font-family:'DM Sans',sans-serif;font-weight:600" onclick="reprovarArte('arte-001','feedback-001')">Enviar feedback</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- CARD 2 -->
-      <div class="arte-card" id="arte-002" data-camp="profissional">
-        <div class="arte-thumb">
-          <div class="arte-thumb-placeholder"><span>🖼</span><p>FEED · 1:1</p></div>
-          <div class="arte-format-badge estatico">Estático</div>
-          <div class="status-bar aguardando"></div>
-        </div>
-        <div class="arte-body">
-          <div class="arte-camp">Profissional Liberal Q2</div>
-          <div class="arte-name">Feed_ProfLiberal_Isabel_v2.jpg</div>
-          <div class="arte-meta">Designer: Ana Paula · Enviado há 4h · 1080×1080px</div>
-          <a class="todo-brief-toggle" onclick="toggleArteBriefing('brief-002')">Ver briefing do designer</a>
-          <div class="arte-briefing" id="brief-002">
-            <strong>Conceito:</strong> Jaleco Isabel em destaque — fundo limpo, iluminação editorial, modelo médica. Copy sobreposta: "O jaleco que fala antes de você".<br>
-            <strong>Cores:</strong> Preto, branco e cinza · Tipografia Syne
-          </div>
-          <div class="arte-actions" style="margin-top:10px">
-            <button class="btn-aprovar" onclick="aprovarArte('arte-002','Feed_ProfLiberal_Isabel_v2','profissional')">✓ Aprovar</button>
-            <button class="btn-reprovar" onclick="toggleFeedback('feedback-002')">✕ Reprovar</button>
-            <button class="btn-ver" onclick="openPreview('Feed_ProfLiberal_Isabel_v2.jpg')">👁 Ver</button>
-          </div>
-          <div class="feedback-box" id="feedback-002">
-            <textarea class="feedback-input" rows="2" placeholder="Descreva o que precisa ser ajustado..." id="txt-feedback-002"></textarea>
-            <div style="display:flex;gap:5px;margin-top:5px">
-              <button class="btn btn-ghost btn-sm" style="flex:1" onclick="toggleFeedback('feedback-002')">Cancelar</button>
-              <button class="btn btn-sm" style="flex:1;background:var(--red);color:white;border:none;cursor:pointer;border-radius:6px;font-family:'DM Sans',sans-serif;font-weight:600" onclick="reprovarArte('arte-002','feedback-002')">Enviar feedback</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- CARD 3 -->
-      <div class="arte-card" id="arte-003" data-camp="estudante">
-        <div class="arte-thumb">
-          <div class="arte-thumb-placeholder"><span>🎞</span><p>STORIES · 9:16</p></div>
-          <div class="arte-format-badge carrossel">Carrossel</div>
-          <div class="status-bar aguardando"></div>
-        </div>
-        <div class="arte-body">
-          <div class="arte-camp">Estudante — Primeiro Jaleco</div>
-          <div class="arte-name">Carrossel_Estudante_v1.pdf</div>
-          <div class="arte-meta">Designer: Lara M. · Enviado há 1 dia · 5 slides</div>
-          <a class="todo-brief-toggle" onclick="toggleArteBriefing('brief-003')">Ver briefing do designer</a>
-          <div class="arte-briefing" id="brief-003">
-            <strong>Conceito:</strong> Carrossel "O que ninguém te conta na hora de escolher o primeiro jaleco" — educativo e persuasivo. Slide final: CTA para o site + provador virtual.
-          </div>
-          <div class="arte-actions" style="margin-top:10px">
-            <button class="btn-aprovar" onclick="aprovarArte('arte-003','Carrossel_Estudante_v1','estudante')">✓ Aprovar</button>
-            <button class="btn-reprovar" onclick="toggleFeedback('feedback-003')">✕ Reprovar</button>
-            <button class="btn-ver" onclick="openPreview('Carrossel_Estudante_v1.pdf')">👁 Ver</button>
-          </div>
-          <div class="feedback-box" id="feedback-003">
-            <textarea class="feedback-input" rows="2" placeholder="Descreva o que precisa ser ajustado..." id="txt-feedback-003"></textarea>
-            <div style="display:flex;gap:5px;margin-top:5px">
-              <button class="btn btn-ghost btn-sm" style="flex:1" onclick="toggleFeedback('feedback-003')">Cancelar</button>
-              <button class="btn btn-sm" style="flex:1;background:var(--red);color:white;border:none;cursor:pointer;border-radius:6px;font-family:'DM Sans',sans-serif;font-weight:600" onclick="reprovarArte('arte-003','feedback-003')">Enviar feedback</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div><!-- /grid-aguardando -->
+    <div id="grid-aguardando" class="arte-grid"><div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12.5px;padding:30px">Carregando...</div></div>
   </div>
 
   <!-- ── APROVADOS ── -->
   <div class="cri-panel" id="cri-aprovados">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <div style="font-size:12.5px;color:var(--text3)">Artes prontas para publicar — organize por campanha</div>
-      <div class="camp-filter-bar" style="margin-bottom:0">
-        <div class="camp-filter active" onclick="filterAprovCamp(this,'todas')">Todas</div>
-        <div class="camp-filter" onclick="filterAprovCamp(this,'profissional')">Profissional Liberal</div>
-        <div class="camp-filter" onclick="filterAprovCamp(this,'estudante')">Estudante</div>
-        <div class="camp-filter" onclick="filterAprovCamp(this,'clinicas')">Clínicas</div>
-      </div>
-    </div>
-    <div class="aprov-grid" id="grid-aprovados">
-
-      <div class="aprov-card" data-camp="profissional">
-        <div class="aprov-thumb"><div style="font-size:28px">🎥</div><div class="aprov-check">✓</div><div class="arte-format-badge video" style="position:absolute;top:6px;left:6px">Reels</div></div>
-        <div class="aprov-body"><div class="aprov-name">Reels_Isabel_Emotional_v3.mp4</div><div class="aprov-camp">Profissional Liberal · Aprovado 3 abr</div></div>
-        <div class="aprov-actions"><button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px" onclick="agendar('Reels_Isabel_Emotional_v3')">📅 Agendar</button><button class="btn btn-primary btn-sm" style="flex:1;font-size:11px">⬇ Baixar</button></div>
-      </div>
-
-      <div class="aprov-card" data-camp="profissional">
-        <div class="aprov-thumb"><div style="font-size:28px">🖼</div><div class="aprov-check">✓</div><div class="arte-format-badge estatico" style="position:absolute;top:6px;left:6px">Feed</div></div>
-        <div class="aprov-body"><div class="aprov-name">Feed_Comfy_Editorial_v2.jpg</div><div class="aprov-camp">Profissional Liberal · Aprovado 2 abr</div></div>
-        <div class="aprov-actions"><button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px" onclick="agendar('Feed_Comfy_Editorial_v2')">📅 Agendar</button><button class="btn btn-primary btn-sm" style="flex:1;font-size:11px">⬇ Baixar</button></div>
-      </div>
-
-      <div class="aprov-card" data-camp="profissional">
-        <div class="aprov-thumb"><div style="font-size:28px">📱</div><div class="aprov-check">✓</div><div class="arte-format-badge estatico" style="position:absolute;top:6px;left:6px">Stories</div></div>
-        <div class="aprov-body"><div class="aprov-name">Stories_ProfLiberal_CTA.jpg</div><div class="aprov-camp">Profissional Liberal · Aprovado 1 abr</div></div>
-        <div class="aprov-actions"><button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px" onclick="agendar('Stories_ProfLiberal_CTA')">📅 Agendar</button><button class="btn btn-primary btn-sm" style="flex:1;font-size:11px">⬇ Baixar</button></div>
-      </div>
-
-      <div class="aprov-card" data-camp="clinicas">
-        <div class="aprov-thumb"><div style="font-size:28px">🎨</div><div class="aprov-check">✓</div><div class="arte-format-badge carrossel" style="position:absolute;top:6px;left:6px">Carrossel</div></div>
-        <div class="aprov-body"><div class="aprov-name">Carrossel_B2B_Clinicas_v1.pdf</div><div class="aprov-camp">Clínicas B2B · Aprovado 28 mar</div></div>
-        <div class="aprov-actions"><button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px" onclick="agendar('Carrossel_B2B_Clinicas_v1')">📅 Agendar</button><button class="btn btn-primary btn-sm" style="flex:1;font-size:11px">⬇ Baixar</button></div>
-      </div>
-
-      <div class="aprov-card" data-camp="estudante">
-        <div class="aprov-thumb"><div style="font-size:28px">🎞</div><div class="aprov-check">✓</div><div class="arte-format-badge video" style="position:absolute;top:6px;left:6px">Reels</div></div>
-        <div class="aprov-body"><div class="aprov-name">Reels_Estudante_Jaleco_v2.mp4</div><div class="aprov-camp">Estudante · Aprovado 25 mar</div></div>
-        <div class="aprov-actions"><button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px" onclick="agendar('Reels_Estudante_Jaleco_v2')">📅 Agendar</button><button class="btn btn-primary btn-sm" style="flex:1;font-size:11px">⬇ Baixar</button></div>
-      </div>
-
-      <!-- Slot de aprovados vindos da aba aguardando -->
-      <div id="aprovados-dinamicos"></div>
-    </div>
+    <div id="grid-aprovados" class="arte-grid"><div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12.5px;padding:30px">Carregando...</div></div>
   </div>
 
-  <!-- ── TO-DO DESIGN ── -->
+  <!-- ── REPROVADOS ── -->
+  <div class="cri-panel" id="cri-reprovados">
+    <div id="grid-reprovados" class="arte-grid"><div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12.5px;padding:30px">Carregando...</div></div>
+  </div>
+
+  <!-- ── TO-DO DESIGN (Fase 2) ── -->
   <div class="cri-panel" id="cri-todo">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <div style="font-size:12.5px;color:var(--text3)">Demandas pendentes para o time de design</div>
-      <button class="btn btn-primary btn-sm" onclick="openCriModal('novo-todo')">+ Nova demanda</button>
-    </div>
-
-    <div class="todo-list" id="todo-list">
-
-      <div class="todo-item" id="todo-1">
-        <div class="todo-prio-bar alta"></div>
-        <div class="todo-cb" onclick="toggleTodo(this,'todo-1')"></div>
-        <div class="todo-content">
-          <div class="todo-title">Reels 15s — Campanha Inverno 2025 (Jaleco Isabel)</div>
-          <div class="todo-meta">
-            <span class="todo-tag">Campanha Inverno</span>
-            <span class="todo-prio alta">Alta</span>
-            <span class="todo-designer">Designer: Ana Paula</span>
-            <span class="todo-due late">Prazo: 08 abr</span>
-          </div>
-          <a class="todo-brief-toggle" onclick="toggleBrief('tbr-1')">Ver briefing completo</a>
-          <div class="todo-brief" id="tbr-1">
-            <strong>Formato:</strong> Reels 9:16 · 15s<br>
-            <strong>Conceito:</strong> Frio chegando + jaleco que aquece com estilo. Modelo em ambiente clínico, iluminação quente, música suave de inverno.<br>
-            <strong>Referência:</strong> Minimalista, editorial, preto e branco.<br>
-            <strong>CTA:</strong> "Seu inverno merece o jaleco certo · danajalecos.com.br"
-          </div>
-        </div>
-      </div>
-
-      <div class="todo-item" id="todo-2">
-        <div class="todo-prio-bar alta"></div>
-        <div class="todo-cb" onclick="toggleTodo(this,'todo-2')"></div>
-        <div class="todo-content">
-          <div class="todo-title">Feed Estático 1:1 — 3 versões Scrub Comfy (cores diferentes)</div>
-          <div class="todo-meta">
-            <span class="todo-tag">Profissional Liberal</span>
-            <span class="todo-prio alta">Alta</span>
-            <span class="todo-designer">Designer: Ana Paula</span>
-            <span class="todo-due">Prazo: 10 abr</span>
-          </div>
-          <a class="todo-brief-toggle" onclick="toggleBrief('tbr-2')">Ver briefing completo</a>
-          <div class="todo-brief" id="tbr-2">
-            <strong>Formato:</strong> 1080×1080px · JPEG e PNG<br>
-            <strong>Cores do produto:</strong> Bordô, Verde Menta, Preto Onyx<br>
-            <strong>Conceito:</strong> Produto isolado em fundo clean + modelo de perfil. Tipografia Syne overlay com nome do produto.<br>
-            <strong>Uso:</strong> Feed + Meta Ads
-          </div>
-        </div>
-      </div>
-
-      <div class="todo-item" id="todo-3">
-        <div class="todo-prio-bar media"></div>
-        <div class="todo-cb" onclick="toggleTodo(this,'todo-3')"></div>
-        <div class="todo-content">
-          <div class="todo-title">Carrossel 6 slides — "Por que o jaleco faz parte do diagnóstico"</div>
-          <div class="todo-meta">
-            <span class="todo-tag">Profissional Liberal</span>
-            <span class="todo-prio media">Média</span>
-            <span class="todo-designer">Designer: Lara M.</span>
-            <span class="todo-due">Prazo: 14 abr</span>
-          </div>
-          <a class="todo-brief-toggle" onclick="toggleBrief('tbr-3')">Ver briefing completo</a>
-          <div class="todo-brief" id="tbr-3">
-            <strong>Formato:</strong> 6 slides 1:1 · Carrossel Instagram<br>
-            <strong>Estrutura:</strong> 1-Gancho · 2-Problema · 3-Prova social · 4-Produto · 5-Garantia · 6-CTA<br>
-            <strong>Referência:</strong> Editorial, tipo magazine, sem poluição visual. Syne bold para títulos.
-          </div>
-        </div>
-      </div>
-
-      <div class="todo-item" id="todo-4">
-        <div class="todo-prio-bar media"></div>
-        <div class="todo-cb" onclick="toggleTodo(this,'todo-4')"></div>
-        <div class="todo-content">
-          <div class="todo-title">Story + Close Friends — Lançamento Inverno (urgência 48h)</div>
-          <div class="todo-meta">
-            <span class="todo-tag">Campanha Inverno</span>
-            <span class="todo-prio media">Média</span>
-            <span class="todo-designer">Designer: Ana Paula</span>
-            <span class="todo-due">Prazo: 12 abr</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="todo-item" id="todo-5">
-        <div class="todo-prio-bar baixa"></div>
-        <div class="todo-cb" onclick="toggleTodo(this,'todo-5')"></div>
-        <div class="todo-content">
-          <div class="todo-title">Identidade visual kit influenciadoras Q2 (fundo, moldura, stickers)</div>
-          <div class="todo-meta">
-            <span class="todo-tag">Influência</span>
-            <span class="todo-prio baixa">Baixa</span>
-            <span class="todo-designer">Designer: Lara M.</span>
-            <span class="todo-due">Prazo: 20 abr</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="todo-item done" id="todo-6">
-        <div class="todo-prio-bar baixa"></div>
-        <div class="todo-cb" onclick="toggleTodo(this,'todo-6')">✓</div>
-        <div class="todo-content">
-          <div class="todo-title">Banner email marketing — confirmação de pedido + tracking</div>
-          <div class="todo-meta">
-            <span class="todo-tag">CRM</span>
-            <span class="todo-prio baixa">Baixa</span>
-            <span class="todo-designer">Designer: Ana Paula</span>
-            <span class="todo-due">✓ Concluído</span>
-          </div>
-        </div>
-      </div>
-
+    <div class="card" style="text-align:center;padding:40px 20px">
+      <div style="font-size:36px;margin-bottom:10px;opacity:0.4">📝</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;margin-bottom:6px">To-Do Design</div>
+      <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Lista de demandas de design pendentes (briefings sem arte ainda).</div>
+      <div style="display:inline-block;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--surface2);color:var(--text3);letter-spacing:0.5px">FASE 2 · EM BREVE</div>
     </div>
   </div>
 
-  <!-- ── PUBLICADOS ── -->
+  <!-- ── PUBLICADOS (Fase 2) ── -->
   <div class="cri-panel" id="cri-publicados">
-    <div style="font-size:12.5px;color:var(--text3);margin-bottom:16px">Histórico de criativos publicados e performance real</div>
-    <div class="pub-grid" id="grid-publicados">
-
-      <div class="pub-card">
-        <div class="pub-thumb"><div style="font-size:28px">🎥</div><div class="arte-format-badge video" style="position:absolute;top:6px;left:6px">Reels</div></div>
-        <div class="pub-body">
-          <div class="pub-name">Reels_Comfy_Empoderada_v1.mp4</div>
-          <div style="font-size:10.5px;color:var(--text3);margin-bottom:8px">Publicado @danajalecoos · 28 mar</div>
-          <div class="pub-stats">
-            <div class="pub-stat">👁 <strong>42.8k</strong> views</div>
-            <div class="pub-stat">❤️ <strong>1.2k</strong></div>
-            <div class="pub-stat">💾 <strong>890</strong> saves</div>
-            <div class="pub-stat">📤 <strong>340</strong> comp.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="pub-card">
-        <div class="pub-thumb"><div style="font-size:28px">🖼</div><div class="arte-format-badge estatico" style="position:absolute;top:6px;left:6px">Feed</div></div>
-        <div class="pub-body">
-          <div class="pub-name">Feed_Isabel_Editorial_v1.jpg</div>
-          <div style="font-size:10.5px;color:var(--text3);margin-bottom:8px">Publicado @danajalecos · 25 mar</div>
-          <div class="pub-stats">
-            <div class="pub-stat">👁 <strong>8.4k</strong> alcance</div>
-            <div class="pub-stat">❤️ <strong>621</strong></div>
-            <div class="pub-stat">💾 <strong>234</strong> saves</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="pub-card">
-        <div class="pub-thumb"><div style="font-size:28px">🎞</div><div class="arte-format-badge carrossel" style="position:absolute;top:6px;left:6px">Carrossel</div></div>
-        <div class="pub-body">
-          <div class="pub-name">Carrossel_Estudante_Primeiro_v1</div>
-          <div style="font-size:10.5px;color:var(--text3);margin-bottom:8px">Publicado @danajalecos · 20 mar</div>
-          <div class="pub-stats">
-            <div class="pub-stat">👁 <strong>12.1k</strong> alcance</div>
-            <div class="pub-stat">❤️ <strong>445</strong></div>
-            <div class="pub-stat">💬 <strong>87</strong> coment.</div>
-          </div>
-        </div>
-      </div>
-
+    <div class="card" style="text-align:center;padding:40px 20px">
+      <div style="font-size:36px;margin-bottom:10px;opacity:0.4">🚀</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;margin-bottom:6px">Publicados</div>
+      <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Histórico de artes que foram ao ar + link do post + plataforma.</div>
+      <div style="display:inline-block;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--surface2);color:var(--text3);letter-spacing:0.5px">FASE 2 · EM BREVE</div>
     </div>
-    <div id="publicados-dinamicos"></div>
   </div>
 
 </div><!-- /padding -->
 
 <!-- MODAL: Upload Arte -->
 <div class="modal-overlay" id="modal-cri-upload-arte">
-  <div class="modal">
+  <div class="modal" style="max-width:520px">
     <div class="modal-header"><div class="modal-title">↑ Enviar Arte para Aprovação</div><button class="modal-close" onclick="closeCriModal('upload-arte')">×</button></div>
-    <div class="form-row" style="margin-bottom:10px">
-      <label class="label">Campanha</label>
-      <select class="input" id="upload-camp">
-        <option value="profissional">Profissional Liberal Q2</option>
-        <option value="estudante">Estudante — Primeiro Jaleco</option>
-        <option value="clinicas">Clínicas — Padronização</option>
-        <option value="inverno">Campanha Inverno 2025</option>
-      </select>
+    <div class="form-row">
+      <label class="label">Título da arte</label>
+      <input class="input" id="cri-up-titulo" placeholder="Ex: Reels Inverno 2025 — v1">
     </div>
-    <div class="form-row" style="margin-bottom:10px">
-      <label class="label">Formato</label>
-      <select class="input" id="upload-formato">
-        <option>Reels (9:16 · vídeo)</option>
-        <option>Feed Estático (1:1)</option>
-        <option>Carrossel (múltiplos slides)</option>
-        <option>Stories (9:16)</option>
-        <option>Anúncio (Meta Ads)</option>
-      </select>
-    </div>
-    <div class="form-row" style="margin-bottom:10px">
-      <label class="label">Arquivo(s)</label>
-      <div class="upload-zone" id="upload-dropzone" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
-        <input type="file" multiple accept="image/*,video/*,.pdf" onchange="handleFileSelect(event)">
-        <div class="upload-icon">📎</div>
-        <div class="upload-title">Arraste ou clique para selecionar</div>
-        <div class="upload-sub" id="upload-file-name">JPG, PNG, MP4, PDF — até 200MB</div>
+    <div class="form-row-2">
+      <div>
+        <label class="label">Briefing vinculado</label>
+        <select class="input" id="cri-up-briefing"><option value="">Nenhum / avulso</option></select>
+      </div>
+      <div>
+        <label class="label">Formato</label>
+        <select class="input" id="cri-up-formato">
+          <option value="reels">Reels (9:16)</option>
+          <option value="feed">Feed (1:1)</option>
+          <option value="stories">Stories (9:16)</option>
+          <option value="carrossel">Carrossel</option>
+          <option value="banner">Banner / Anúncio</option>
+          <option value="outro">Outro</option>
+        </select>
       </div>
     </div>
-    <div class="form-row" style="margin-bottom:10px">
-      <label class="label">Briefing / Conceito do designer</label>
-      <textarea class="input" rows="3" id="upload-briefing" placeholder="Descreva o conceito, referências, observações..."></textarea>
+    <div class="form-row">
+      <label class="label">Designer</label>
+      <select class="input" id="cri-up-designer"><option value="">Selecionar...</option></select>
     </div>
-    <div class="form-row" style="margin-bottom:14px">
-      <label class="label">Designer responsável</label>
-      <select class="input" id="upload-designer">
-        <option>Ana Paula</option>
-        <option>Lara M.</option>
-        <option>Externo</option>
-      </select>
+    <div class="form-row">
+      <label class="label">Arquivo *</label>
+      <input type="file" id="cri-up-file" accept="image/*,video/*,.pdf" style="display:block;width:100%;padding:10px;border:1.5px dashed var(--border);border-radius:8px;background:var(--surface2);cursor:pointer;font-size:12.5px">
+      <div style="font-size:10.5px;color:var(--text3);margin-top:4px">💡 Limite 50 MB. Aceita JPG/PNG/GIF/WEBP, MP4/MOV, PDF.</div>
     </div>
+    <div class="form-row">
+      <label class="label">Observações (opcional)</label>
+      <textarea class="input" id="cri-up-obs" rows="2" placeholder="Conceito, versão, observações pro aprovador..."></textarea>
+    </div>
+    <div id="cri-up-status" style="font-size:11px;color:var(--text3);margin-bottom:8px"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-ghost" onclick="closeCriModal('upload-arte')" style="flex:1">Cancelar</button>
-      <button class="btn btn-primary" onclick="submitArte()" style="flex:1">Enviar para aprovação</button>
+      <button class="btn btn-primary" onclick="enviarArte()" style="flex:1" id="cri-up-btn">Enviar para aprovação</button>
     </div>
   </div>
 </div>
 
-<!-- MODAL: Novo briefing para designer -->
-<div class="modal-overlay" id="modal-cri-novo-briefing">
-  <div class="modal">
-    <div class="modal-header"><div class="modal-title">+ Briefing para Designer</div><button class="modal-close" onclick="closeCriModal('novo-briefing')">×</button></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-      <div><label class="label">Campanha</label><select class="input"><option>Profissional Liberal Q2</option><option>Estudante</option><option>Clínicas</option><option>Campanha Inverno</option></select></div>
-      <div><label class="label">Formato</label><select class="input"><option>Reels 9:16</option><option>Feed 1:1</option><option>Carrossel</option><option>Stories</option><option>Anúncio</option></select></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-      <div><label class="label">Designer</label><select class="input"><option>Ana Paula</option><option>Lara M.</option><option>Externo</option></select></div>
-      <div><label class="label">Prazo de entrega</label><input class="input" type="date"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-      <div><label class="label">Prioridade</label><select class="input"><option>Alta</option><option>Média</option><option>Baixa</option></select></div>
-      <div><label class="label">Título da demanda</label><input class="input" id="todo-new-title" placeholder="Ex: Reels Inverno 2025..."></div>
-    </div>
-    <div class="form-row" style="margin-bottom:14px">
-      <label class="label">Briefing completo</label>
-      <textarea class="input" rows="4" id="todo-new-brief" placeholder="Conceito, referências, cores, textos, CTAs, observações técnicas..."></textarea>
+<!-- MODAL: Reprovar arte com feedback -->
+<div class="modal-overlay" id="modal-cri-reprovar">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header"><div class="modal-title" style="color:var(--red)">✕ Reprovar Arte</div><button class="modal-close" onclick="closeCriModal('reprovar')">×</button></div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:8px">Arte: <strong id="cri-rep-nome" style="color:var(--text)"></strong></div>
+    <div class="form-row">
+      <label class="label">Feedback para o designer *</label>
+      <textarea class="input" id="cri-rep-feedback" rows="4" placeholder="O que precisa ser ajustado? Seja específico para facilitar a v2..."></textarea>
     </div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-ghost" onclick="closeCriModal('novo-briefing')" style="flex:1">Cancelar</button>
-      <button class="btn btn-primary" onclick="criarTodo()" style="flex:1">Criar demanda</button>
+      <button class="btn btn-ghost" onclick="closeCriModal('reprovar')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarReprovarArte()" style="flex:1;background:var(--red);border-color:var(--red)">Enviar feedback</button>
     </div>
   </div>
 </div>
 
-<!-- MODAL: Novo todo rápido -->
-<div class="modal-overlay" id="modal-cri-novo-todo">
-  <div class="modal">
-    <div class="modal-header"><div class="modal-title">+ Nova Demanda de Design</div><button class="modal-close" onclick="closeCriModal('novo-todo')">×</button></div>
-    <div class="form-row" style="margin-bottom:10px"><label class="label">Título</label><input class="input" id="qtodo-title" placeholder="Ex: Reels produto X para campanha Y"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
-      <div><label class="label">Campanha</label><select class="input" id="qtodo-camp"><option value="profissional">Profissional Liberal</option><option value="estudante">Estudante</option><option value="clinicas">Clínicas</option><option value="inverno">Campanha Inverno</option></select></div>
-      <div><label class="label">Prioridade</label><select class="input" id="qtodo-prio"><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select></div>
-      <div><label class="label">Prazo</label><input class="input" type="date" id="qtodo-due"></div>
+<!-- MODAL: Excluir criativo -->
+<div class="modal-overlay" id="modal-cri-excluir">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header"><div class="modal-title" style="color:var(--red)">🗑 Excluir Criativo</div><button class="modal-close" onclick="closeCriModal('excluir')">×</button></div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">
+      Excluir <strong id="cri-del-nome" style="color:var(--text)"></strong>?
+      <br><br>
+      <span style="color:var(--red);font-size:12px">⚠️ O arquivo será deletado do Storage permanentemente.</span>
     </div>
-    <div class="form-row" style="margin-bottom:10px"><label class="label">Designer</label><select class="input" id="qtodo-designer"><option>Ana Paula</option><option>Lara M.</option><option>Externo</option></select></div>
-    <div class="form-row" style="margin-bottom:14px"><label class="label">Briefing (opcional)</label><textarea class="input" rows="3" id="qtodo-brief" placeholder="Conceito, referências, observações..."></textarea></div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-ghost" onclick="closeCriModal('novo-todo')" style="flex:1">Cancelar</button>
-      <button class="btn btn-primary" onclick="addQuickTodo()" style="flex:1">Criar demanda</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL: Agendar publicação -->
-<div class="modal-overlay" id="modal-cri-agendar">
-  <div class="modal" style="width:440px">
-    <div class="modal-header"><div class="modal-title">📅 Agendar Publicação</div><button class="modal-close" onclick="closeCriModal('agendar')">×</button></div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Arte: <strong id="agendar-arte-name">—</strong></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-      <div><label class="label">Data</label><input class="input" type="date" id="ag-data"></div>
-      <div><label class="label">Horário</label><input class="input" type="time" id="ag-hora" value="09:00"></div>
-    </div>
-    <div class="form-row" style="margin-bottom:10px"><label class="label">Canal</label><select class="input" id="ag-canal"><option>@danajalecos (Instagram)</option><option>@danajalecoos (Instagram)</option><option>Meta Ads — campanha ativa</option><option>TikTok</option></select></div>
-    <div class="form-row" style="margin-bottom:14px"><label class="label">Legenda / Copy</label><textarea class="input" rows="3" placeholder="Escreva a legenda do post..."></textarea></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-ghost" onclick="closeCriModal('agendar')" style="flex:1">Cancelar</button>
-      <button class="btn btn-primary" onclick="confirmarAgendamento()" style="flex:1">Confirmar agendamento</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL: Preview -->
-<div class="modal-overlay" id="modal-cri-preview">
-  <div class="modal" style="width:460px;text-align:center">
-    <div class="modal-header"><div class="modal-title" id="preview-modal-title">Visualizar</div><button class="modal-close" onclick="closeCriModal('preview')">×</button></div>
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;height:280px;display:flex;align-items:center;justify-content:center;margin-bottom:16px">
-      <div style="text-align:center;color:var(--text3)">
-        <div style="font-size:48px;margin-bottom:8px">🖼</div>
-        <div style="font-size:12.5px;font-weight:600">Prévia do arquivo</div>
-        <div style="font-size:11.5px" id="preview-modal-sub">—</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;justify-content:center">
-      <button class="btn btn-ghost btn-sm" onclick="closeCriModal('preview')">Fechar</button>
-      <button class="btn btn-primary btn-sm">⬇ Baixar original</button>
+      <button class="btn btn-ghost" onclick="closeCriModal('excluir')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarExcluirCriativo()" style="flex:1;background:var(--red);border-color:var(--red)">Excluir</button>
     </div>
   </div>
 </div>
 
 <script>
-// ── CRIATIVOS JS ──
-let artesAguardando = 3;
-let artesAprovados = 5;
-let todoCount = 6;
-let arteDinamicaCount = 0;
+// ═══════════════════════════════════════════════════════════
+// CRIATIVOS — workflow de aprovação (Fase 1)
+// ═══════════════════════════════════════════════════════════
+let _criativosCache = [];
+let _criFiltroBriefing = 'todos';
+let _criReprovarId = null;
+let _criExcluirId = null;
+
+function podeCriarCriativo() {
+  return userPermissoes['criativo_criar'] !== false || currentProfile?.cargo === 'admin';
+}
+function podeAprovarCriativo() {
+  return userPermissoes['criativo_aprovar'] !== false || currentProfile?.cargo === 'admin';
+}
+function podeExcluirCriativo() {
+  return userPermissoes['criativo_excluir'] !== false || currentProfile?.cargo === 'admin';
+}
+
+function labelFormato(f) {
+  return {
+    reels: 'Reels', feed: 'Feed', stories: 'Stories',
+    carrossel: 'Carrossel', banner: 'Banner', outro: 'Outro'
+  }[f] || (f || '—');
+}
+
+async function loadCriativos() {
+  const btnEnviar = document.getElementById('cri-btn-enviar');
+  if (btnEnviar) btnEnviar.style.display = podeCriarCriativo() ? '' : 'none';
+
+  try {
+    const { data, error } = await sb.from('criativos')
+      .select('*')
+      .in('status', ['aguardando','aprovado','reprovado'])
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    _criativosCache = data || [];
+    renderCriativos();
+    renderBriefingFilters();
+  } catch (e) {
+    console.error('loadCriativos:', e);
+    document.querySelectorAll('#grid-aguardando,#grid-aprovados,#grid-reprovados').forEach(el => {
+      el.innerHTML = `<div style="grid-column:1/-1;color:var(--red);font-size:12px;padding:20px;text-align:center">Erro: ${esc(e.message || e)}</div>`;
+    });
+  }
+}
+
+function renderBriefingFilters() {
+  const bar = document.getElementById('cri-briefing-filter');
+  if (!bar) return;
+  // Coleta briefings únicos dos criativos
+  const brMap = {};
+  _criativosCache.forEach(c => {
+    if (c.briefing_id && c.briefing_titulo) brMap[c.briefing_id] = c.briefing_titulo;
+  });
+  const ids = Object.keys(brMap);
+  bar.innerHTML = `<div class="camp-filter ${_criFiltroBriefing==='todos'?'active':''}" onclick="filterCriBriefing(this,'todos')">Todos briefings</div>` +
+    ids.map(id => `<div class="camp-filter ${_criFiltroBriefing===id?'active':''}" onclick="filterCriBriefing(this,'${id}')">${esc(brMap[id])}</div>`).join('') +
+    `<div class="camp-filter ${_criFiltroBriefing==='avulsos'?'active':''}" onclick="filterCriBriefing(this,'avulsos')">Avulsos</div>`;
+}
+
+function filterCriBriefing(el, briefingId) {
+  _criFiltroBriefing = briefingId;
+  document.querySelectorAll('#cri-briefing-filter .camp-filter').forEach(c => c.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderCriativos();
+}
+
+function filtraPorBriefing(c) {
+  if (_criFiltroBriefing === 'todos') return true;
+  if (_criFiltroBriefing === 'avulsos') return !c.briefing_id;
+  return c.briefing_id === _criFiltroBriefing;
+}
+
+function renderCriativos() {
+  const aguardando = _criativosCache.filter(c => c.status === 'aguardando' && filtraPorBriefing(c));
+  const aprovados = _criativosCache.filter(c => c.status === 'aprovado' && filtraPorBriefing(c));
+  const reprovados = _criativosCache.filter(c => c.status === 'reprovado' && filtraPorBriefing(c));
+
+  const set = (id,v) => { const e = document.getElementById(id); if(e) e.textContent = v; };
+  set('badge-aguardando', aguardando.length);
+  set('badge-aprovados', aprovados.length);
+  set('badge-reprovados', reprovados.length);
+
+  document.getElementById('grid-aguardando').innerHTML = renderGridCriativos(aguardando, 'aguardando');
+  document.getElementById('grid-aprovados').innerHTML = renderGridCriativos(aprovados, 'aprovado');
+  document.getElementById('grid-reprovados').innerHTML = renderGridCriativos(reprovados, 'reprovado');
+}
+
+function renderGridCriativos(list, status) {
+  if (!list.length) {
+    const msg = { aguardando: '🎉 Nenhuma arte aguardando aprovação', aprovado: 'Nenhuma arte aprovada ainda', reprovado: 'Nenhuma arte reprovada' }[status];
+    return `<div style="grid-column:1/-1;text-align:center;padding:40px;background:var(--white);border:1px dashed var(--border);border-radius:12px;color:var(--text3);font-size:12.5px">${msg}</div>`;
+  }
+
+  const fmtData = (s) => {
+    if (!s) return '—';
+    const d = new Date(s);
+    return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0');
+  };
+
+  const canApprove = podeAprovarCriativo();
+  const canDelete = podeExcluirCriativo();
+
+  return list.map(c => {
+    const nome = esc(c.titulo || 'Sem título');
+    const urlEsc = (c.arquivo_url || '').replace(/"/g,'&quot;').replace(/'/g,"\\'");
+    const formato = esc(labelFormato(c.formato));
+    const designer = c.designer_nome ? esc(c.designer_nome) : '—';
+    const briefingTitulo = c.briefing_titulo ? esc(c.briefing_titulo) : 'Avulso';
+    const tipo = c.tipo || 'outro';
+
+    const thumb = tipo === 'imagem'
+      ? `<div class="arte-thumb"><img src="${urlEsc}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" onerror="this.style.display='none'"><div class="arte-format-badge estatico">${formato}</div></div>`
+      : `<div class="arte-thumb"><div class="arte-thumb-placeholder"><span>${iconeTipo(tipo)}</span><p>${formato.toUpperCase()}</p></div><div class="arte-format-badge ${tipo==='video'?'video':'estatico'}">${formato}</div></div>`;
+
+    let actions = '';
+    if (status === 'aguardando') {
+      actions = `<div class="arte-actions" style="margin-top:10px">
+        ${canApprove ? `<button class="btn-aprovar" onclick="aprovarArte('${c.id}')">✓ Aprovar</button>
+        <button class="btn-reprovar" onclick="abrirModalReprovar('${c.id}')">✕ Reprovar</button>` : ''}
+        <button class="btn-ver" onclick="window.open('${urlEsc}','_blank')">👁 Ver</button>
+      </div>`;
+    } else if (status === 'aprovado') {
+      actions = `<div class="arte-actions" style="margin-top:10px">
+        <button class="btn-ver" onclick="window.open('${urlEsc}','_blank')" style="flex:1">👁 Abrir arquivo</button>
+        ${canApprove ? `<button class="btn btn-ghost btn-sm" style="flex:none;padding:6px 10px" onclick="desfazerAprovacao('${c.id}')" title="Voltar pra aguardando">↩</button>` : ''}
+      </div>`;
+    } else {
+      actions = `<div class="arte-actions" style="margin-top:10px">
+        <button class="btn-ver" onclick="window.open('${urlEsc}','_blank')" style="flex:1">👁 Ver</button>
+        ${canDelete ? `<button class="btn btn-ghost btn-sm" style="flex:none;padding:6px 10px;color:var(--red)" onclick="abrirModalExcluirCriativo('${c.id}')" title="Excluir">🗑</button>` : ''}
+      </div>`;
+    }
+
+    const feedbackBlock = (c.status === 'reprovado' && c.feedback)
+      ? `<div style="margin-top:8px;padding:8px 10px;background:rgba(192,57,43,0.08);border-left:3px solid var(--red);border-radius:6px;font-size:11.5px;color:var(--text2);line-height:1.4">
+          <strong style="color:var(--red)">Feedback:</strong> ${esc(c.feedback)}
+          ${c.feedback_por_nome ? `<div style="font-size:10px;color:var(--text3);margin-top:3px">— ${esc(c.feedback_por_nome)} · ${fmtData(c.feedback_em)}</div>` : ''}
+        </div>`
+      : '';
+
+    const aprovadoInfo = (c.status === 'aprovado' && c.aprovado_por_nome)
+      ? `<div style="font-size:10.5px;color:var(--green);font-weight:600;margin-top:4px">✓ Aprovado por ${esc(c.aprovado_por_nome)} · ${fmtData(c.aprovado_em)}</div>`
+      : '';
+
+    return `<div class="arte-card ${c.status}">
+      ${thumb}
+      <div class="arte-body">
+        <div class="arte-camp">${briefingTitulo}</div>
+        <div class="arte-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nome}</div>
+        <div class="arte-meta">Designer: ${designer} · ${fmtData(c.created_at)}</div>
+        ${aprovadoInfo}
+        ${feedbackBlock}
+        ${actions}
+      </div>
+    </div>`;
+  }).join('');
+}
 
 function switchCri(tab, id) {
   document.querySelectorAll('.cri-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.cri-panel').forEach(p => p.classList.remove('active'));
-  tab.classList.add('active');
+  if (tab) tab.classList.add('active');
   const panel = document.getElementById('cri-'+id);
   if(panel) panel.classList.add('active');
 }
@@ -3198,213 +3017,194 @@ function closeCriModal(id) {
   document.getElementById('modal-cri-'+id)?.classList.remove('open');
 }
 
-function toggleArteBriefing(id) {
-  const el = document.getElementById(id);
-  if(el) el.classList.toggle('open');
+// ── Upload Arte ──
+async function abrirModalEnviarArte() {
+  if (!podeCriarCriativo()) { showToast('Sem permissão'); return; }
+
+  // Popular select de briefings
+  try {
+    const { data: briefs } = await sb.from('briefings_campanha').select('id, titulo').order('created_at', { ascending: false }).limit(100);
+    const sel = document.getElementById('cri-up-briefing');
+    if (sel) {
+      sel.innerHTML = '<option value="">Nenhum / avulso</option>' +
+        (briefs || []).map(b => `<option value="${b.id}">${esc(b.titulo || '—')}</option>`).join('');
+    }
+  } catch (e) { console.warn('Load briefings select:', e.message); }
+
+  fillResponsavelSelect('cri-up-designer', '');
+  document.getElementById('cri-up-titulo').value = '';
+  document.getElementById('cri-up-formato').value = 'reels';
+  document.getElementById('cri-up-obs').value = '';
+  document.getElementById('cri-up-file').value = '';
+  document.getElementById('cri-up-status').textContent = '';
+  openCriModal('upload-arte');
+  setTimeout(() => document.getElementById('cri-up-titulo')?.focus(), 100);
 }
 
-function toggleFeedback(id) {
-  const el = document.getElementById(id);
-  if(el) el.classList.toggle('open');
-}
+async function enviarArte() {
+  if (!podeCriarCriativo()) { showToast('Sem permissão'); return; }
 
-function aprovarArte(cardId, nome, camp) {
-  const card = document.getElementById(cardId);
-  if(!card) return;
-  // Animate
-  card.style.transition = 'all .3s ease';
-  card.style.transform = 'scale(0.96)';
-  card.style.opacity = '0.5';
-  setTimeout(() => {
-    card.remove();
-    artesAguardando = Math.max(0, artesAguardando - 1);
-    document.getElementById('badge-aguardando').textContent = artesAguardando;
-    artesAprovados++;
-    document.getElementById('badge-aprovados').textContent = artesAprovados;
-    // Add to aprovados
-    arteDinamicaCount++;
-    const newCard = `<div class="aprov-card" data-camp="${camp}" id="aprov-din-${arteDinamicaCount}" style="animation:fadeIn .3s ease">
-      <div class="aprov-thumb"><div style="font-size:28px">✅</div><div class="aprov-check">✓</div></div>
-      <div class="aprov-body"><div class="aprov-name">${nome}</div><div class="aprov-camp">Aprovado agora · ${new Date().toLocaleDateString('pt-BR')}</div></div>
-      <div class="aprov-actions"><button class="btn btn-ghost btn-sm" style="flex:1;font-size:11px" onclick="agendar('${nome}')">📅 Agendar</button><button class="btn btn-primary btn-sm" style="flex:1;font-size:11px">⬇ Baixar</button></div>
-    </div>`;
-    document.getElementById('aprovados-dinamicos').insertAdjacentHTML('beforeend', newCard);
-    showDmsToast('✅ Arte aprovada! Agora em "Aprovados"', 'success');
-    checkEmptyGrid();
-  }, 300);
-}
+  const titulo = document.getElementById('cri-up-titulo').value.trim();
+  const briefingId = document.getElementById('cri-up-briefing').value || null;
+  const formato = document.getElementById('cri-up-formato').value;
+  const designer = document.getElementById('cri-up-designer').value || null;
+  const fileInput = document.getElementById('cri-up-file');
+  const file = fileInput?.files?.[0];
+  const observacoes = document.getElementById('cri-up-obs').value.trim() || null;
+  const statusEl = document.getElementById('cri-up-status');
+  const btnEl = document.getElementById('cri-up-btn');
 
-function reprovarArte(cardId, feedbackId) {
-  const txt = document.getElementById('txt-'+feedbackId)?.value?.trim();
-  if(!txt) { showDmsToast('Descreva o que precisa ser ajustado.', 'warn'); return; }
-  const card = document.getElementById(cardId);
-  if(!card) return;
-  card.style.transition = 'all .3s';
-  card.style.opacity = '0.4';
-  setTimeout(() => {
-    card.remove();
-    artesAguardando = Math.max(0, artesAguardando - 1);
-    document.getElementById('badge-aguardando').textContent = artesAguardando;
-    showDmsToast('Feedback enviado ao designer.', '');
-    checkEmptyGrid();
-  }, 300);
-}
+  if (!titulo) { showToast('Título é obrigatório'); return; }
+  if (!file) { showToast('Selecione um arquivo'); return; }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    showToast('Arquivo acima de 50 MB (atual: ' + (file.size/1024/1024).toFixed(1) + ' MB)');
+    return;
+  }
 
-function checkEmptyGrid() {
-  const grid = document.getElementById('grid-aguardando');
-  if(grid && grid.children.length === 0) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon">🎉</div><div class="empty-state-title">Todas as artes foram revisadas!</div><div class="empty-state-sub">Nenhuma arte aguardando aprovação no momento.</div></div>`;
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Enviando...'; }
+  statusEl.textContent = 'Fazendo upload...';
+
+  try {
+    const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+    const filename = 'criativo-' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
+
+    const { error: upErr } = await sb.storage.from('kanban').upload(filename, file, { cacheControl: '3600', upsert: false });
+    if (upErr) throw upErr;
+
+    const { data: urlData } = sb.storage.from('kanban').getPublicUrl(filename);
+
+    // Buscar título do briefing se vinculado
+    let briefingTitulo = null;
+    if (briefingId) {
+      const { data: b } = await sb.from('briefings_campanha').select('titulo').eq('id', briefingId).single();
+      briefingTitulo = b?.titulo || null;
+    }
+
+    const { error: insErr } = await sb.from('criativos').insert({
+      titulo,
+      briefing_id: briefingId,
+      briefing_titulo: briefingTitulo,
+      arquivo_url: urlData.publicUrl,
+      storage_path: filename,
+      tipo: detectTipoMaterial(file),
+      mime_type: file.type || null,
+      tamanho: file.size || null,
+      formato,
+      designer_nome: designer,
+      status: 'aguardando',
+      observacoes,
+      versao: 1,
+    });
+    if (insErr) throw insErr;
+
+    closeCriModal('upload-arte');
+    showToast('✓ Arte enviada para aprovação!');
+    logActivity('enviou_arte', titulo, 'criativos');
+    loadCriativos();
+    switchCri(document.querySelector('.cri-tab'), 'aguardando');
+  } catch (e) {
+    console.error('enviarArte:', e);
+    showToast('Erro: ' + e.message);
+    statusEl.innerHTML = `<span style="color:var(--red)">Erro: ${esc(e.message)}</span>`;
+  } finally {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Enviar para aprovação'; }
   }
 }
 
-function filterCamp(el, camp) {
-  document.querySelectorAll('.camp-filter-bar .camp-filter').forEach(f => f.classList.remove('active'));
-  el.classList.add('active');
-  document.querySelectorAll('#grid-aguardando .arte-card').forEach(card => {
-    card.style.display = (camp === 'todas' || card.dataset.camp === camp) ? '' : 'none';
-  });
+// ── Aprovar ──
+async function aprovarArte(id) {
+  if (!podeAprovarCriativo()) { showToast('Sem permissão pra aprovar'); return; }
+  const c = _criativosCache.find(x => x.id === id);
+  if (!c) return;
+  try {
+    const { error } = await sb.from('criativos').update({
+      status: 'aprovado',
+      aprovado_por: currentUser?.id || null,
+      aprovado_por_nome: currentProfile?.nome || 'Anônimo',
+      aprovado_em: new Date().toISOString(),
+      feedback: null,  // limpa feedback anterior se havia
+    }).eq('id', id);
+    if (error) throw error;
+    showToast('✓ Arte aprovada');
+    logActivity('aprovou_arte', c.titulo, 'criativos');
+    loadCriativos();
+  } catch (e) { showToast('Erro: ' + e.message); }
 }
 
-function filterAprovCamp(el, camp) {
-  document.querySelectorAll('.camp-filter').forEach(f => f.classList.remove('active'));
-  el.classList.add('active');
-  document.querySelectorAll('#grid-aprovados .aprov-card').forEach(card => {
-    card.style.display = (camp === 'todas' || card.dataset.camp === camp) ? '' : 'none';
-  });
+async function desfazerAprovacao(id) {
+  if (!podeAprovarCriativo()) return;
+  try {
+    const { error } = await sb.from('criativos').update({
+      status: 'aguardando',
+      aprovado_por: null, aprovado_por_nome: null, aprovado_em: null
+    }).eq('id', id);
+    if (error) throw error;
+    showToast('Arte voltou pra Aguardando');
+    loadCriativos();
+  } catch (e) { showToast('Erro: ' + e.message); }
 }
 
-function toggleBrief(id) {
-  document.getElementById(id)?.classList.toggle('open');
+// ── Reprovar ──
+function abrirModalReprovar(id) {
+  if (!podeAprovarCriativo()) { showToast('Sem permissão'); return; }
+  const c = _criativosCache.find(x => x.id === id);
+  if (!c) return;
+  _criReprovarId = id;
+  document.getElementById('cri-rep-nome').textContent = c.titulo || '—';
+  document.getElementById('cri-rep-feedback').value = '';
+  openCriModal('reprovar');
+  setTimeout(() => document.getElementById('cri-rep-feedback')?.focus(), 100);
 }
 
-function toggleTodo(el, id) {
-  const item = document.getElementById(id);
-  if(!item) return;
-  item.classList.toggle('done');
-  el.textContent = item.classList.contains('done') ? '✓' : '';
-  showDmsToast(item.classList.contains('done') ? '✓ Tarefa concluída' : 'Tarefa reaberta', '');
+async function confirmarReprovarArte() {
+  if (!_criReprovarId) return;
+  const feedback = document.getElementById('cri-rep-feedback').value.trim();
+  if (!feedback) { showToast('Escreva o feedback pro designer'); return; }
+  const c = _criativosCache.find(x => x.id === _criReprovarId);
+  try {
+    const { error } = await sb.from('criativos').update({
+      status: 'reprovado',
+      feedback,
+      feedback_por: currentUser?.id || null,
+      feedback_por_nome: currentProfile?.nome || 'Anônimo',
+      feedback_em: new Date().toISOString(),
+    }).eq('id', _criReprovarId);
+    if (error) throw error;
+    closeCriModal('reprovar');
+    showToast('Feedback enviado ao designer');
+    logActivity('reprovou_arte', c?.titulo || '—', 'criativos');
+    _criReprovarId = null;
+    loadCriativos();
+  } catch (e) { showToast('Erro: ' + e.message); }
 }
 
-function addQuickTodo() {
-  const title = document.getElementById('qtodo-title')?.value?.trim();
-  if(!title) return;
-  const camp = document.getElementById('qtodo-camp')?.value || 'profissional';
-  const prio = document.getElementById('qtodo-prio')?.value || 'media';
-  const due = document.getElementById('qtodo-due')?.value;
-  const designer = document.getElementById('qtodo-designer')?.value || 'Ana Paula';
-  const brief = document.getElementById('qtodo-brief')?.value?.trim();
-  const dueStr = due ? new Date(due+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '';
-  todoCount++;
-  const idx = 'todo-dyn-'+todoCount;
-  const html = `<div class="todo-item" id="${idx}" style="animation:fadeIn .2s ease">
-    <div class="todo-prio-bar ${prio}"></div>
-    <div class="todo-cb" onclick="toggleTodo(this,'${idx}')"></div>
-    <div class="todo-content">
-      <div class="todo-title">${title}</div>
-      <div class="todo-meta">
-        <span class="todo-tag">${camp}</span>
-        <span class="todo-prio ${prio}">${prio.charAt(0).toUpperCase()+prio.slice(1)}</span>
-        <span class="todo-designer">Designer: ${designer}</span>
-        ${dueStr ? `<span class="todo-due">Prazo: ${dueStr}</span>` : ''}
-      </div>
-      ${brief ? `<a class="todo-brief-toggle" onclick="toggleBrief('tbr-dyn-${todoCount}')">Ver briefing</a><div class="todo-brief" id="tbr-dyn-${todoCount}">${brief}</div>` : ''}
-    </div>
-  </div>`;
-  document.getElementById('todo-list').insertAdjacentHTML('afterbegin', html);
-  document.getElementById('badge-todo').textContent = document.querySelectorAll('.todo-item:not(.done)').length;
-  closeCriModal('novo-todo');
-  showDmsToast('Demanda criada!', 'success');
+// ── Excluir ──
+function abrirModalExcluirCriativo(id) {
+  if (!podeExcluirCriativo()) { showToast('Sem permissão'); return; }
+  const c = _criativosCache.find(x => x.id === id);
+  if (!c) return;
+  _criExcluirId = id;
+  document.getElementById('cri-del-nome').textContent = '"' + (c.titulo || '') + '"';
+  openCriModal('excluir');
 }
 
-function criarTodo() {
-  const title = document.getElementById('todo-new-title')?.value?.trim();
-  if(!title) return;
-  closeCriModal('novo-briefing');
-  showDmsToast('Briefing criado e enviado ao designer!', 'success');
-}
-
-function submitArte() {
-  const nome = document.getElementById('upload-file-name')?.textContent || 'Arte sem título';
-  const camp = document.getElementById('upload-camp')?.value || 'profissional';
-  const briefing = document.getElementById('upload-briefing')?.value?.trim() || '';
-  const designer = document.getElementById('upload-designer')?.value || 'Ana Paula';
-  arteDinamicaCount++;
-  const cardId = 'arte-dyn-'+arteDinamicaCount;
-  const html = `<div class="arte-card" id="${cardId}" data-camp="${camp}" style="animation:fadeIn .3s ease">
-    <div class="arte-thumb">
-      <div class="arte-thumb-placeholder"><span>📎</span><p>NOVO ARQUIVO</p></div>
-      <div class="arte-format-badge estatico">Arte</div>
-      <div class="arte-new-badge">Novo</div>
-      <div class="status-bar aguardando"></div>
-    </div>
-    <div class="arte-body">
-      <div class="arte-camp">${camp}</div>
-      <div class="arte-name">${nome}</div>
-      <div class="arte-meta">Designer: ${designer} · Enviado agora</div>
-      ${briefing ? `<a class="todo-brief-toggle" onclick="toggleArteBriefing('brief-dyn-${arteDinamicaCount}')">Ver briefing</a><div class="arte-briefing" id="brief-dyn-${arteDinamicaCount}">${briefing}</div>` : ''}
-      <div class="arte-actions" style="margin-top:10px">
-        <button class="btn-aprovar" onclick="aprovarArte('${cardId}','${nome}','${camp}')">✓ Aprovar</button>
-        <button class="btn-reprovar" onclick="toggleFeedback('fb-dyn-${arteDinamicaCount}')">✕ Reprovar</button>
-        <button class="btn-ver" onclick="openPreview('${nome}')">👁 Ver</button>
-      </div>
-      <div class="feedback-box" id="fb-dyn-${arteDinamicaCount}">
-        <textarea class="feedback-input" rows="2" placeholder="O que precisa ajustar?" id="txt-fb-dyn-${arteDinamicaCount}"></textarea>
-        <div style="display:flex;gap:5px;margin-top:5px">
-          <button class="btn btn-ghost btn-sm" style="flex:1" onclick="toggleFeedback('fb-dyn-${arteDinamicaCount}')">Cancelar</button>
-          <button class="btn btn-sm" style="flex:1;background:var(--red);color:white;border:none;cursor:pointer;border-radius:6px;font-family:'DM Sans',sans-serif;font-weight:600" onclick="reprovarArte('${cardId}','fb-dyn-${arteDinamicaCount}')">Enviar feedback</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
-  document.getElementById('grid-aguardando').insertAdjacentHTML('afterbegin', html);
-  artesAguardando++;
-  document.getElementById('badge-aguardando').textContent = artesAguardando;
-  closeCriModal('upload-arte');
-  switchCri(document.querySelector('.cri-tab'), 'aguardando');
-  document.querySelector('.cri-tab').click();
-  showDmsToast('Arte enviada para aprovação!', 'success');
-}
-
-function handleFileSelect(e) {
-  const files = e.target.files;
-  if(files.length > 0) {
-    document.getElementById('upload-file-name').textContent = files.length === 1 ? files[0].name : files.length + ' arquivos selecionados';
-  }
-}
-function handleDrop(e) {
-  e.preventDefault();
-  const files = e.dataTransfer.files;
-  if(files.length > 0) {
-    document.getElementById('upload-file-name').textContent = files.length === 1 ? files[0].name : files.length + ' arquivos selecionados';
-  }
-}
-
-let agendarNome = '';
-function agendar(nome) {
-  agendarNome = nome;
-  document.getElementById('agendar-arte-name').textContent = nome;
-  openCriModal('agendar');
-}
-function confirmarAgendamento() {
-  closeCriModal('agendar');
-  showDmsToast('📅 Publicação agendada com sucesso!', 'success');
-  // Add to publicados
-  arteDinamicaCount++;
-  const html = `<div class="pub-card" style="animation:fadeIn .3s ease">
-    <div class="pub-thumb"><div style="font-size:28px">📅</div><div class="arte-format-badge video" style="position:absolute;top:6px;left:6px">Agendado</div></div>
-    <div class="pub-body">
-      <div class="pub-name">${agendarNome}</div>
-      <div style="font-size:10.5px;color:var(--text3);margin-bottom:8px">Agendado · ${new Date().toLocaleDateString('pt-BR')}</div>
-      <div class="pub-stats"><div class="pub-stat">⏳ Aguardando publicação</div></div>
-    </div>
-  </div>`;
-  document.getElementById('publicados-dinamicos').insertAdjacentHTML('afterbegin', html);
-}
-
-function openPreview(nome) {
-  document.getElementById('preview-modal-title').textContent = 'Visualizar — ' + nome;
-  document.getElementById('preview-modal-sub').textContent = nome;
-  openCriModal('preview');
+async function confirmarExcluirCriativo() {
+  if (!_criExcluirId) return;
+  const c = _criativosCache.find(x => x.id === _criExcluirId);
+  if (!c) return;
+  try {
+    if (c.storage_path) {
+      const { error: stErr } = await sb.storage.from('kanban').remove([c.storage_path]);
+      if (stErr) console.warn('Storage remove warning:', stErr.message);
+    }
+    const { error } = await sb.from('criativos').delete().eq('id', _criExcluirId);
+    if (error) throw error;
+    closeCriModal('excluir');
+    showToast('✓ Criativo excluído');
+    logActivity('excluiu_criativo', c.titulo, 'criativos');
+    _criExcluirId = null;
+    loadCriativos();
+  } catch (e) { showToast('Erro: ' + e.message); }
 }
 
 function showDmsToast(msg, type) {
@@ -6694,6 +6494,7 @@ function go(el, viewId) {
   if (viewId === 'perfil') loadPerfilView();
   if (viewId === 'briefingvisual') { if (typeof loadBriefings === 'function') loadBriefings(); }
   if (viewId === 'canaisaquisicao') { if (typeof loadCanaisAquisicao === 'function') loadCanaisAquisicao(); }
+  if (viewId === 'criativos') { if (typeof loadCriativos === 'function') loadCriativos(); }
   if (viewId === 'calendario') { if (typeof loadCalendario==='function') loadCalendario(); if (typeof loadTarefas==='function' && !_tarefasCache?.length) loadTarefas(); else if (typeof renderCalendario==='function') setTimeout(renderCalendario, 100); }
 }
 
@@ -11428,7 +11229,7 @@ async function loadAdminPermissoes() {
   const cargos = [...new Set(_permData.map(p => p.cargo))].filter(c => c !== 'admin');
   let secoes = [...new Set(_permData.map(p => p.secao))].filter(s => s !== 'admin');
   // Garantir que permissoes de ações existem
-  ['calendario_criar','calendario_excluir','tarefas_criar','tarefas_excluir','briefing_criar','briefing_editar','briefing_excluir','brandkit_criar','brandkit_excluir','canal_aquisicao_criar','canal_aquisicao_editar','canal_aquisicao_excluir'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
+  ['calendario_criar','calendario_excluir','tarefas_criar','tarefas_excluir','briefing_criar','briefing_editar','briefing_excluir','brandkit_criar','brandkit_excluir','canal_aquisicao_criar','canal_aquisicao_editar','canal_aquisicao_excluir','criativo_criar','criativo_aprovar','criativo_excluir'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
   const secaoLabels = {...VIEW_META,
     calendario_criar: { title: '✏️ Criar Eventos (Calendário)' },
     calendario_excluir: { title: '🗑 Excluir Eventos (Calendário)' },
@@ -11442,6 +11243,9 @@ async function loadAdminPermissoes() {
     canal_aquisicao_criar: { title: '✏️ Criar Canal (Canais de Aquisição)' },
     canal_aquisicao_editar: { title: '✏️ Editar Canal (Canais de Aquisição)' },
     canal_aquisicao_excluir: { title: '🗑 Excluir Canal (Canais de Aquisição)' },
+    criativo_criar: { title: '✏️ Enviar Arte (Criativos)' },
+    criativo_aprovar: { title: '✅ Aprovar/Reprovar Arte (Criativos)' },
+    criativo_excluir: { title: '🗑 Excluir Criativo (Criativos)' },
   };
   const map = {};
   _permData.forEach(p => { map[p.cargo+'_'+p.secao] = p; });
