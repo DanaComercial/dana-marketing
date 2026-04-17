@@ -4584,11 +4584,22 @@ function renderNews() {
 }
 
 function addConcorrente() {
-  const nome = prompt('Nome ou @ do concorrente:');
-  if(nome?.trim()) {
-    if(typeof showToast === 'function') showToast('Concorrente "'+nome+'" adicionado ao radar!');
-    else alert('Concorrente adicionado!');
-  }
+  document.getElementById('mkt-conc-nome').value = '';
+  document.getElementById('mkt-conc-handle').value = '';
+  document.getElementById('mkt-conc-obs').value = '';
+  openModal('add-concorrente');
+  setTimeout(() => document.getElementById('mkt-conc-nome')?.focus(), 100);
+}
+
+function confirmarAddConcorrente() {
+  const nome = document.getElementById('mkt-conc-nome').value.trim();
+  const handle = document.getElementById('mkt-conc-handle').value.trim();
+  const obs = document.getElementById('mkt-conc-obs').value.trim();
+  if (!nome && !handle) { showToast('Preencha o nome ou o @'); return; }
+  const display = nome || handle;
+  closeModal('add-concorrente');
+  showToast('✓ "' + display + '" adicionado ao radar de concorrentes');
+  if (typeof logActivity === 'function') logActivity('adicionou_concorrente', display, 'mercado');
 }
 
 function prospectar(handle) {
@@ -4609,6 +4620,32 @@ window.addEventListener('load', () => {
   }, 300);
 });
 </script>
+</div>
+
+<!-- Modal: Adicionar Concorrente ao Radar -->
+<div class="modal-overlay" id="modal-add-concorrente">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <div class="modal-title">🎯 Adicionar Concorrente ao Radar</div>
+      <button class="modal-close" onclick="closeModal('add-concorrente')">×</button>
+    </div>
+    <div class="form-row">
+      <label class="label">Nome da marca</label>
+      <input class="input" id="mkt-conc-nome" placeholder="Ex: Jalecos Premium, Farcoo, etc." onkeydown="if(event.key==='Enter')confirmarAddConcorrente();if(event.key==='Escape')closeModal('add-concorrente')">
+    </div>
+    <div class="form-row">
+      <label class="label">@ do Instagram / TikTok (opcional)</label>
+      <input class="input" id="mkt-conc-handle" placeholder="@concorrente" onkeydown="if(event.key==='Enter')confirmarAddConcorrente();if(event.key==='Escape')closeModal('add-concorrente')">
+    </div>
+    <div class="form-row">
+      <label class="label">Observações (opcional)</label>
+      <textarea class="input" id="mkt-conc-obs" rows="2" placeholder="Nicho, preços, diferencial, o que prestar atenção..."></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-ghost" onclick="closeModal('add-concorrente')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarAddConcorrente()" style="flex:1">Adicionar ao radar</button>
+    </div>
+  </div>
 </div>
 
 <div class="view" id="view-referencias">
