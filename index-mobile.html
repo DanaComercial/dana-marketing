@@ -1724,13 +1724,17 @@ select.input { cursor: pointer; }
   /* Persona real stats — 2 colunas */
   .p-real-stats { grid-template-columns: repeat(2, 1fr) !important; }
 
-  /* Persona tabs em scroll horizontal */
-  .persona-tabs { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
-  .persona-tab { white-space: nowrap; flex-shrink: 0; }
+  /* Persona hero em coluna, promise ocupa full-width */
   .persona-hero { flex-direction: column; gap: 14px; padding: 20px; }
   .persona-promise { margin-left: 0; width: 100%; }
-  .persona-stats { gap: 6px; }
-  .p-stat { min-width: calc(33.33% - 5px); flex: 0 0 calc(33.33% - 5px); padding: 8px 10px; }
+  /* Stats: grid 2 colunas (5 stats → 3 linhas) */
+  .persona-stats {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .p-stat { min-width: 0 !important; flex: initial !important; padding: 8px 10px; }
+  .p-stat-val { font-size: 13px !important; word-break: break-word; }
 
   /* Modais em tela cheia */
   .modal-overlay { padding: 0 !important; align-items: stretch !important; }
@@ -1750,8 +1754,46 @@ select.input { cursor: pointer; }
   .card { padding: 14px; }
   .card-head { flex-wrap: wrap; gap: 8px; }
 
-  /* Tabelas: sem scroll horizontal, quebra texto */
+  /* ═══ TABELAS → converter pra lista de cards ═══
+     Remove display:table, cada linha vira um bloco empilhado.
+     Como os TDs não têm data-label, escondemos THEAD e deixamos
+     cada TD virar uma linha "chave: valor" usando pseudo-elements
+     gerados a partir do próprio HTML. Fallback simples: só vira
+     bloco com separadores visuais. */
   .table-wrap, .scrollable-table { overflow: visible !important; }
+  table {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: auto !important;
+    font-size: 12px !important;
+  }
+  table thead { display: none !important; }
+  table tbody { display: block !important; width: 100% !important; }
+  table tr {
+    display: block !important;
+    width: 100% !important;
+    margin-bottom: 10px !important;
+    padding: 10px 12px !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    background: var(--white);
+  }
+  table td {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 4px 0 !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    border: none !important;
+    text-align: left !important;
+    font-size: 12px !important;
+    min-height: 0 !important;
+  }
+  /* Botões de ação em tabelas ficam em linha */
+  table td .btn, table td button { flex-shrink: 0; }
 
   /* Forms em coluna única */
   .form-row-2, .form-row-3 { grid-template-columns: 1fr !important; }
@@ -1784,25 +1826,38 @@ select.input { cursor: pointer; }
     border-bottom: 1px solid var(--border);
   }
 
-  /* Gráficos de barras: comprimir pra caber na tela (sem scroll horizontal) */
+  /* Gráficos de barras: comprimir + rotacionar labels */
   #ec-grafico, #lf-grafico,
   [id$="-grafico"] {
     gap: 2px !important;
-    padding: 4px 0 !important;
+    padding: 4px 0 26px 0 !important;  /* padding embaixo pros labels rotacionados */
     width: 100% !important;
     overflow: hidden !important;
     font-size: 9px !important;
+    align-items: flex-end !important;
   }
   #ec-grafico > div, #lf-grafico > div,
   [id$="-grafico"] > div {
     min-width: 0 !important;
     flex: 1 1 0 !important;
     font-size: 9px !important;
+    position: relative;
   }
+  /* Label do mês (última linha de texto dentro do bar): rotaciona -45deg */
+  #ec-grafico > div > div:last-child,
+  #lf-grafico > div > div:last-child,
+  [id$="-grafico"] > div > div:last-child {
+    transform: rotate(-45deg) translateY(18px) !important;
+    transform-origin: left top !important;
+    font-size: 8.5px !important;
+    white-space: nowrap !important;
+    position: absolute !important;
+    bottom: -2px !important;
+    left: 0 !important;
+  }
+  /* Valor em cima da barra */
   #ec-grafico span, #lf-grafico span,
-  [id$="-grafico"] span {
-    font-size: 9px !important;
-  }
+  [id$="-grafico"] span { font-size: 8.5px !important; }
 
   /* Tabs de criativos: flex-wrap em 2-3 linhas (sem scroll horizontal) */
   .cri-tabs {
@@ -1851,6 +1906,38 @@ select.input { cursor: pointer; }
 
   /* Persona-promise ocupa full */
   .persona-promise-text { max-width: none; }
+
+  /* ══ REGRAS AGRESSIVAS PRA FORÇAR CONTEÚDO CABER NA TELA ══ */
+
+  /* Qualquer elemento com style inline de grid-template-columns: repeat(3/4,...)
+     vira 1 ou 2 colunas no mobile */
+  [style*="grid-template-columns: repeat(3"],
+  [style*="grid-template-columns: repeat(4"],
+  [style*="grid-template-columns:repeat(3"],
+  [style*="grid-template-columns:repeat(4"] {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Qualquer elemento com width/min-width fixa em px quebra */
+  [style*="min-width:"][style*="px"],
+  [style*="width:"][style*="px"] {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Card containers - força largura máxima */
+  .card, .kpi-card, .arte-card, .aprov-card, .pub-card,
+  .inf-card, .ref-card, .concorrente-card, .canal-card {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Flex containers de cards que estavam em linha → wrap */
+  [style*="display:flex"][style*="gap"],
+  [style*="display: flex"][style*="gap"] {
+    flex-wrap: wrap !important;
+  }
 }
 
 </style>
