@@ -959,7 +959,7 @@ select.input { cursor: pointer; }
 }
 .notif-panel {
   position: absolute; top: calc(100% + 8px); right: 0;
-  width: 300px;
+  width: 340px;
   background: var(--white);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -1721,8 +1721,11 @@ select.input { cursor: pointer; }
       <div class="notif-dot" id="notif-dot"></div>
     </div>
     <div class="notif-panel" id="notif-panel">
-      <div class="notif-head">Alertas <span style="font-size:10px;color:var(--text3);font-weight:500" id="alertas-count-label">carregando...</span></div>
-      <div id="alertas-container">
+      <div class="notif-head">
+        <span>Alertas <span style="font-size:10px;color:var(--text3);font-weight:500" id="alertas-count-label">carregando...</span></span>
+        <a onclick="event.stopPropagation();marcarTodasAlertasLidas()" style="font-size:11px;font-weight:600;color:var(--blue);cursor:pointer;text-decoration:underline" id="mark-all-read-btn">Marcar todas lidas</a>
+      </div>
+      <div id="alertas-container" style="max-height:420px;overflow-y:auto">
         <div style="padding:16px;font-size:12px;color:var(--text3);text-align:center">Carregando alertas...</div>
       </div>
     </div>
@@ -2871,22 +2874,57 @@ select.input { cursor: pointer; }
 // ═══════════════════════════════════════════════════════════
 // NOTIFICAÇÕES PERSONALIZADAS — helper
 // ═══════════════════════════════════════════════════════════
-async function criarAlertaPara(userNome, titulo, mensagem, nivel, linkRef, linkLabel, dados) {
-  if (!userNome) return;
+// Cria alerta direto por UUID do profile (preferencial — sempre confiável)
+async function criarAlertaParaId(destinatarioId, titulo, mensagem, nivel, linkRef, linkLabel, dados) {
+  if (!destinatarioId) {
+    console.warn('🔔 criarAlertaParaId: destinatário ID vazio');
+    return;
+  }
+  if (destinatarioId === currentUser?.id) {
+    console.log('🔔 Alerta pulado (destinatário = usuário atual)');
+    return;
+  }
   try {
-    // Resolve nome → profile_id
+    // Busca o nome pro cache do destinatario_nome
     const { data: prof } = await sb.from('profiles')
-      .select('id, nome').ilike('nome', userNome.trim()).limit(1).maybeSingle();
-    if (!prof) { console.warn('criarAlertaPara: user não encontrado:', userNome); return; }
-    // Não criar alerta se destinatário é o próprio usuário fazendo a ação
-    if (prof.id === currentUser?.id) return;
-    await sb.from('alertas').insert({
+      .select('nome').eq('id', destinatarioId).maybeSingle();
+    const { error } = await sb.from('alertas').insert({
       titulo, mensagem, nivel: nivel || 'info', lido: false,
-      destinatario_id: prof.id, destinatario_nome: prof.nome,
+      destinatario_id: destinatarioId,
+      destinatario_nome: prof?.nome || null,
       link_ref: linkRef || null, link_label: linkLabel || null,
       dados: dados || null,
     });
-  } catch (e) { console.warn('criarAlertaPara:', e.message); }
+    if (error) throw error;
+    console.log('🔔 Alerta criado (por ID):', titulo);
+  } catch (e) { console.warn('🔔 criarAlertaParaId erro:', e.message); }
+}
+
+// Fallback: por nome (só use quando não tem ID disponível — legado)
+async function criarAlertaPara(userNome, titulo, mensagem, nivel, linkRef, linkLabel, dados) {
+  if (!userNome || !userNome.trim()) {
+    console.warn('🔔 criarAlertaPara: userNome vazio — alerta não criado');
+    return;
+  }
+  try {
+    const { data: prof } = await sb.from('profiles')
+      .select('id, nome').ilike('nome', userNome.trim()).limit(1).maybeSingle();
+    if (!prof) { console.warn('🔔 criarAlertaPara: usuário não encontrado em profiles:', userNome); return; }
+    return criarAlertaParaId(prof.id, titulo, mensagem, nivel, linkRef, linkLabel, dados);
+  } catch (e) { console.warn('🔔 criarAlertaPara erro:', e.message); }
+}
+
+async function marcarTodasAlertasLidas() {
+  if (!currentUser?.id) return;
+  try {
+    // Marca tanto os pessoais quanto os globais que o user vê
+    const ids = _alertasCache.filter(a => !a.lido).map(a => a.id);
+    if (!ids.length) { showToast('Tudo já lido'); return; }
+    const { error } = await sb.from('alertas').update({ lido: true }).in('id', ids);
+    if (error) throw error;
+    showToast(`✓ ${ids.length} alerta(s) marcado(s) como lidos`);
+    loadAlertas();
+  } catch (e) { showToast('Erro: ' + e.message); }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3111,7 +3149,8 @@ async function abrirModalEnviarArte() {
     }
   } catch (e) { console.warn('Load briefings select:', e.message); }
 
-  fillResponsavelSelect('cri-up-designer', '');
+  // Pré-seleciona o usuário logado como designer (na maioria dos casos é quem tá enviando)
+  fillResponsavelSelect('cri-up-designer', currentProfile?.nome || '');
   document.getElementById('cri-up-titulo').value = '';
   document.getElementById('cri-up-formato').value = 'reels';
   document.getElementById('cri-up-obs').value = '';
@@ -3130,6 +3169,7 @@ async function enviarArte() {
   const briefingId = document.getElementById('cri-up-briefing').value || null;
   const formato = document.getElementById('cri-up-formato').value;
   const designer = document.getElementById('cri-up-designer').value || null;
+  const designerId = getSelectedProfileId('cri-up-designer');
   const observacoes = document.getElementById('cri-up-obs').value.trim() || null;
   const statusEl = document.getElementById('cri-up-status');
   const btnEl = document.getElementById('cri-up-btn');
@@ -3141,6 +3181,7 @@ async function enviarArte() {
     titulo,
     briefing_id: briefingId,
     formato,
+    designer_id: designerId,
     designer_nome: designer,
     status: 'aguardando',
     observacoes,
@@ -3244,17 +3285,14 @@ async function confirmarAprovarArte() {
     }).eq('id', _criAprovarId);
     if (error) throw error;
 
-    // Notifica o designer
-    if (c.designer_nome) {
-      const quem = currentProfile?.nome || 'alguém';
-      await criarAlertaPara(
-        c.designer_nome,
-        '✅ Sua arte foi aprovada!',
-        `"${c.titulo}" foi aprovada por ${quem}.` + (comentario ? ' Comentário: "' + comentario + '"' : ''),
-        'ok',
-        'criativos', 'Ver criativo',
-        { criativo_id: c.id, tipo: 'criativo_aprovado' }
-      );
+    // Notifica o designer — por UUID se disponível, senão fallback por nome
+    const quem = currentProfile?.nome || 'alguém';
+    const tituloAlerta = '✅ Sua arte foi aprovada!';
+    const msgAlerta = `"${c.titulo}" foi aprovada por ${quem}.` + (comentario ? ' Comentário: "' + comentario + '"' : '');
+    if (c.designer_id) {
+      await criarAlertaParaId(c.designer_id, tituloAlerta, msgAlerta, 'ok', 'criativos', 'Ver criativo', { criativo_id: c.id, tipo: 'criativo_aprovado' });
+    } else if (c.designer_nome) {
+      await criarAlertaPara(c.designer_nome, tituloAlerta, msgAlerta, 'ok', 'criativos', 'Ver criativo', { criativo_id: c.id, tipo: 'criativo_aprovado' });
     }
 
     closeCriModal('aprovar');
@@ -3305,17 +3343,14 @@ async function confirmarReprovarArte() {
     }).eq('id', _criReprovarId);
     if (error) throw error;
 
-    // Notifica o designer
-    if (c?.designer_nome) {
-      const quem = currentProfile?.nome || 'alguém';
-      await criarAlertaPara(
-        c.designer_nome,
-        '🔁 Sua arte precisa de ajustes',
-        `"${c.titulo}" foi reprovada por ${quem}. Feedback: "${feedback}"`,
-        'warn',
-        'criativos', 'Ver feedback',
-        { criativo_id: c.id, tipo: 'criativo_reprovado' }
-      );
+    // Notifica o designer — por UUID se disponível, senão fallback por nome
+    const quem = currentProfile?.nome || 'alguém';
+    const tituloRep = '🔁 Sua arte precisa de ajustes';
+    const msgRep = `"${c?.titulo}" foi reprovada por ${quem}. Feedback: "${feedback}"`;
+    if (c?.designer_id) {
+      await criarAlertaParaId(c.designer_id, tituloRep, msgRep, 'warn', 'criativos', 'Ver feedback', { criativo_id: c.id, tipo: 'criativo_reprovado' });
+    } else if (c?.designer_nome) {
+      await criarAlertaPara(c.designer_nome, tituloRep, msgRep, 'warn', 'criativos', 'Ver feedback', { criativo_id: c.id, tipo: 'criativo_reprovado' });
     }
 
     closeCriModal('reprovar');
@@ -8616,7 +8651,7 @@ async function fillResponsavelSelect(selectId, currentValue) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
   const profiles = await getProfilesList();
-  const opts = ['<option value="">Sem responsável</option>'];
+  const opts = ['<option value="" data-id="">Sem responsável</option>'];
   let found = false;
   profiles.forEach(p => {
     const nome = (p.nome || '').trim();
@@ -8624,13 +8659,21 @@ async function fillResponsavelSelect(selectId, currentValue) {
     const selected = nome === currentValue ? ' selected' : '';
     if (selected) found = true;
     const cargo = p.cargo ? ' · ' + (CARGO_LABELS[p.cargo] || p.cargo) : '';
-    opts.push(`<option value="${esc(nome)}"${selected}>${esc(nome)}${esc(cargo)}</option>`);
+    opts.push(`<option value="${esc(nome)}" data-id="${esc(p.id)}"${selected}>${esc(nome)}${esc(cargo)}</option>`);
   });
   // Preserva responsável legado que não está mais em profiles
   if (currentValue && !found) {
-    opts.push(`<option value="${esc(currentValue)}" selected>${esc(currentValue)} (legado)</option>`);
+    opts.push(`<option value="${esc(currentValue)}" data-id="" selected>${esc(currentValue)} (legado)</option>`);
   }
   sel.innerHTML = opts.join('');
+}
+
+// Lê o profile_id selecionado num select de responsável/designer
+function getSelectedProfileId(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return null;
+  const opt = sel.options[sel.selectedIndex];
+  return opt?.dataset?.id || null;
 }
 
 // ── GERENCIADOR DE COLUNAS ──
