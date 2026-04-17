@@ -1215,6 +1215,48 @@ select.input { cursor: pointer; }
 .dana-must-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: rgba(255,255,255,0.75); padding: 4px 0; }
 .dana-check { color: #4ade80; font-weight: 800; font-size: 14px; }
 
+/* ── PERSONAS · REALIDADE NOS DADOS (Bling) ── */
+.p-ranking { background: var(--black); color: white; border-radius: 14px; padding: 20px 24px; margin-bottom: 18px; }
+.p-ranking-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 14px; letter-spacing: 0.3px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.p-ranking-sub { font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 16px; }
+.p-ranking-row { display: grid; grid-template-columns: 28px 1fr 90px 80px; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); cursor: pointer; transition: opacity 0.12s; }
+.p-ranking-row:last-child { border-bottom: none; }
+.p-ranking-row:hover { opacity: 0.85; }
+.p-ranking-rank { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 16px; color: rgba(255,255,255,0.45); }
+.p-ranking-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.p-ranking-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; color: white; }
+.p-ranking-ico { width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; font-family: 'Syne', sans-serif; flex-shrink: 0; }
+.p-ranking-bar { position: relative; height: 5px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+.p-ranking-bar-fill { position: absolute; top: 0; left: 0; height: 100%; background: white; border-radius: 3px; transition: width 0.6s cubic-bezier(.4,0,.2,1); }
+.p-ranking-pct { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 16px; text-align: right; color: white; }
+.p-ranking-val { font-size: 11px; color: rgba(255,255,255,0.65); text-align: right; font-weight: 600; }
+.p-ranking-empty { padding: 24px; text-align: center; color: rgba(255,255,255,0.55); font-size: 12.5px; }
+
+.p-real-data { background: linear-gradient(135deg, #fafbfc 0%, #eef2f7 100%); border: 1.5px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+.p-real-data-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.p-real-data-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 12.5px; letter-spacing: 0.3px; color: var(--black); display: flex; align-items: center; gap: 8px; }
+.p-real-data-tag { font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 4px; background: var(--black); color: white; letter-spacing: 0.4px; text-transform: uppercase; }
+.p-real-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 10px; }
+.p-real-stat { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; }
+.p-real-stat-label { font-size: 9.5px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+.p-real-stat-val { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 14px; color: var(--black); }
+.p-real-stat-val.small { font-size: 12px; }
+.p-real-status { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 11.5px; font-weight: 700; }
+.p-real-status.ok { background: var(--green-bg); color: var(--green); }
+.p-real-status.warn { background: var(--amber-bg); color: var(--amber); }
+.p-real-status.risk { background: var(--red-bg); color: var(--red); }
+.p-real-status.empty { background: var(--surface2); color: var(--text3); }
+
+/* Chip nos cards do Step 1 do Construtor */
+.aud-card-real-chip { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 4px 9px; border-radius: 20px; background: rgba(0,0,0,0.04); font-size: 10.5px; font-weight: 700; color: var(--text2); border: 1px solid var(--border); }
+.aud-card-real-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.aud-card-real-chip.risk .dot { background: var(--red); }
+.aud-card-real-chip.warn .dot { background: var(--amber); }
+
+@media (max-width: 1100px) {
+  .p-real-stats { grid-template-columns: repeat(3, 1fr); }
+}
+
 /* ── CAMPAIGN BUILDER ── */
 .cb-stepper { display: flex; align-items: center; background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px; margin-bottom: 28px; box-shadow: var(--shadow-xs); overflow-x: auto; gap: 0; }
 .cb-step { display: flex; align-items: center; gap: 8px; flex-shrink: 0; cursor: pointer; padding: 5px 8px; border-radius: 6px; transition: background 0.12s; user-select: none; }
@@ -2752,6 +2794,16 @@ select.input { cursor: pointer; }
 <!-- ════════ PERSONAS ════════ -->
 <div class="view" id="view-personas">
 <div style="padding:24px 28px">
+
+  <!-- RANKING DE PERSONAS NA BASE REAL -->
+  <div class="p-ranking" id="persona-ranking">
+    <div class="p-ranking-title">📊 Sua Base Real Hoje · Últimos 12 meses</div>
+    <div class="p-ranking-sub">Qual persona aspiracional mais se alinha com quem realmente compra da Dana? · Fonte: Bling</div>
+    <div id="persona-ranking-list">
+      <div class="p-ranking-empty">⏳ Carregando dados Bling...</div>
+    </div>
+  </div>
+
   <div class="persona-tabs">
     <div class="persona-tab active" onclick="switchPersona(this,'clinicas')">Clínicas</div>
     <div class="persona-tab" onclick="switchPersona(this,'empresas')">Empresas e Redes</div>
@@ -2781,6 +2833,23 @@ select.input { cursor: pointer; }
       <div class="p-stat"><div class="p-stat-label">Ticket</div><div class="p-stat-val">R$955</div></div>
       <div class="p-stat"><div class="p-stat-label">Decisão</div><div class="p-stat-val">Autônoma</div></div>
     </div>
+
+    <div class="p-real-data" id="real-data-clinicas">
+      <div class="p-real-data-head">
+        <div class="p-real-data-title">📊 Realidade nos Dados · Bling (últimos 12 meses)</div>
+        <div class="p-real-data-tag" id="real-match-clinicas">—</div>
+      </div>
+      <div class="p-real-stats" id="real-stats-clinicas">
+        <div class="p-real-stat"><div class="p-real-stat-label">% Receita</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Receita 12m</div><div class="p-real-stat-val small">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Clientes</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Ticket Médio</div><div class="p-real-stat-val small">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Pedidos/Cliente</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Canal Principal</div><div class="p-real-stat-val small">—</div></div>
+      </div>
+      <span class="p-real-status empty" id="real-status-clinicas">⏳ Carregando dados Bling...</span>
+    </div>
+
     <div class="p4">
       <div class="p-section"><div class="p-section-title"><div class="stripe red"></div>Dores Atuais</div>
         <div class="p-item"><div class="p-bullet r"></div>Falta de padronização visual na equipe</div>
@@ -2849,6 +2918,23 @@ select.input { cursor: pointer; }
       <div class="p-stat"><div class="p-stat-label">Volume</div><div class="p-stat-val">Alto</div></div>
       <div class="p-stat"><div class="p-stat-label">Decisão</div><div class="p-stat-val">Estratégica</div></div>
     </div>
+
+    <div class="p-real-data" id="real-data-empresas">
+      <div class="p-real-data-head">
+        <div class="p-real-data-title">📊 Realidade nos Dados · Bling (últimos 12 meses)</div>
+        <div class="p-real-data-tag" id="real-match-empresas">—</div>
+      </div>
+      <div class="p-real-stats" id="real-stats-empresas">
+        <div class="p-real-stat"><div class="p-real-stat-label">% Receita</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Receita 12m</div><div class="p-real-stat-val small">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Clientes</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Ticket Médio</div><div class="p-real-stat-val small">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Pedidos/Cliente</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Canal Principal</div><div class="p-real-stat-val small">—</div></div>
+      </div>
+      <span class="p-real-status empty" id="real-status-empresas">⏳ Carregando dados Bling...</span>
+    </div>
+
     <div class="p4">
       <div class="p-section"><div class="p-section-title"><div class="stripe red"></div>Dores Atuais</div>
         <div class="p-item"><div class="p-bullet r"></div>Fornecedor não entrega no prazo nem conforme</div>
@@ -2917,6 +3003,23 @@ select.input { cursor: pointer; }
       <div class="p-stat"><div class="p-stat-label">Canal</div><div class="p-stat-val">Email/LinkedIn</div></div>
       <div class="p-stat"><div class="p-stat-label">Processo</div><div class="p-stat-val">Burocrático</div></div>
     </div>
+
+    <div class="p-real-data" id="real-data-instituicoes">
+      <div class="p-real-data-head">
+        <div class="p-real-data-title">📊 Realidade nos Dados · Bling (últimos 12 meses)</div>
+        <div class="p-real-data-tag" id="real-match-instituicoes">—</div>
+      </div>
+      <div class="p-real-stats" id="real-stats-instituicoes">
+        <div class="p-real-stat"><div class="p-real-stat-label">% Receita</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Receita 12m</div><div class="p-real-stat-val small">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Clientes</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Ticket Médio</div><div class="p-real-stat-val small">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Pedidos/Cliente</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Canal Principal</div><div class="p-real-stat-val small">—</div></div>
+      </div>
+      <span class="p-real-status empty" id="real-status-instituicoes">⏳ Carregando dados Bling...</span>
+    </div>
+
     <div class="p4">
       <div class="p-section"><div class="p-section-title"><div class="stripe red"></div>Dores Atuais</div>
         <div class="p-item"><div class="p-bullet r"></div>Alunos com jalecos diferentes causando desorganização</div>
@@ -2984,6 +3087,23 @@ select.input { cursor: pointer; }
       <div class="p-stat"><div class="p-stat-label">Ticket</div><div class="p-stat-val">R$450+</div></div>
       <div class="p-stat"><div class="p-stat-label">Decisão</div><div class="p-stat-val">Individual</div></div>
     </div>
+
+    <div class="p-real-data" id="real-data-profissional">
+      <div class="p-real-data-head">
+        <div class="p-real-data-title">📊 Realidade nos Dados · Bling (últimos 12 meses)</div>
+        <div class="p-real-data-tag" id="real-match-profissional">—</div>
+      </div>
+      <div class="p-real-stats" id="real-stats-profissional">
+        <div class="p-real-stat"><div class="p-real-stat-label">% Receita</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Receita 12m</div><div class="p-real-stat-val small">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Clientes</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Ticket Médio</div><div class="p-real-stat-val small">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Pedidos/Cliente</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Canal Principal</div><div class="p-real-stat-val small">—</div></div>
+      </div>
+      <span class="p-real-status empty" id="real-status-profissional">⏳ Carregando dados Bling...</span>
+    </div>
+
     <div class="p4">
       <div class="p-section"><div class="p-section-title"><div class="stripe red"></div>Dores Atuais</div>
         <div class="p-item"><div class="p-bullet r"></div>Jalecos sem personalidade e expressão</div>
@@ -3052,6 +3172,23 @@ select.input { cursor: pointer; }
       <div class="p-stat"><div class="p-stat-label">Volume</div><div class="p-stat-val">1–2 un.</div></div>
       <div class="p-stat"><div class="p-stat-label">Foco</div><div class="p-stat-val">Custo-benefício</div></div>
     </div>
+
+    <div class="p-real-data" id="real-data-estudante">
+      <div class="p-real-data-head">
+        <div class="p-real-data-title">📊 Realidade nos Dados · Bling (últimos 12 meses)</div>
+        <div class="p-real-data-tag" id="real-match-estudante">—</div>
+      </div>
+      <div class="p-real-stats" id="real-stats-estudante">
+        <div class="p-real-stat"><div class="p-real-stat-label">% Receita</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Receita 12m</div><div class="p-real-stat-val small">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Clientes</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Ticket Médio</div><div class="p-real-stat-val small">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Pedidos/Cliente</div><div class="p-real-stat-val">—</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Canal Principal</div><div class="p-real-stat-val small">—</div></div>
+      </div>
+      <span class="p-real-status empty" id="real-status-estudante">⏳ Carregando dados Bling...</span>
+    </div>
+
     <div class="p4">
       <div class="p-section"><div class="p-section-title"><div class="stripe red"></div>Dores Atuais</div>
         <div class="p-item"><div class="p-bullet r"></div>Qualidade vs preço — difícil achar o equilíbrio</div>
@@ -8074,6 +8211,7 @@ function go(el, viewId) {
     if (typeof loadReferencias === 'function') loadReferencias();
   }
   if (viewId === 'lojafisica') { if (typeof loadLojaFisica === 'function') loadLojaFisica(); }
+  if (viewId === 'personas' || viewId === 'construtor') { if (typeof loadPersonasStats === 'function') loadPersonasStats(); }
   if (viewId === 'calendario') { if (typeof loadCalendario==='function') loadCalendario(); if (typeof loadTarefas==='function' && !_tarefasCache?.length) loadTarefas(); else if (typeof renderCalendario==='function') setTimeout(renderCalendario, 100); }
 }
 
@@ -9765,6 +9903,225 @@ function switchPersona(tab, id) {
   document.querySelectorAll('.persona-panel').forEach(p=>p.classList.remove('active'));
   const panel = document.getElementById('persona-'+id);
   if(panel) panel.classList.add('active');
+}
+
+// ════════ PERSONAS · REALIDADE NOS DADOS (Bling) ════════
+let _personasStatsCache = null;
+const _PERSONAS_CACHE_TTL = 5 * 60 * 1000; // 5 min
+
+// Regra pragmática de classificação — PJ/PF + ticket + recorrência
+function classifyClienteToPersona(c) {
+  const isPJ = c.tipo_pessoa === 'J' || c.tipo_pessoa === 'Juridica' || c.tipo_pessoa === 'PJ';
+  const t = c.ticket_medio || 0;
+  const n = c.n_pedidos || 0;
+  if (isPJ) {
+    if (t > 1500) return 'empresas';                         // B2B escala (Diretor Gabriel)
+    if (n === 1 && t >= 700) return 'instituicoes';          // B2B volume único (Coord. Eduardo · turmas)
+    if (n >= 2 && t >= 400) return 'clinicas';               // B2B recorrente (Dra. Mariana)
+    return 'clinicas';                                       // default PJ
+  }
+  // PF
+  if (t >= 450 || n >= 2) return 'profissional';             // B2C premium recorrente
+  return 'estudante';                                        // B2C ticket baixo single-shot
+}
+
+async function loadPersonasStats() {
+  try {
+    // Cache curto pra não martelar o Supabase a cada toggle de aba
+    if (_personasStatsCache && Date.now() - _personasStatsCache.ts < _PERSONAS_CACHE_TTL) {
+      renderPersonasStats(_personasStatsCache.data);
+      return;
+    }
+
+    const doze = new Date();
+    doze.setMonth(doze.getMonth() - 12);
+    const dataCorte = doze.toISOString().slice(0, 10);
+
+    // Pedidos últimos 12 meses (paginado — limite 1000/query)
+    const pedidosAll = [];
+    let from = 0, pageSize = 1000;
+    while (from < 20000) {
+      const { data, error } = await sb.from('pedidos')
+        .select('total, contato_nome, loja_id, data')
+        .gte('data', dataCorte)
+        .not('contato_nome', 'is', null)
+        .range(from, from + pageSize - 1);
+      if (error) { console.warn('loadPersonasStats pedidos:', error); break; }
+      if (!data || !data.length) break;
+      pedidosAll.push(...data);
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    // Contatos com tipo_pessoa (paginado)
+    const contatosByName = {};
+    from = 0;
+    while (from < 40000) {
+      const { data, error } = await sb.from('contatos')
+        .select('nome, tipo_pessoa')
+        .range(from, from + pageSize - 1);
+      if (error) { console.warn('loadPersonasStats contatos:', error); break; }
+      if (!data || !data.length) break;
+      data.forEach(c => { if (c.nome) contatosByName[c.nome.toUpperCase().trim()] = c.tipo_pessoa; });
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    // Agregar pedidos por cliente
+    const porCliente = {};
+    pedidosAll.forEach(p => {
+      const key = (p.contato_nome || '').toUpperCase().trim();
+      if (!key) return;
+      if (!porCliente[key]) porCliente[key] = { nome: p.contato_nome, total: 0, n: 0, canais: {} };
+      const c = porCliente[key];
+      c.total += parseFloat(p.total) || 0;
+      c.n += 1;
+      const canal = getNomeCanal(p.loja_id);
+      c.canais[canal] = (c.canais[canal] || 0) + 1;
+    });
+
+    // Classificar
+    const personas = {
+      clinicas:     { label: 'Dra. Mariana · Clínicas',        clientes: 0, receita: 0, pedidos: 0, canais: {}, tickets: [] },
+      empresas:     { label: 'Diretor Gabriel · Empresas',     clientes: 0, receita: 0, pedidos: 0, canais: {}, tickets: [] },
+      instituicoes: { label: 'Coord. Eduardo · Instituições',  clientes: 0, receita: 0, pedidos: 0, canais: {}, tickets: [] },
+      profissional: { label: 'Profissional Liberal',           clientes: 0, receita: 0, pedidos: 0, canais: {}, tickets: [] },
+      estudante:    { label: 'Estudante',                      clientes: 0, receita: 0, pedidos: 0, canais: {}, tickets: [] }
+    };
+    let totalClientes = 0, totalReceita = 0;
+    Object.values(porCliente).forEach(c => {
+      const ticket = c.n > 0 ? c.total / c.n : 0;
+      const tipo_pessoa = contatosByName[c.nome.toUpperCase().trim()] || 'F';
+      const id = classifyClienteToPersona({ tipo_pessoa, n_pedidos: c.n, ticket_medio: ticket });
+      const p = personas[id];
+      p.clientes += 1;
+      p.receita  += c.total;
+      p.pedidos  += c.n;
+      p.tickets.push(ticket);
+      Object.entries(c.canais).forEach(([k,v]) => p.canais[k] = (p.canais[k] || 0) + v);
+      totalClientes += 1;
+      totalReceita  += c.total;
+    });
+
+    Object.keys(personas).forEach(id => {
+      const p = personas[id];
+      p.pct_clientes = totalClientes > 0 ? (p.clientes / totalClientes * 100) : 0;
+      p.pct_receita  = totalReceita  > 0 ? (p.receita  / totalReceita  * 100) : 0;
+      p.ticket_medio = p.tickets.length > 0 ? p.tickets.reduce((a,b)=>a+b,0) / p.tickets.length : 0;
+      p.pedidos_cliente = p.clientes > 0 ? p.pedidos / p.clientes : 0;
+      p.canal_top = Object.entries(p.canais).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
+    });
+
+    const stats = { personas, totalClientes, totalReceita };
+    _personasStatsCache = { ts: Date.now(), data: stats };
+    renderPersonasStats(stats);
+  } catch (e) {
+    console.error('loadPersonasStats error:', e);
+  }
+}
+
+function _fmtMoneyCompact(v) {
+  v = v || 0;
+  if (v >= 1000000) return 'R$' + (v/1000000).toFixed(1) + 'M';
+  if (v >= 1000)    return 'R$' + Math.round(v/1000) + 'k';
+  return 'R$' + Math.round(v);
+}
+
+function renderPersonasStats(stats) {
+  const fmt = _fmtMoneyCompact;
+  const fmtN = (v) => Math.round(v || 0).toLocaleString('pt-BR');
+
+  // Blocos individuais
+  Object.keys(stats.personas).forEach(id => {
+    const p = stats.personas[id];
+    const statsEl = document.getElementById('real-stats-' + id);
+    if (statsEl) {
+      statsEl.innerHTML = `
+        <div class="p-real-stat"><div class="p-real-stat-label">% Receita</div><div class="p-real-stat-val">${p.pct_receita.toFixed(1)}%</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Receita 12m</div><div class="p-real-stat-val small">${fmt(p.receita)}</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Clientes</div><div class="p-real-stat-val">${fmtN(p.clientes)}</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Ticket Médio</div><div class="p-real-stat-val small">${fmt(p.ticket_medio)}</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Pedidos/Cliente</div><div class="p-real-stat-val">${p.pedidos_cliente.toFixed(1)}</div></div>
+        <div class="p-real-stat"><div class="p-real-stat-label">Canal Principal</div><div class="p-real-stat-val small">${p.canal_top}</div></div>
+      `;
+    }
+    const matchEl = document.getElementById('real-match-' + id);
+    if (matchEl) matchEl.textContent = p.pct_receita.toFixed(1) + '% da receita';
+    const status = document.getElementById('real-status-' + id);
+    if (status) {
+      if (p.clientes === 0) {
+        status.className = 'p-real-status empty';
+        status.textContent = '⚪ Sem representação na base real · público aspiracional ou novo';
+      } else if (p.pct_receita >= 15) {
+        status.className = 'p-real-status ok';
+        status.textContent = '🟢 Público ATIVO e saudável · alinhado com o que a Dana vende';
+      } else if (p.pct_receita >= 5) {
+        status.className = 'p-real-status warn';
+        status.textContent = '🟡 Presença MODERADA · há espaço pra crescer';
+      } else {
+        status.className = 'p-real-status risk';
+        status.textContent = '🔴 Público ASPIRACIONAL · pouca representação real na base';
+      }
+    }
+  });
+
+  // Ranking topo
+  const ranking = Object.entries(stats.personas)
+    .map(([id, p]) => ({ id, ...p }))
+    .sort((a, b) => b.pct_receita - a.pct_receita);
+  const icos = { clinicas: 'DM', empresas: 'DG', instituicoes: 'CE', profissional: 'PL', estudante: 'ES' };
+  const tabIdx = { clinicas: 0, empresas: 1, instituicoes: 2, profissional: 3, estudante: 4 };
+  const maxPct = Math.max(1, ranking[0]?.pct_receita || 1);
+  const listEl = document.getElementById('persona-ranking-list');
+  if (listEl) {
+    if (stats.totalClientes === 0) {
+      listEl.innerHTML = '<div class="p-ranking-empty">⚠ Nenhum pedido dos últimos 12 meses encontrado na base Bling</div>';
+    } else {
+      listEl.innerHTML = ranking.map((p, i) => `
+        <div class="p-ranking-row" onclick="(function(){ const tabs=document.querySelectorAll('.persona-tab'); if(tabs[${tabIdx[p.id]}]) switchPersona(tabs[${tabIdx[p.id]}],'${p.id}'); })()">
+          <div class="p-ranking-rank">${i+1}</div>
+          <div class="p-ranking-main">
+            <div class="p-ranking-name"><span class="p-ranking-ico">${icos[p.id]}</span>${p.label}</div>
+            <div class="p-ranking-bar"><div class="p-ranking-bar-fill" style="width:${Math.max(2, p.pct_receita / maxPct * 100)}%"></div></div>
+          </div>
+          <div class="p-ranking-pct">${p.pct_receita.toFixed(1)}%</div>
+          <div class="p-ranking-val">${_fmtMoneyCompact(p.receita)}</div>
+        </div>
+      `).join('');
+    }
+  }
+
+  updateConstrutorRealChips(stats);
+}
+
+// Chip "X% da base · R$ Y/ano" em cada card do Step 1 do Construtor
+function updateConstrutorRealChips(stats) {
+  const mapa = {
+    'Clínicas': 'clinicas',
+    'Empresas': 'empresas',
+    'Instituições': 'instituicoes',
+    'Profissional Liberal': 'profissional',
+    'Estudante': 'estudante'
+  };
+  document.querySelectorAll('#view-construtor .aud-card').forEach(card => {
+    const onclick = card.getAttribute('onclick') || '';
+    const m = onclick.match(/selectAud\(this,\s*'([^']+)'/);
+    if (!m) return;
+    const persona = stats.personas[mapa[m[1]]];
+    if (!persona) return;
+    let chip = card.querySelector('.aud-card-real-chip');
+    if (!chip) {
+      chip = document.createElement('div');
+      chip.className = 'aud-card-real-chip';
+      card.appendChild(chip);
+    }
+    let cls = 'aud-card-real-chip';
+    if (persona.pct_receita >= 15) cls += ''; // ok (default verde)
+    else if (persona.pct_receita >= 5) cls += ' warn';
+    else cls += ' risk';
+    chip.className = cls;
+    chip.innerHTML = `<span class="dot"></span>${persona.pct_receita.toFixed(1)}% da base real · ${_fmtMoneyCompact(persona.receita)}/ano`;
+  });
 }
 
 // ── PERSISTÊNCIA ──
