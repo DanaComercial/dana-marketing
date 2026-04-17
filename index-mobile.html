@@ -1750,10 +1750,8 @@ select.input { cursor: pointer; }
   .card { padding: 14px; }
   .card-head { flex-wrap: wrap; gap: 8px; }
 
-  /* Tabelas com scroll horizontal quando necessário */
-  .table-wrap, .scrollable-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  table { font-size: 11.5px; min-width: 500px; }
-  th, td { padding: 6px 8px !important; white-space: nowrap; }
+  /* Tabelas: sem scroll horizontal, quebra texto */
+  .table-wrap, .scrollable-table { overflow: visible !important; }
 
   /* Forms em coluna única */
   .form-row-2, .form-row-3 { grid-template-columns: 1fr !important; }
@@ -1761,9 +1759,6 @@ select.input { cursor: pointer; }
   /* Botões maiores pra touch */
   .btn { min-height: 36px; padding: 8px 14px; font-size: 12.5px; }
   .btn-sm { min-height: 32px; padding: 6px 10px; font-size: 11.5px; }
-
-  /* Kanban - scroll horizontal entre colunas */
-  .kanban-wrap, .kanban-board { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
   /* Criativos grid */
   .arte-grid, .aprov-grid, .pub-grid { grid-template-columns: 1fr !important; gap: 10px !important; }
@@ -1776,6 +1771,70 @@ select.input { cursor: pointer; }
 
   /* Notification bell dropdown tela cheia */
   .notif-dropdown { width: calc(100vw - 20px) !important; right: 10px !important; max-width: calc(100vw - 20px) !important; }
+
+  /* Esconde hamburger quando tem modal aberto (evita cobrir conteúdo do modal) */
+  body:has(.modal-overlay.open) .mobile-menu-btn { display: none !important; }
+
+  /* Topbar sticky no topo — sempre visível no scroll, dá espaço pro hamburger */
+  .topbar {
+    position: sticky !important;
+    top: 0;
+    background: white;
+    z-index: 40;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Gráficos de barras: comprimir pra caber na tela (sem scroll horizontal) */
+  #ec-grafico, #lf-grafico,
+  [id$="-grafico"] {
+    gap: 2px !important;
+    padding: 4px 0 !important;
+    width: 100% !important;
+    overflow: hidden !important;
+    font-size: 9px !important;
+  }
+  #ec-grafico > div, #lf-grafico > div,
+  [id$="-grafico"] > div {
+    min-width: 0 !important;
+    flex: 1 1 0 !important;
+    font-size: 9px !important;
+  }
+  #ec-grafico span, #lf-grafico span,
+  [id$="-grafico"] span {
+    font-size: 9px !important;
+  }
+
+  /* Tabs de criativos: flex-wrap em 2-3 linhas (sem scroll horizontal) */
+  .cri-tabs {
+    width: 100% !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+  }
+  .cri-tab { flex: 1 1 auto !important; white-space: nowrap; font-size: 11px; padding: 6px 10px; text-align: center; min-width: 0 !important; }
+
+  /* Persona tabs idem */
+  .persona-tabs { flex-wrap: wrap !important; overflow: visible !important; }
+  .persona-tab { flex: 1 1 auto !important; min-width: 0 !important; font-size: 11.5px; padding: 6px 10px; text-align: center; }
+
+  /* Kanban: ao invés de horizontal, vira uma coluna empilhada */
+  .kanban-wrap, .kanban-board {
+    overflow: visible !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+  .kanban-col { min-width: 100% !important; max-width: 100% !important; width: 100% !important; }
+
+  /* Tabelas: quebrar texto em vez de scroll */
+  table { font-size: 11px; min-width: 0 !important; width: 100% !important; table-layout: fixed; }
+  th, td { padding: 6px 8px !important; white-space: normal !important; word-break: break-word; }
+
+  /* Modal: padding interno pra respirar + scroll interno */
+  .modal-overlay .modal, .modal-overlay > div:not(.modal-overlay) {
+    padding: 16px !important;
+  }
+
+  /* Canvas/gráficos de outras seções */
+  canvas { max-width: 100% !important; height: auto !important; }
 
   /* Persona-stats container wrap */
   .persona-stats { flex-wrap: wrap; }
