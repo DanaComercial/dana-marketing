@@ -6100,7 +6100,8 @@ updateDynamicField('foto');
         <div class="card-title" style="font-size:14px">📦 Biblioteca de Assets</div>
         <div class="card-sub" id="bk-count-sub">Logos, fotos, templates e documentos reutilizáveis</div>
       </div>
-      <div style="display:flex;gap:6px" id="bk-actions">
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="bk-actions">
+        <button class="btn btn-ghost btn-sm" onclick="bkImportarRebranding()" title="Upload rápido do pacote de rebranding (5 arquivos com categorização automática)">⚡ Importar Rebranding</button>
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bk-file-input').click()">📷 Arquivo</button>
         <button class="btn btn-ghost btn-sm" onclick="bkToggleAddLink()">🔗 Link</button>
       </div>
@@ -6117,9 +6118,10 @@ updateDynamicField('foto');
     </div>
 
     <input type="file" id="bk-file-input" multiple style="display:none" onchange="uploadBrandkit(this.files)">
+    <input type="file" id="bk-rebranding-input" multiple accept="image/*,.pdf" style="display:none" onchange="bkProcessarRebranding(this.files)">
     <div style="font-size:10.5px;color:var(--text3);margin-bottom:8px">💡 Limite: 50 MB por arquivo. Arquivos maiores → sobe no Drive e adiciona como <strong>Link</strong>.</div>
     <div id="bk-add-link" style="display:none;margin-bottom:10px">
-      <div style="display:grid;grid-template-columns:2fr 1.5fr 1.2fr auto;gap:6px">
+      <div style="display:grid;grid-template-columns:2fr 1.5fr 1.2fr auto;gap:6px;margin-bottom:6px">
         <input class="input" type="url" id="bk-link-url" placeholder="https://...">
         <input class="input" id="bk-link-nome" placeholder="Nome">
         <select class="input" id="bk-link-categoria">
@@ -6131,6 +6133,7 @@ updateDynamicField('foto');
         </select>
         <button type="button" class="btn btn-primary btn-sm" onclick="adicionarLinkBrandkit()">Adicionar</button>
       </div>
+      <input class="input" id="bk-link-desc" placeholder="Descrição/tag (opcional, ex: 'Rebranding 2026')">
     </div>
     <div id="bk-upload-categoria" style="display:none;margin-bottom:10px;padding:10px;background:var(--surface2);border-radius:8px">
       <label class="label" style="margin-bottom:6px">Categoria dos arquivos a enviar:</label>
@@ -6141,6 +6144,8 @@ updateDynamicField('foto');
         <option value="documento">📄 Documento</option>
         <option value="outro">📎 Outro</option>
       </select>
+      <label class="label" style="margin-top:8px;margin-bottom:4px">Descrição/tag (opcional)</label>
+      <input class="input" id="bk-upload-desc" placeholder="Ex: Rebranding 2026">
       <div style="display:flex;gap:6px;margin-top:8px">
         <button class="btn btn-ghost btn-sm" onclick="bkCancelarUpload()" style="flex:1">Cancelar</button>
         <button class="btn btn-primary btn-sm" onclick="bkConfirmarUpload()" style="flex:1">Enviar arquivos</button>
@@ -8177,22 +8182,69 @@ function renderBrandkit() {
 
   const canDelete = podeExcluirBrandkit();
 
-  list.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px">' +
+  list.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">' +
     items.map(m => {
       const nome = esc(m.nome || 'Sem nome');
       const urlEsc = (m.url || '').replace(/"/g,'&quot;').replace(/'/g,"\\'");
       const tipo = m.tipo || 'outro';
       const cat = m.categoria || 'outro';
-      const deleteBtn = canDelete ? `<button onclick="event.stopPropagation();abrirModalExcluirBrandkit('${m.id}')" style="position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,0.7);color:white;border:none;cursor:pointer;font-size:14px;line-height:1" title="Remover">×</button>` : '';
+      const descricao = m.descricao ? esc(m.descricao) : '';
+      const isPdf = tipo === 'pdf' || (m.nome || '').toLowerCase().endsWith('.pdf');
+      const isImg = tipo === 'imagem';
+      const isLogo = cat === 'logo';
 
-      const thumb = tipo === 'imagem'
-        ? `<div style="position:relative;aspect-ratio:4/3;overflow:hidden;background:var(--surface2)"><img src="${urlEsc}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">${deleteBtn}</div>`
+      const deleteBtn = canDelete ? `<button onclick="event.stopPropagation();abrirModalExcluirBrandkit('${m.id}')" style="position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,0.7);color:white;border:none;cursor:pointer;font-size:14px;line-height:1;z-index:2" title="Remover">×</button>` : '';
+      const downloadBtn = `<a href="${urlEsc}" download="${esc(m.nome || 'arquivo')}" onclick="event.stopPropagation()" style="position:absolute;top:6px;left:6px;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,0.7);color:white;border:none;cursor:pointer;font-size:13px;line-height:28px;text-align:center;text-decoration:none;z-index:2" title="Baixar">⬇</a>`;
+
+      // Card especial pra PDF (manual da marca, guias)
+      if (isPdf) {
+        return `<div class="card" style="padding:0;overflow:hidden;display:flex;flex-direction:column;transition:transform 0.15s,box-shadow 0.15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,0.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div style="position:relative;aspect-ratio:4/3;background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;padding:16px">
+            ${deleteBtn}
+            <div style="font-size:52px;line-height:1;margin-bottom:6px">📄</div>
+            <div style="font-size:10px;font-weight:800;letter-spacing:2px;opacity:0.85">PDF · DOCUMENTO</div>
+            ${descricao ? `<div style="font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.2);margin-top:8px">${descricao}</div>` : ''}
+          </div>
+          <div style="padding:12px 14px;flex:1;display:flex;flex-direction:column">
+            <div style="font-size:13px;font-weight:700;color:var(--text);line-height:1.3;margin-bottom:6px">${nome}</div>
+            <div style="font-size:10.5px;color:var(--text3);margin-bottom:10px">${labelCategoria(cat)} · ${fmtData(m.created_at)}</div>
+            <div style="display:flex;gap:6px;margin-top:auto">
+              <button class="btn btn-primary btn-sm" onclick="window.open('${urlEsc}','_blank')" style="flex:1;font-size:11px">📖 Abrir</button>
+              <a href="${urlEsc}" download="${esc(m.nome || 'arquivo.pdf')}" class="btn btn-ghost btn-sm" style="flex:1;text-align:center;text-decoration:none;font-size:11px;padding:6px 10px">⬇ Baixar</a>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // Card especial pra logo (preview grande + download bem visível)
+      if (isLogo && isImg) {
+        return `<div class="card" style="padding:0;overflow:hidden;transition:transform 0.15s,box-shadow 0.15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+          <div style="position:relative;aspect-ratio:1;overflow:hidden;background:repeating-conic-gradient(#f0f0f0 0% 25%, #fafafa 0% 50%) 50% / 18px 18px;display:flex;align-items:center;justify-content:center;padding:20px">
+            ${deleteBtn}
+            ${downloadBtn}
+            <img src="${urlEsc}" style="max-width:100%;max-height:100%;object-fit:contain" onerror="this.style.display='none'" alt="${nome}">
+            ${descricao ? `<div style="position:absolute;bottom:6px;left:6px;font-size:9.5px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(0,0,0,0.75);color:white;letter-spacing:0.5px">${descricao}</div>` : ''}
+          </div>
+          <div style="padding:10px 12px">
+            <div style="font-size:12px;font-weight:700;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px">${nome}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+              <a href="${urlEsc}" download="${esc(m.nome || 'logo.png')}" class="btn btn-primary btn-sm" style="flex:1;text-align:center;text-decoration:none;font-size:11px;padding:5px 10px">⬇ Baixar</a>
+              <button class="btn btn-ghost btn-sm" onclick="window.open('${urlEsc}','_blank')" style="padding:5px 10px;font-size:11px" title="Ver em nova aba">👁</button>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // Card padrão (foto, template, outro)
+      const thumb = isImg
+        ? `<div style="position:relative;aspect-ratio:4/3;overflow:hidden;background:var(--surface2)"><img src="${urlEsc}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">${deleteBtn}${downloadBtn}${descricao ? `<div style="position:absolute;bottom:6px;left:6px;font-size:9.5px;font-weight:700;padding:3px 8px;border-radius:4px;background:rgba(0,0,0,0.75);color:white">${descricao}</div>` : ''}</div>`
         : `<div style="position:relative;aspect-ratio:4/3;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:44px">${iconeTipo(tipo)}${deleteBtn}</div>`;
 
       return `<div class="card" style="padding:0;overflow:hidden;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,0.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''" onclick="window.open('${urlEsc}','_blank')">
         ${thumb}
         <div style="padding:10px 12px">
           <div style="font-size:12.5px;font-weight:700;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:4px">${nome}</div>
+          ${!isImg && descricao ? `<div style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--surface2);color:var(--text2);display:inline-block;margin-bottom:4px">${descricao}</div>` : ''}
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--text3)">
             <span>${labelCategoria(cat)}</span>
             <span>${fmtData(m.created_at)}</span>
@@ -8241,6 +8293,7 @@ function bkCancelarUpload() {
 async function bkConfirmarUpload() {
   if (!_brandkitFilesStash.length) return;
   const categoria = document.getElementById('bk-upload-cat-select')?.value || 'outro';
+  const descricao = document.getElementById('bk-upload-desc')?.value?.trim() || null;
   const statusEl = document.getElementById('bk-upload-status');
   document.getElementById('bk-upload-categoria').style.display = 'none';
 
@@ -8261,6 +8314,7 @@ async function bkConfirmarUpload() {
 
       const { error: insErr } = await sb.from('brandkit_itens').insert({
         nome: file.name,
+        descricao,
         categoria,
         url: urlData.publicUrl,
         tipo,
@@ -8299,6 +8353,7 @@ async function adicionarLinkBrandkit() {
   const url = document.getElementById('bk-link-url')?.value?.trim();
   const nome = document.getElementById('bk-link-nome')?.value?.trim();
   const categoria = document.getElementById('bk-link-categoria')?.value || 'template';
+  const descricao = document.getElementById('bk-link-desc')?.value?.trim() || null;
   if (!url) { showToast('Coloque a URL'); return; }
   if (!/^https?:\/\//.test(url)) { showToast('URL deve começar com http:// ou https://'); return; }
 
@@ -8313,6 +8368,7 @@ async function adicionarLinkBrandkit() {
   try {
     const { error } = await sb.from('brandkit_itens').insert({
       nome: displayNome,
+      descricao,
       categoria,
       url,
       tipo: detectTipoMaterial(url),
@@ -8323,12 +8379,93 @@ async function adicionarLinkBrandkit() {
 
     document.getElementById('bk-link-url').value = '';
     document.getElementById('bk-link-nome').value = '';
+    const descEl = document.getElementById('bk-link-desc');
+    if (descEl) descEl.value = '';
     document.getElementById('bk-add-link').style.display = 'none';
 
     showToast('✓ Link adicionado ao Brand Kit');
     logActivity('adicionou_brandkit', displayNome, 'briefingvisual');
     loadBrandkit();
   } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+// ── IMPORTAR REBRANDING DANA (atalho pro pacote Itens Projeto) ──
+function bkImportarRebranding() {
+  if (!podeCriarBrandkit()) { showToast('Sem permissão'); return; }
+  const input = document.getElementById('bk-rebranding-input');
+  if (input) input.click();
+}
+
+async function bkProcessarRebranding(files) {
+  if (!files || !files.length) return;
+  if (!podeCriarBrandkit()) { showToast('Sem permissão'); return; }
+
+  const statusEl = document.getElementById('bk-upload-status');
+  const fileArr = Array.from(files);
+
+  // Valida tamanho
+  const tooBig = fileArr.filter(f => f.size > MAX_UPLOAD_BYTES);
+  if (tooBig.length) {
+    showToast('Alguns arquivos acima de 50 MB: ' + tooBig.map(f => f.name).join(', '));
+    return;
+  }
+
+  statusEl.innerHTML = `<span style="color:var(--blue)">⚡ Importando ${fileArr.length} arquivo(s) de rebranding...</span>`;
+  let ok = 0;
+  const descricaoBase = 'Rebranding 2026';
+
+  for (const file of fileArr) {
+    try {
+      const lowerName = file.name.toLowerCase();
+      // Auto-detect categoria
+      let categoria = 'logo';
+      let descricao = descricaoBase + ' · Logo';
+      if (lowerName.endsWith('.pdf') || lowerName.includes('manual')) {
+        categoria = 'documento';
+        descricao = descricaoBase + ' · Manual da Marca';
+      } else if (lowerName.includes('horizontal')) {
+        categoria = 'logo';
+        descricao = descricaoBase + ' · Logo Horizontal' + (lowerName.includes('s-slogan') || lowerName.includes('sem') ? ' (sem slogan)' : ' (com slogan)');
+      } else if (lowerName.includes('vertical')) {
+        categoria = 'logo';
+        descricao = descricaoBase + ' · Logo Vertical' + (lowerName.includes('s-slogan') || lowerName.includes('sem') ? ' (sem slogan)' : ' (com slogan)');
+      }
+
+      const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+      const filename = 'brandkit-' + categoria + '-' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
+
+      const { error: upErr } = await sb.storage.from('kanban').upload(filename, file, { cacheControl: '3600', upsert: false });
+      if (upErr) throw upErr;
+
+      const { data: urlData } = sb.storage.from('kanban').getPublicUrl(filename);
+      const tipo = detectTipoMaterial(file);
+
+      const { error: insErr } = await sb.from('brandkit_itens').insert({
+        nome: file.name,
+        descricao,
+        categoria,
+        url: urlData.publicUrl,
+        tipo,
+        mime_type: file.type || null,
+        tamanho: file.size || null,
+        storage_path: filename,
+        criado_por: currentUser?.id || null,
+        criado_por_nome: currentProfile?.nome || 'Anônimo',
+      });
+      if (insErr) throw insErr;
+      ok++;
+    } catch (e) {
+      console.error('Import rebranding error:', e);
+    }
+  }
+
+  document.getElementById('bk-rebranding-input').value = '';
+  statusEl.innerHTML = `<span style="color:var(--green)">✓ ${ok} arquivo(s) de rebranding importado(s) com sucesso</span>`;
+  setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 6000);
+  if (ok > 0) {
+    logActivity('importou_rebranding', ok + ' arquivos', 'briefingvisual');
+    loadBrandkit();
+  }
 }
 
 let _brandkitExcluirId = null;
