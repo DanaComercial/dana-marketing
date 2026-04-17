@@ -9261,12 +9261,22 @@ function abrirLinkAlerta(ref, alertaId, dados) {
   if (dados && dados.criativo_id && viewId === 'criativos') {
     setTimeout(() => focarCriativo(dados.criativo_id), 400);
   }
-  // Deep-link pra tarefa (abre o modal de ver tarefa)
+  // Deep-link pra tarefa (abre o modal da tarefa específica)
   if (dados && dados.tarefa_id && viewId === 'tarefas') {
-    setTimeout(() => {
-      if (typeof abrirTarefa === 'function') abrirTarefa(dados.tarefa_id);
-    }, 400);
+    setTimeout(() => focarTarefa(dados.tarefa_id), 500);
   }
+}
+
+// Abre uma tarefa específica após aguardar loadTarefas terminar
+async function focarTarefa(tarefaId) {
+  let tentativas = 0;
+  while ((!_tarefasCache || !_tarefasCache.find(t => t.id === tarefaId)) && tentativas < 15) {
+    await new Promise(r => setTimeout(r, 150));
+    tentativas++;
+  }
+  const t = _tarefasCache?.find(x => x.id === tarefaId);
+  if (!t) { console.warn('🔗 Tarefa não encontrada em cache:', tarefaId); showToast('Tarefa não encontrada'); return; }
+  if (typeof openTarefa === 'function') openTarefa(tarefaId);
 }
 
 // Foca um criativo específico: muda aba conforme status + scroll + highlight
