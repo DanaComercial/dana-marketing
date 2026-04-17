@@ -5408,12 +5408,23 @@ updateDynamicField('foto');
 
   <!-- Tab: Materiais -->
   <div id="bv-tab-materiais" class="bv-tab-panel" style="display:none">
-    <div class="card" style="text-align:center;padding:40px 20px">
-      <div style="font-size:36px;margin-bottom:10px;opacity:0.4">🎨</div>
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;margin-bottom:6px">Biblioteca de Materiais</div>
-      <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Upload de imagens, PDFs, vídeos e copies anexados a cada briefing.</div>
-      <div style="display:inline-block;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--surface2);color:var(--text3);letter-spacing:0.5px">FASE 2 · EM BREVE</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap">
+      <div>
+        <div class="card-title" style="font-size:14px">Biblioteca de Materiais</div>
+        <div class="card-sub" id="mat-global-count">Todos os arquivos e links anexados aos briefings</div>
+      </div>
     </div>
+
+    <!-- Filtros -->
+    <div class="tabs mb16">
+      <div class="tab active" onclick="filterMateriaisGlobal(this,'todos')">Todos</div>
+      <div class="tab" onclick="filterMateriaisGlobal(this,'imagem')">🖼 Imagens</div>
+      <div class="tab" onclick="filterMateriaisGlobal(this,'video')">🎬 Vídeos</div>
+      <div class="tab" onclick="filterMateriaisGlobal(this,'pdf')">📄 PDFs</div>
+      <div class="tab" onclick="filterMateriaisGlobal(this,'link')">🔗 Links</div>
+    </div>
+
+    <div id="mat-global-list"><div style="text-align:center;color:var(--text3);font-size:12.5px;padding:40px">Carregando materiais...</div></div>
   </div>
 
   <!-- Tab: Brand Kit -->
@@ -5435,6 +5446,31 @@ updateDynamicField('foto');
       <button class="modal-close" onclick="closeModal('ver-briefing')">×</button>
     </div>
     <div id="bv-modal-body" style="font-size:13px;color:var(--text2);line-height:1.6"></div>
+
+    <!-- Materiais anexados (Fase 2) -->
+    <div id="bv-materiais-section" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px">🎨 Materiais da Campanha</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px" id="bv-materiais-count">Carregando...</div>
+        </div>
+        <div style="display:flex;gap:6px" id="bv-materiais-actions">
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('bv-mat-file-input').click()">📷 Arquivo</button>
+          <button class="btn btn-ghost btn-sm" onclick="bvToggleAddLink()">🔗 Link</button>
+        </div>
+      </div>
+      <input type="file" id="bv-mat-file-input" multiple style="display:none" onchange="uploadMateriaisBriefing(this.files)">
+      <div id="bv-mat-add-link" style="display:none;margin-bottom:10px">
+        <div style="display:flex;gap:6px">
+          <input class="input" type="url" id="bv-mat-link-url" placeholder="https://..." style="flex:2">
+          <input class="input" id="bv-mat-link-nome" placeholder="Nome (opcional)" style="flex:1">
+          <button type="button" class="btn btn-primary btn-sm" onclick="adicionarLinkMaterial()">Adicionar</button>
+        </div>
+      </div>
+      <div id="bv-mat-upload-status" style="font-size:11px;color:var(--text3);margin-bottom:8px"></div>
+      <div id="bv-materiais-list"></div>
+    </div>
+
     <div style="display:flex;gap:8px;margin-top:16px;border-top:1px solid var(--border);padding-top:16px" id="bv-modal-actions">
       <button class="btn btn-ghost btn-sm" onclick="imprimirBriefing()">🖨 Imprimir</button>
       <button class="btn btn-ghost btn-sm" onclick="abrirModalDuplicar()" id="bv-btn-duplicar">📋 Duplicar</button>
@@ -5472,11 +5508,30 @@ updateDynamicField('foto');
     <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">
       Tem certeza que quer excluir o briefing <strong id="del-briefing-nome" style="color:var(--text)"></strong>?
       <br><br>
-      <span style="color:var(--red);font-size:12px">⚠️ Essa ação não pode ser desfeita.</span>
+      <span style="color:var(--red);font-size:12px">⚠️ Essa ação não pode ser desfeita. Todos os materiais anexados também serão removidos.</span>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-ghost" onclick="closeModal('excluir-briefing')" style="flex:1">Cancelar</button>
       <button class="btn btn-primary" onclick="confirmarExcluirBriefing()" style="flex:1;background:var(--red);border-color:var(--red)">Excluir</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Excluir Material -->
+<div class="modal-overlay" id="modal-excluir-material">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--red)">🗑 Remover Material</div>
+      <button class="modal-close" onclick="closeModal('excluir-material')">×</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">
+      Remover o material <strong id="del-material-nome" style="color:var(--text)"></strong>?
+      <br><br>
+      <span style="color:var(--red);font-size:12px">⚠️ O arquivo será deletado permanentemente.</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="closeModal('excluir-material')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarExcluirMaterial()" style="flex:1;background:var(--red);border-color:var(--red)">Remover</button>
     </div>
   </div>
 </div>
@@ -6753,11 +6808,14 @@ let _briefingsCache = [];
 let _briefingAtivoId = null;
 
 function switchBriefingTab(btn, tab) {
-  document.querySelectorAll('#view-briefingvisual .tab').forEach(t => t.classList.remove('active'));
+  // Só considera as tabs top-level da view Briefing Visual (não os filtros da aba Materiais)
+  document.querySelectorAll('#view-briefingvisual > div > .tabs > .tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
   document.querySelectorAll('.bv-tab-panel').forEach(p => p.style.display = 'none');
   const panel = document.getElementById('bv-tab-' + tab);
   if (panel) panel.style.display = '';
+  // Carrega conteúdo da aba se necessário
+  if (tab === 'materiais') loadMateriaisGlobal();
 }
 
 function podeCriarBriefing() {
@@ -6881,6 +6939,15 @@ function abrirBriefing(id) {
   if (btnDup) btnDup.style.display = podeCriarBriefing() ? '' : 'none';
   if (btnDel) btnDel.style.display = podeExcluirBriefing() ? '' : 'none';
 
+  // Resetar seção de link e carregar materiais deste briefing
+  const addLinkEl = document.getElementById('bv-mat-add-link');
+  if (addLinkEl) addLinkEl.style.display = 'none';
+  const linkUrlEl = document.getElementById('bv-mat-link-url');
+  const linkNomeEl = document.getElementById('bv-mat-link-nome');
+  if (linkUrlEl) linkUrlEl.value = '';
+  if (linkNomeEl) linkNomeEl.value = '';
+  loadMateriaisBriefing(id);
+
   openModal('ver-briefing');
 }
 
@@ -6957,6 +7024,330 @@ async function confirmarExcluirBriefing() {
     logActivity('excluiu_briefing', b.titulo, 'briefingvisual');
     loadBriefings();
   } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BRIEFING — MATERIAIS (Fase 2)
+// ═══════════════════════════════════════════════════════════
+let _materiaisCache = [];          // Materiais do briefing aberto atualmente
+let _materiaisGlobalCache = [];    // Todos os materiais (aba global)
+let _materiaisFiltroAtual = 'todos';
+
+function detectTipoMaterial(fileOrUrl) {
+  let s = '';
+  let mime = '';
+  if (typeof fileOrUrl === 'string') {
+    s = fileOrUrl.toLowerCase();
+  } else if (fileOrUrl && fileOrUrl.name) {
+    s = fileOrUrl.name.toLowerCase();
+    mime = fileOrUrl.type || '';
+  }
+  if (mime.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/.test(s)) return 'imagem';
+  if (mime.startsWith('video/') || /\.(mp4|mov|webm|avi|mkv)(\?|$)/.test(s)) return 'video';
+  if (mime === 'application/pdf' || /\.pdf(\?|$)/.test(s)) return 'pdf';
+  if (typeof fileOrUrl === 'string' && /^https?:\/\//.test(fileOrUrl)) return 'link';
+  return 'outro';
+}
+
+function iconeTipo(tipo) {
+  return { imagem: '🖼', video: '🎬', pdf: '📄', link: '🔗', outro: '📎' }[tipo] || '📎';
+}
+
+function fmtTamanho(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+async function loadMateriaisBriefing(briefingId) {
+  const list = document.getElementById('bv-materiais-list');
+  const countEl = document.getElementById('bv-materiais-count');
+  const actionsEl = document.getElementById('bv-materiais-actions');
+  if (!list) return;
+
+  // Aplica permissão (só mostra botões de upload se pode editar)
+  const canEdit = podeEditarBriefing() || podeCriarBriefing();
+  if (actionsEl) actionsEl.style.display = canEdit ? '' : 'none';
+
+  try {
+    const { data, error } = await sb.from('materiais_briefing')
+      .select('*')
+      .eq('briefing_id', briefingId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    _materiaisCache = data || [];
+    renderMateriaisBriefing();
+  } catch (e) {
+    console.error('loadMateriaisBriefing:', e);
+    list.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px">Erro ao carregar: ${esc(e.message || e)}</div>`;
+    if (countEl) countEl.textContent = 'Erro';
+  }
+}
+
+function renderMateriaisBriefing() {
+  const list = document.getElementById('bv-materiais-list');
+  const countEl = document.getElementById('bv-materiais-count');
+  if (!list) return;
+
+  const n = _materiaisCache.length;
+  if (countEl) countEl.textContent = n === 0 ? 'Nenhum material anexado ainda' : `${n} ${n===1?'item':'itens'}`;
+
+  if (!n) {
+    list.innerHTML = `<div style="text-align:center;padding:24px;background:var(--surface2);border:1px dashed var(--border);border-radius:10px;font-size:12px;color:var(--text3)">
+      Adicione arquivos (imagens, PDFs, vídeos) ou links do Drive, Canva, Pinterest…
+    </div>`;
+    return;
+  }
+
+  const canEdit = podeEditarBriefing() || podeCriarBriefing() || podeExcluirBriefing();
+
+  list.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">' +
+    _materiaisCache.map(m => {
+      const nome = esc(m.nome || 'Sem nome');
+      const urlEsc = (m.url || '').replace(/"/g,'&quot;').replace(/'/g,"\\'");
+      const tipo = m.tipo || 'outro';
+      const deleteBtn = canEdit ? `<button onclick="event.stopPropagation();abrirModalExcluirMaterial('${m.id}')" style="position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.65);color:white;border:none;cursor:pointer;font-size:12px;line-height:1" title="Remover">×</button>` : '';
+
+      if (tipo === 'imagem') {
+        return `<div style="position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:var(--surface2);cursor:pointer" onclick="window.open('${urlEsc}','_blank')">
+          <img src="${urlEsc}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">
+          ${deleteBtn}
+          <div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,0.7));color:white;font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome}</div>
+        </div>`;
+      }
+      // Non-image: file/link card
+      return `<div style="position:relative;aspect-ratio:1;border-radius:8px;border:1px solid var(--border);background:var(--white);padding:10px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer" onclick="window.open('${urlEsc}','_blank')">
+        ${deleteBtn}
+        <div style="font-size:32px;text-align:center;margin-top:14px">${iconeTipo(tipo)}</div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${nome}</div>
+          ${m.tamanho ? `<div style="font-size:10px;color:var(--text3);margin-top:2px">${fmtTamanho(m.tamanho)}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+}
+
+function bvToggleAddLink() {
+  const el = document.getElementById('bv-mat-add-link');
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+  if (el.style.display === '') setTimeout(() => document.getElementById('bv-mat-link-url')?.focus(), 100);
+}
+
+async function uploadMateriaisBriefing(files) {
+  if (!_briefingAtivoId) { showToast('Briefing não identificado'); return; }
+  if (!podeEditarBriefing() && !podeCriarBriefing()) { showToast('Sem permissão'); return; }
+  if (!files || !files.length) return;
+
+  const statusEl = document.getElementById('bv-mat-upload-status');
+  const inputEl = document.getElementById('bv-mat-file-input');
+
+  statusEl.textContent = `Enviando ${files.length} arquivo(s)...`;
+  let ok = 0;
+
+  for (const file of files) {
+    try {
+      const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+      const filename = 'briefing-' + _briefingAtivoId.slice(0,8) + '-' + Date.now() + '-' + Math.random().toString(36).slice(2,8) + '.' + ext;
+
+      const { error: upErr } = await sb.storage.from('kanban').upload(filename, file, { cacheControl: '3600', upsert: false });
+      if (upErr) throw upErr;
+
+      const { data: urlData } = sb.storage.from('kanban').getPublicUrl(filename);
+
+      const tipo = detectTipoMaterial(file);
+      const { error: insErr } = await sb.from('materiais_briefing').insert({
+        briefing_id: _briefingAtivoId,
+        url: urlData.publicUrl,
+        nome: file.name,
+        tipo,
+        mime_type: file.type || null,
+        tamanho: file.size || null,
+        storage_path: filename,
+        criado_por: currentUser?.id || null,
+        criado_por_nome: currentProfile?.nome || 'Anônimo',
+      });
+      if (insErr) throw insErr;
+      ok++;
+    } catch (e) {
+      console.error('Upload material error:', e);
+      showToast('Erro: ' + (e.message || 'falha no upload'));
+    }
+  }
+
+  statusEl.textContent = ok > 0 ? `✓ ${ok} arquivo(s) enviado(s)` : '';
+  setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+  if (inputEl) inputEl.value = '';
+
+  if (ok > 0) {
+    logActivity('adicionou_material', `${ok} arquivo(s)`, 'briefingvisual');
+    loadMateriaisBriefing(_briefingAtivoId);
+  }
+}
+
+async function adicionarLinkMaterial() {
+  if (!_briefingAtivoId) return;
+  if (!podeEditarBriefing() && !podeCriarBriefing()) { showToast('Sem permissão'); return; }
+
+  const url = document.getElementById('bv-mat-link-url')?.value?.trim();
+  const nome = document.getElementById('bv-mat-link-nome')?.value?.trim();
+  if (!url) { showToast('Coloque a URL'); return; }
+  if (!/^https?:\/\//.test(url)) { showToast('URL deve começar com http:// ou https://'); return; }
+
+  let displayNome = nome;
+  if (!displayNome) {
+    try {
+      const u = new URL(url);
+      displayNome = u.hostname.replace('www.', '');
+    } catch { displayNome = url; }
+  }
+
+  try {
+    const { error } = await sb.from('materiais_briefing').insert({
+      briefing_id: _briefingAtivoId,
+      url,
+      nome: displayNome,
+      tipo: detectTipoMaterial(url),
+      criado_por: currentUser?.id || null,
+      criado_por_nome: currentProfile?.nome || 'Anônimo',
+    });
+    if (error) throw error;
+
+    document.getElementById('bv-mat-link-url').value = '';
+    document.getElementById('bv-mat-link-nome').value = '';
+    document.getElementById('bv-mat-add-link').style.display = 'none';
+
+    showToast('✓ Link adicionado');
+    logActivity('adicionou_material', displayNome, 'briefingvisual');
+    loadMateriaisBriefing(_briefingAtivoId);
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+// Excluir material — com modal de confirmação
+let _materialExcluirId = null;
+
+function abrirModalExcluirMaterial(id) {
+  if (!podeExcluirBriefing() && !podeEditarBriefing() && !podeCriarBriefing()) { showToast('Sem permissão'); return; }
+  const m = _materiaisCache.find(x => x.id === id) || _materiaisGlobalCache.find(x => x.id === id);
+  if (!m) return;
+  _materialExcluirId = id;
+  const nomeEl = document.getElementById('del-material-nome');
+  if (nomeEl) nomeEl.textContent = '"' + (m.nome || '—') + '"';
+  openModal('excluir-material');
+}
+
+async function confirmarExcluirMaterial() {
+  if (!_materialExcluirId) return;
+  const m = _materiaisCache.find(x => x.id === _materialExcluirId) || _materiaisGlobalCache.find(x => x.id === _materialExcluirId);
+  if (!m) return;
+
+  try {
+    // Deleta do Storage se tiver path
+    if (m.storage_path) {
+      const { error: stErr } = await sb.storage.from('kanban').remove([m.storage_path]);
+      if (stErr) console.warn('Storage remove warning:', stErr.message);
+    }
+    // Deleta do DB
+    const { error } = await sb.from('materiais_briefing').delete().eq('id', _materialExcluirId);
+    if (error) throw error;
+
+    closeModal('excluir-material');
+    showToast('✓ Material removido');
+    logActivity('removeu_material', m.nome || '—', 'briefingvisual');
+
+    // Recarrega contextos visíveis
+    if (_briefingAtivoId) loadMateriaisBriefing(_briefingAtivoId);
+    loadMateriaisGlobal();
+
+    _materialExcluirId = null;
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+// ── Aba global: todos os materiais ──
+async function loadMateriaisGlobal() {
+  const list = document.getElementById('mat-global-list');
+  const countEl = document.getElementById('mat-global-count');
+  if (!list) return;
+
+  try {
+    const { data, error } = await sb.from('materiais_briefing')
+      .select('*, briefings_campanha(id, titulo)')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+
+    _materiaisGlobalCache = data || [];
+    renderMateriaisGlobal();
+
+    if (countEl) {
+      const n = _materiaisGlobalCache.length;
+      countEl.textContent = n === 0
+        ? 'Nenhum material cadastrado ainda — adicione dentro de um briefing salvo'
+        : `${n} arquivo${n===1?'':'s'} e link${n===1?'':'s'} anexado${n===1?'':'s'} aos briefings`;
+    }
+  } catch (e) {
+    console.error('loadMateriaisGlobal:', e);
+    list.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px;text-align:center">Erro ao carregar: ${esc(e.message || e)}</div>`;
+  }
+}
+
+function filterMateriaisGlobal(btn, tipo) {
+  document.querySelectorAll('#bv-tab-materiais .tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  _materiaisFiltroAtual = tipo;
+  renderMateriaisGlobal();
+}
+
+function renderMateriaisGlobal() {
+  const list = document.getElementById('mat-global-list');
+  if (!list) return;
+
+  const filtro = _materiaisFiltroAtual || 'todos';
+  const items = filtro === 'todos' ? _materiaisGlobalCache : _materiaisGlobalCache.filter(m => m.tipo === filtro);
+
+  if (!items.length) {
+    list.innerHTML = `<div style="text-align:center;padding:40px 20px;background:var(--white);border:1px dashed var(--border);border-radius:12px">
+      <div style="font-size:36px;opacity:0.3;margin-bottom:8px">${filtro === 'todos' ? '🎨' : iconeTipo(filtro)}</div>
+      <div style="font-size:13px;color:var(--text2)">Nenhum ${filtro === 'todos' ? 'material' : filtro} encontrado</div>
+      <div style="font-size:11.5px;color:var(--text3);margin-top:4px">Adicione materiais dentro de um briefing salvo</div>
+    </div>`;
+    return;
+  }
+
+  const fmtData = (s) => {
+    if (!s) return '—';
+    const d = new Date(s);
+    return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+  };
+
+  const canEdit = podeExcluirBriefing() || podeEditarBriefing() || podeCriarBriefing();
+
+  list.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">' +
+    items.map(m => {
+      const nome = esc(m.nome || 'Sem nome');
+      const urlEsc = (m.url || '').replace(/"/g,'&quot;').replace(/'/g,"\\'");
+      const tipo = m.tipo || 'outro';
+      const briefingTitulo = m.briefings_campanha?.titulo ? esc(m.briefings_campanha.titulo) : '—';
+      const deleteBtn = canEdit ? `<button onclick="event.stopPropagation();abrirModalExcluirMaterial('${m.id}')" style="position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,0.7);color:white;border:none;cursor:pointer;font-size:13px;line-height:1" title="Remover">×</button>` : '';
+
+      const thumb = tipo === 'imagem'
+        ? `<div style="position:relative;aspect-ratio:4/3;overflow:hidden;background:var(--surface2)"><img src="${urlEsc}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">${deleteBtn}</div>`
+        : `<div style="position:relative;aspect-ratio:4/3;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:44px">${iconeTipo(tipo)}${deleteBtn}</div>`;
+
+      return `<div class="card" style="padding:0;overflow:hidden;cursor:pointer;transition:transform 0.15s,box-shadow 0.15s" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,0.08)'" onmouseout="this.style.transform='';this.style.boxShadow=''" onclick="window.open('${urlEsc}','_blank')">
+        ${thumb}
+        <div style="padding:10px 12px">
+          <div style="font-size:12px;font-weight:700;color:var(--text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-bottom:4px">${nome}</div>
+          <div style="font-size:10.5px;color:var(--text3);margin-bottom:3px">📋 ${briefingTitulo}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--text3)">
+            <span>${iconeTipo(tipo)} ${tipo}</span>
+            <span>${fmtData(m.created_at)}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('') + '</div>';
 }
 
 // ── PERSONAS ──
