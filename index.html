@@ -1608,6 +1608,12 @@ select.input { cursor: pointer; }
     <div class="nav-item" onclick="go(this,'analytics')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 14V2M2 14h12M5 11V7M8 11V5M11 11V9"/></svg></div>Analytics
     </div>
+    <div class="nav-item" onclick="go(this,'ecommerce')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12l-1 9H3z"/><circle cx="6" cy="14.5" r="1"/><circle cx="11" cy="14.5" r="1"/><path d="M2 4L1 2"/></svg></div>E-commerce
+    </div>
+    <div class="nav-item" onclick="go(this,'lojafisica')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 5h12v9H2z"/><path d="M2 5l1-3h10l1 3"/><path d="M6 14V9h4v5"/></svg></div>Loja Física
+    </div>
     <div class="nav-item" onclick="go(this,'campanhas')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 6h14M5 2v2M11 2v2"/></svg></div>Campanhas
     </div>
@@ -2149,6 +2155,115 @@ select.input { cursor: pointer; }
         Usuários ativos · Sessões · Taxa de conversão · Origem do tráfego · Páginas mais visitadas · Dispositivos · Localização
       </div>
     </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ════════ E-COMMERCE (Site) ════════ -->
+<div class="view" id="view-ecommerce">
+<div style="padding:24px 28px">
+
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap">
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px">🌐 E-commerce</div>
+      <div style="font-size:12.5px;color:var(--text3);margin-top:3px">Vendas do site · <strong>danajalecos.com.br</strong> · dados Bling ao vivo</div>
+    </div>
+    <select class="input" id="ec-filtro-periodo" onchange="loadEcommerce()" style="width:auto;min-width:180px">
+      <option value="ytd">Acumulado 2026</option>
+      <option value="atual" selected>Mês atual</option>
+      <option value="2025">Ano 2025</option>
+    </select>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid mb20">
+    <div class="kpi-card dark"><div class="kpi-label">Faturamento</div><div class="kpi-value" id="ec-kpi-fat">--</div><div class="kpi-change up" id="ec-kpi-fat-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label">Pedidos</div><div class="kpi-value" id="ec-kpi-ped">--</div><div class="kpi-change up" id="ec-kpi-ped-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label">Ticket Médio</div><div class="kpi-value" id="ec-kpi-ticket">--</div><div class="kpi-change up">Site</div></div>
+    <div class="kpi-card"><div class="kpi-label">Share do Total</div><div class="kpi-value" id="ec-kpi-share">--</div><div class="kpi-change up">% do faturamento geral</div></div>
+  </div>
+
+  <!-- Gráfico mensal -->
+  <div class="card mb20">
+    <div class="card-title" style="margin-bottom:14px">📈 Evolução mensal (site)</div>
+    <div id="ec-grafico" style="min-height:180px;display:flex;align-items:flex-end;gap:8px;padding:8px 0"></div>
+  </div>
+
+  <!-- Top produtos + Top clientes -->
+  <div class="g2">
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title">🥇 Top Produtos (site)</div><div class="card-sub" id="ec-prod-sub">Por quantidade vendida · período selecionado</div></div>
+      </div>
+      <div id="ec-top-produtos"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title">👥 Top Clientes (site)</div><div class="card-sub" id="ec-cli-sub">Por volume de pedidos · período selecionado</div></div>
+      </div>
+      <div id="ec-top-clientes"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ════════ LOJA FÍSICA + WhatsApp ════════ -->
+<div class="view" id="view-lojafisica">
+<div style="padding:24px 28px">
+
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap">
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px">🏪 Loja Física + WhatsApp</div>
+      <div style="font-size:12.5px;color:var(--text3);margin-top:3px">Vendas presenciais (Piçarras SC + Balneário Camboriú SC) + WhatsApp comercial · dados Bling</div>
+    </div>
+    <select class="input" id="lf-filtro-periodo" onchange="loadLojaFisica()" style="width:auto;min-width:180px">
+      <option value="ytd">Acumulado 2026</option>
+      <option value="atual" selected>Mês atual</option>
+      <option value="2025">Ano 2025</option>
+    </select>
+  </div>
+
+  <!-- Aviso sobre limitação -->
+  <div style="padding:12px 14px;background:rgba(217,119,6,0.08);border:1px solid rgba(217,119,6,0.25);border-radius:8px;font-size:11.5px;color:var(--text2);line-height:1.5;margin-bottom:16px">
+    💡 <strong>Nota:</strong> No Bling, Piçarras + Balneário Camboriú + WhatsApp compartilham o mesmo canal. Os números abaixo são o <strong>total combinado</strong> dos 3.
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid mb20">
+    <div class="kpi-card dark"><div class="kpi-label">Faturamento</div><div class="kpi-value" id="lf-kpi-fat">--</div><div class="kpi-change up" id="lf-kpi-fat-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label">Pedidos</div><div class="kpi-value" id="lf-kpi-ped">--</div><div class="kpi-change up" id="lf-kpi-ped-sub">carregando...</div></div>
+    <div class="kpi-card"><div class="kpi-label">Ticket Médio</div><div class="kpi-value" id="lf-kpi-ticket">--</div><div class="kpi-change up">Loja + WhatsApp</div></div>
+    <div class="kpi-card"><div class="kpi-label">Share do Total</div><div class="kpi-value" id="lf-kpi-share">--</div><div class="kpi-change up">% do faturamento geral</div></div>
+  </div>
+
+  <!-- Gráfico mensal -->
+  <div class="card mb20">
+    <div class="card-title" style="margin-bottom:14px">📈 Evolução mensal (loja + WhatsApp)</div>
+    <div id="lf-grafico" style="min-height:180px;display:flex;align-items:flex-end;gap:8px;padding:8px 0"></div>
+  </div>
+
+  <!-- Top produtos + Top clientes -->
+  <div class="g2 mb20">
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title">🥇 Top Produtos (loja + WhatsApp)</div><div class="card-sub">Por quantidade vendida · período selecionado</div></div>
+      </div>
+      <div id="lf-top-produtos"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div><div class="card-title">👥 Top Clientes (loja + WhatsApp)</div><div class="card-sub">Por volume de pedidos · período selecionado</div></div>
+      </div>
+      <div id="lf-top-clientes"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+    </div>
+  </div>
+
+  <!-- Dia da semana -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px">📅 Vendas por Dia da Semana</div>
+    <div id="lf-dia-semana"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
   </div>
 
 </div>
@@ -7647,6 +7762,8 @@ const VIEW_META = {
   home:         { title: 'Dashboard', sub: 'Visão geral · Dana Jalecos Exclusivos', action: 'Nova Campanha' },
   canaisaquisicao: { title: 'Canais de Aquisição', sub: 'Fontes de tráfego e investimento estratégico', action: '' },
   analytics:    { title: 'Analytics', sub: 'Métricas consolidadas · dashboards nativos e GA4', action: '' },
+  ecommerce:    { title: 'E-commerce', sub: 'Vendas do site danajalecos.com.br', action: '' },
+  lojafisica:   { title: 'Loja Física', sub: 'Vendas presenciais (Piçarras + BC) + WhatsApp', action: '' },
   campanhas:    { title: 'Campanhas', sub: 'Execução e performance de anúncios pagos', action: '' },
   criativos:    { title: 'Criativos', sub: 'Artes, vídeos e calendário de publicação', action: 'Novo Criativo' },
   influenciadores: { title: 'Influenciadores', sub: 'Ranking, cupons e radar de novos perfis', action: 'Adicionar Influenciadora' },
@@ -7721,6 +7838,8 @@ function go(el, viewId) {
   if (viewId === 'canaisaquisicao') { if (typeof loadCanaisAquisicao === 'function') loadCanaisAquisicao(); }
   if (viewId === 'criativos') { if (typeof loadCriativos === 'function') loadCriativos(); }
   if (viewId === 'mercado') { if (typeof loadConcorrentes === 'function') loadConcorrentes(); }
+  if (viewId === 'ecommerce') { if (typeof loadEcommerce === 'function') loadEcommerce(); }
+  if (viewId === 'lojafisica') { if (typeof loadLojaFisica === 'function') loadLojaFisica(); }
   if (viewId === 'calendario') { if (typeof loadCalendario==='function') loadCalendario(); if (typeof loadTarefas==='function' && !_tarefasCache?.length) loadTarefas(); else if (typeof renderCalendario==='function') setTimeout(renderCalendario, 100); }
 }
 
@@ -12211,6 +12330,219 @@ function loadProjecoes() {
     }
     barrasEl.innerHTML = html + '<div style="display:flex;gap:16px;margin-top:8px;font-size:10px;color:var(--text3)"><div><span style="display:inline-block;width:10px;height:10px;background:#999;border-radius:2px;margin-right:4px"></span>2025</div><div><span style="display:inline-block;width:10px;height:10px;background:var(--black);border-radius:2px;margin-right:4px"></span>2026</div></div>';
   }
+}
+
+// ══════════════════════════════════════════════════════════
+// E-COMMERCE (site) e LOJA FÍSICA + WhatsApp
+// Usa dados Bling via tabela pedidos (filtra por loja_id)
+// ══════════════════════════════════════════════════════════
+
+// Mapeia loja_id → canal
+// 0 ou NULL → Site (e-commerce)
+// 203536978 → Loja/WhatsApp (presencial + whats)
+// 205337834 → Mercado Livre · 205430008 → TikTok · 205522474 → Shopee · default → Magalu
+const LOJA_ID_SITE = [0, null];
+const LOJA_ID_LOJA_WHATS = '203536978';
+
+function periodoFromFiltro(filtro) {
+  const now = new Date();
+  const ano = now.getFullYear(), mes = now.getMonth() + 1;
+  if (filtro === 'ytd') return { inicio: ano + '-01-01', fim: (ano+1) + '-01-01', label: 'Acumulado ' + ano };
+  if (filtro === '2025') return { inicio: '2025-01-01', fim: '2026-01-01', label: 'Ano 2025' };
+  // mês atual (default)
+  const nextMes = mes === 12 ? 1 : mes + 1;
+  const nextAno = mes === 12 ? ano + 1 : ano;
+  return {
+    inicio: ano + '-' + String(mes).padStart(2,'0') + '-01',
+    fim: nextAno + '-' + String(nextMes).padStart(2,'0') + '-01',
+    label: getMesNome(mes) + ' ' + ano
+  };
+}
+
+function fmtRbr(v) {
+  if (v == null) return '—';
+  if (v >= 1_000_000) return 'R$ ' + (v/1_000_000).toFixed(1).replace(/\.0$/,'') + 'M';
+  if (v >= 1000) return 'R$ ' + Math.round(v/1000) + 'k';
+  return 'R$ ' + Math.round(v).toLocaleString('pt-BR');
+}
+
+// Query base pra pedidos filtrados por canal
+async function queryPedidosPorCanal(filtroLojaId, inicio, fim) {
+  let q = sb.from('pedidos').select('id, total, data, contato_nome, loja_id, situacao_id').gte('data', inicio).lt('data', fim).limit(10000);
+  if (filtroLojaId === 'site') {
+    q = q.or('loja_id.is.null,loja_id.eq.0');
+  } else if (filtroLojaId === 'lojafisica') {
+    q = q.eq('loja_id', LOJA_ID_LOJA_WHATS);
+  }
+  const { data } = await q;
+  return data || [];
+}
+
+// Query itens dos pedidos de um canal (pra Top Produtos)
+async function queryItensPorCanal(filtroLojaId, inicio, fim) {
+  // Primeiro pega os pedido_ids do canal no período
+  const pedidos = await queryPedidosPorCanal(filtroLojaId, inicio, fim);
+  if (!pedidos.length) return [];
+  const ids = pedidos.map(p => p.id);
+  // Busca itens em lotes pra não estourar limite de URL
+  const all = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const batch = ids.slice(i, i + 200);
+    const { data } = await sb.from('pedidos_itens').select('descricao, quantidade, valor_total').in('pedido_id', batch);
+    if (data) all.push(...data);
+  }
+  return all;
+}
+
+function limparNomeProduto(desc) {
+  if (!desc) return '—';
+  return desc.replace(/\s*[-·]\s*(Tamanho|Cor|Tam|Cor Principal)\s*:\s*[^-·]+/gi, '').trim();
+}
+
+// ── Renderização comum: KPIs, gráfico, top produtos, top clientes ──
+
+async function carregarCanal(prefix, canal, filtro) {
+  const periodo = periodoFromFiltro(filtro);
+  const el = (id) => document.getElementById(id);
+
+  // Query pedidos
+  const pedidos = await queryPedidosPorCanal(canal, periodo.inicio, periodo.fim);
+
+  const faturamento = pedidos.reduce((s, p) => s + (+p.total || 0), 0);
+  const qtd = pedidos.length;
+  const ticket = qtd > 0 ? faturamento / qtd : 0;
+
+  // KPIs
+  if (el(prefix + '-kpi-fat')) el(prefix + '-kpi-fat').textContent = fmtRbr(faturamento);
+  if (el(prefix + '-kpi-fat-sub')) el(prefix + '-kpi-fat-sub').textContent = periodo.label;
+  if (el(prefix + '-kpi-ped')) el(prefix + '-kpi-ped').textContent = qtd.toLocaleString('pt-BR');
+  if (el(prefix + '-kpi-ped-sub')) el(prefix + '-kpi-ped-sub').textContent = periodo.label;
+  if (el(prefix + '-kpi-ticket')) el(prefix + '-kpi-ticket').textContent = fmtRbr(ticket);
+
+  // Share do total: precisa saber o faturamento TOTAL do período
+  try {
+    const { data: tudo } = await sb.from('pedidos').select('total').gte('data', periodo.inicio).lt('data', periodo.fim).limit(10000);
+    const totalGeral = (tudo || []).reduce((s, p) => s + (+p.total || 0), 0);
+    const share = totalGeral > 0 ? (faturamento / totalGeral * 100) : 0;
+    if (el(prefix + '-kpi-share')) el(prefix + '-kpi-share').textContent = share.toFixed(1) + '%';
+  } catch {}
+
+  // Gráfico mensal (últimos 12 meses)
+  const graficoEl = el(prefix + '-grafico');
+  if (graficoEl) {
+    const agora = new Date();
+    const meses = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1);
+      meses.push({ ano: d.getFullYear(), mes: d.getMonth() + 1, receita: 0, pedidos: 0, label: getMesNome(d.getMonth()+1).slice(0,3) + '/' + String(d.getFullYear()).slice(2) });
+    }
+    // Query dos últimos 12 meses
+    const ini12 = meses[0].ano + '-' + String(meses[0].mes).padStart(2,'0') + '-01';
+    const pedidos12 = await queryPedidosPorCanal(canal, ini12, periodo.fim);
+    pedidos12.forEach(p => {
+      if (!p.data) return;
+      const d = new Date(p.data);
+      const m = meses.find(x => x.ano === d.getFullYear() && x.mes === (d.getMonth() + 1));
+      if (m) { m.receita += (+p.total || 0); m.pedidos += 1; }
+    });
+    const maxR = Math.max(...meses.map(m => m.receita), 1);
+    graficoEl.innerHTML = meses.map(m => {
+      const h = Math.max(4, Math.round(m.receita / maxR * 160));
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+        <div style="font-size:9px;font-weight:700;color:var(--text3)">${fmtRbr(m.receita).replace('R$ ','')}</div>
+        <div style="width:100%;max-width:40px;height:${h}px;background:linear-gradient(to top, var(--black), var(--grey3));border-radius:4px 4px 0 0" title="${m.pedidos} pedidos"></div>
+        <div style="font-size:9px;color:var(--text3);font-weight:600">${m.label}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Top produtos
+  const topProdEl = el(prefix + '-top-produtos');
+  if (topProdEl) {
+    try {
+      const itens = await queryItensPorCanal(canal, periodo.inicio, periodo.fim);
+      const agg = {};
+      itens.forEach(it => {
+        const n = limparNomeProduto(it.descricao);
+        if (!agg[n]) agg[n] = { qtd: 0, receita: 0 };
+        agg[n].qtd += (+it.quantidade || 0);
+        agg[n].receita += (+it.valor_total || 0);
+      });
+      const top = Object.entries(agg).sort((a, b) => b[1].qtd - a[1].qtd).slice(0, 10);
+      const maxQ = top[0]?.[1]?.qtd || 1;
+      if (!top.length) {
+        topProdEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Nenhum produto no período</div>';
+      } else {
+        topProdEl.innerHTML = `<table style="width:100%"><thead><tr><th>#</th><th>Produto</th><th style="text-align:right">Qtd</th><th style="text-align:right">Receita</th></tr></thead><tbody>
+          ${top.map(([n, d], i) => `<tr>
+            <td style="font-weight:700;color:${i<3?'#1a4fa0':'var(--text3)'}">${i+1}</td>
+            <td class="em" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(n)}">${esc(n)}</td>
+            <td style="text-align:right">${d.qtd}</td>
+            <td style="text-align:right" class="good">${fmtRbr(d.receita)}</td>
+          </tr>`).join('')}
+        </tbody></table>`;
+      }
+    } catch (e) { topProdEl.innerHTML = `<div style="color:var(--red);font-size:12px;padding:12px">Erro: ${esc(e.message)}</div>`; }
+  }
+
+  // Top clientes
+  const topCliEl = el(prefix + '-top-clientes');
+  if (topCliEl) {
+    const agg = {};
+    pedidos.forEach(p => {
+      const n = (p.contato_nome || '').trim();
+      if (!n) return;
+      if (!agg[n]) agg[n] = { qtd: 0, receita: 0 };
+      agg[n].qtd += 1;
+      agg[n].receita += (+p.total || 0);
+    });
+    const top = Object.entries(agg).sort((a, b) => b[1].qtd - a[1].qtd).slice(0, 10);
+    if (!top.length) {
+      topCliEl.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Nenhum cliente no período</div>';
+    } else {
+      topCliEl.innerHTML = `<table style="width:100%"><thead><tr><th>#</th><th>Cliente</th><th style="text-align:right">Pedidos</th><th style="text-align:right">Receita</th></tr></thead><tbody>
+        ${top.map(([n, d], i) => `<tr>
+          <td style="font-weight:700;color:${i<3?'#1a4fa0':'var(--text3)'}">${i+1}</td>
+          <td class="em" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(n)}">${esc(n)}</td>
+          <td style="text-align:right">${d.qtd}</td>
+          <td style="text-align:right" class="good">${fmtRbr(d.receita)}</td>
+        </tr>`).join('')}
+      </tbody></table>`;
+    }
+  }
+
+  // Dia da semana (só pra loja física)
+  const diaEl = el(prefix + '-dia-semana');
+  if (diaEl) {
+    const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const porDia = [0,0,0,0,0,0,0];
+    pedidos.forEach(p => {
+      if (!p.data) return;
+      const d = new Date(p.data);
+      porDia[d.getDay()] += (+p.total || 0);
+    });
+    const maxD = Math.max(...porDia, 1);
+    diaEl.innerHTML = `<div style="display:flex;gap:8px;align-items:flex-end;min-height:140px">
+      ${dias.map((nome, i) => {
+        const h = Math.max(4, Math.round(porDia[i] / maxD * 120));
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+          <div style="font-size:10px;font-weight:700;color:var(--text3)">${fmtRbr(porDia[i]).replace('R$ ','R$')}</div>
+          <div style="width:100%;max-width:48px;height:${h}px;background:linear-gradient(to top, var(--green), #22c55e);border-radius:4px 4px 0 0"></div>
+          <div style="font-size:10px;color:var(--text2);font-weight:700">${nome}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+}
+
+async function loadEcommerce() {
+  const filtro = document.getElementById('ec-filtro-periodo')?.value || 'atual';
+  carregarCanal('ec', 'site', filtro);
+}
+
+async function loadLojaFisica() {
+  const filtro = document.getElementById('lf-filtro-periodo')?.value || 'atual';
+  carregarCanal('lf', 'lojafisica', filtro);
 }
 
 // ── PROVA SOCIAL (dados reais) ──
