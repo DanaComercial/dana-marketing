@@ -21,8 +21,8 @@ const BLING_CLIENT_SECRET = 'b2844954fea8b4d935c7aadc1f7f7d99c064792b2c9c2eecc2a
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 const DEFAULT_INICIO = '2026-01-01'
-const DEFAULT_LIMITE = 150    // 300 estourava o tempo do Edge Runtime; 150 cabe em ~60s
-const MAX_LIMITE = 200
+const DEFAULT_LIMITE = 50     // 150 ainda estourava CPU time (abortava ~75 pedidos); 50 cabe com folga
+const MAX_LIMITE = 100
 
 async function blingFetch(path: string, token: string): Promise<any> {
   for (let i = 0; i < 3; i++) {
