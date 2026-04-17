@@ -6756,6 +6756,10 @@ function showToast(msg) {
 function toggleNotif() {
   const p = document.getElementById('notif-panel');
   p.classList.toggle('open');
+  // Recarrega alertas sempre que abre o bell (pega alertas novos do DB)
+  if (p.classList.contains('open') && typeof loadAlertas === 'function') {
+    loadAlertas();
+  }
 }
 function markRead(el) {
   el.classList.remove('unread');
