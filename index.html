@@ -1607,11 +1607,10 @@ select.input { cursor: pointer; }
     </div>
     <div class="nav-item" onclick="go(this,'campanhas')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 6h14M5 2v2M11 2v2"/></svg></div>Campanhas
-      <span class="nav-badge">3</span>
     </div>
     <div class="nav-item" onclick="go(this,'criativos')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1.5" y="1.5" width="13" height="10" rx="1.5"/><path d="M1.5 11.5l4-4 3 3 2.5-2.5 3 3"/></svg></div>Criativos
-      <span class="nav-badge">8</span>
+      <span class="nav-badge alert" id="nav-criativos-badge" style="display:none" title="Artes aguardando aprovação">0</span>
     </div>
     <div class="nav-item" onclick="go(this,'influenciadores')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6" cy="5" r="3"/><path d="M1 14c0-3 2.2-5 5-5s5 2 5 5"/><path d="M12 7c1.1 0 2 .9 2 2s-.9 2-2 2M14.5 14H11"/></svg></div>Influenciadores
@@ -3145,6 +3144,14 @@ function renderCriativos() {
   set('badge-aguardando', aguardando.length);
   set('badge-aprovados', aprovados.length);
   set('badge-reprovados', reprovados.length);
+
+  // Badge no sidebar: total de aguardando aprovação (sem filtro de briefing)
+  const totalAguardando = _criativosCache.filter(c => c.status === 'aguardando').length;
+  const sidebarBadge = document.getElementById('nav-criativos-badge');
+  if (sidebarBadge) {
+    sidebarBadge.textContent = totalAguardando;
+    sidebarBadge.style.display = totalAguardando > 0 ? '' : 'none';
+  }
 
   document.getElementById('grid-aguardando').innerHTML = renderGridCriativos(aguardando, 'aguardando');
   document.getElementById('grid-aprovados').innerHTML = renderGridCriativos(aprovados, 'aprovado');
