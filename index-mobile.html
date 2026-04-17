@@ -2196,6 +2196,188 @@ select.input { cursor: pointer; }
   /* Checkbox grande (mobile touch) */
   input[type="checkbox"] { min-width: 18px; min-height: 18px; }
 
+  /* ════════════════════════════════════════════════════════
+     CORREÇÕES DIRIGIDAS (baseadas em auditoria técnica)
+     ════════════════════════════════════════════════════════ */
+
+  /* ═ DASHBOARD · Evolução Diária (#main-chart / .chart-area) ═ */
+  #main-chart, .chart-area, #grafico-dia, [id*="chart-area"], [id*="evolucao-diaria"] {
+    gap: 2px !important;
+    padding: 4px 0 26px 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+  #main-chart .bar-group, .chart-area .bar-group {
+    min-width: 0 !important;
+    flex: 1 1 0 !important;
+    width: auto !important;
+  }
+  #main-chart .bar-label, .chart-area .bar-label {
+    font-size: 7.5px !important;
+    white-space: nowrap !important;
+    transform: rotate(-45deg);
+    transform-origin: center top;
+  }
+
+  /* ═ COMUNIDADE E CRM + APIs · .tabs genérica ═ */
+  /* Essa classe (.tabs / #api-tabs) sem prefixo não pegava na minha regra anterior */
+  .tabs, #api-tabs {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+  .tabs .tab, #api-tabs .tab {
+    flex: 0 1 auto !important;
+    font-size: 11px !important;
+    padding: 5px 10px !important;
+    white-space: nowrap !important;
+    min-width: 0 !important;
+  }
+
+  /* ═ MARKETPLACES · select de filtro ═ */
+  #mp-filtro-mes,
+  select.input,
+  [id$="-filtro-mes"],
+  [id$="-filtro-periodo"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* ═ APIs · data points internos (chips) ═ */
+  .dp-item, .api-int-data-points .dp-item {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: initial !important;
+    word-break: break-word !important;
+    font-size: 10.5px !important;
+    line-height: 1.4 !important;
+    min-width: 0 !important;
+  }
+  .api-int-data-points {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+  }
+  /* Botões dos cards API */
+  .api-int-footer .btn, .api-int-footer button {
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+    white-space: nowrap;
+  }
+
+  /* ═ TAREFAS · KANBAN em coluna única (era 6432px!) ═ */
+  #kanban-board, #kanban-board.kanban, .kanban {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    gap: 10px !important;
+  }
+  .kanban-col {
+    min-width: 100% !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    flex: initial !important;
+  }
+  .kanban-col-head, .kanban-col-title { max-width: 100% !important; }
+  .kanban-body, [id^="col-"].kanban-body {
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+  .k-card, .k-card-link {
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .k-card-title { white-space: normal !important; word-break: break-word !important; }
+  /* Esconder texto "scroll horizontal para ver mais" */
+  [class*="kanban"] [class*="scroll-hint"],
+  [class*="kanban"] [class*="hscroll"] { display: none !important; }
+
+  /* ═ RELATÓRIO EXECUTIVO · rank-num (#4, #6 cortados) ═ */
+  .rank-num {
+    min-width: 32px !important;
+    width: auto !important;
+    font-size: 10px !important;
+    padding: 2px 4px !important;
+    text-align: center !important;
+  }
+
+  /* ═ CALENDÁRIO · eventos ilegíveis em células de 33px ═ */
+  /* Opção pragmática: esconder título, só mostrar indicador colorido */
+  #view-calendario .cal-event,
+  #view-calendario [class*="event-title"],
+  .cal-day [class*="event"] {
+    font-size: 8px !important;
+    line-height: 1 !important;
+    padding: 1px 3px !important;
+    max-height: 12px !important;
+    overflow: hidden !important;
+  }
+  /* Esconder títulos truncados — só mantém bolinha de cor */
+  #view-calendario .cal-day-events [class*="event"] span,
+  #view-calendario .cal-day-events [class*="event"] div {
+    font-size: 8px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* ═ CONSTRUTOR · stepper (.cb-step horizontal de 896px) ═ */
+  .cb-stepper {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    padding: 10px !important;
+    overflow: visible !important;
+  }
+  .cb-step {
+    flex: 0 0 calc(33.33% - 6px) !important;
+    padding: 4px 6px !important;
+    font-size: 10px !important;
+  }
+  .cb-step-num {
+    width: 22px !important; height: 22px !important;
+    font-size: 10px !important;
+  }
+  .cb-step-label { font-size: 10px !important; }
+  .cb-conn { display: none !important; }  /* conectores horizontais somem no mobile */
+
+  /* ═ PERSONA hero (396px em 346px) ═ */
+  .persona-hero {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+  .persona-hero::before { display: none !important; }  /* círculo decorativo some */
+
+  /* ═ COMUNIDADE · tabela de scoring ═ */
+  #scoring-table-container {
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+  #scoring-table-container table {
+    font-size: 11px !important;
+  }
+
+  /* ═ BRIEFING VISUAL · tabs Briefings Salvos / Materiais / Brand Kit ═ */
+  #bv-tab-salvos, #bv-tab-materiais, #bv-tab-brandkit,
+  [class*="bv-tabs"], [id^="bv-tabs"] {
+    max-width: 100% !important;
+  }
+  #bv-btn-novo {
+    white-space: normal !important;
+    word-break: break-word !important;
+    max-width: 100% !important;
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+  }
+
 </style>
 </head>
 <body>
