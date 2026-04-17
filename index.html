@@ -2725,8 +2725,12 @@ select.input { cursor: pointer; }
     <div class="cri-tab" onclick="switchCri(this,'reprovados')">
       Reprovados <span id="badge-reprovados" style="background:var(--red);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px">0</span>
     </div>
-    <div class="cri-tab" onclick="switchCri(this,'todo')">To-Do Design <span style="font-size:9px;opacity:0.7;margin-left:4px">Fase 2</span></div>
-    <div class="cri-tab" onclick="switchCri(this,'publicados')">Publicados <span style="font-size:9px;opacity:0.7;margin-left:4px">Fase 2</span></div>
+    <div class="cri-tab" onclick="switchCri(this,'todo')">
+      To-Do Design <span id="badge-todo" style="background:var(--grey3);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px">0</span>
+    </div>
+    <div class="cri-tab" onclick="switchCri(this,'publicados')">
+      Publicados <span id="badge-publicados" style="background:var(--black);color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px">0</span>
+    </div>
   </div>
 
   <!-- Filtro por briefing (dinâmico) -->
@@ -2750,24 +2754,19 @@ select.input { cursor: pointer; }
     <div id="grid-reprovados" class="arte-grid"><div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12.5px;padding:30px">Carregando...</div></div>
   </div>
 
-  <!-- ── TO-DO DESIGN (Fase 2) ── -->
+  <!-- ── TO-DO DESIGN ── -->
   <div class="cri-panel" id="cri-todo">
-    <div class="card" style="text-align:center;padding:40px 20px">
-      <div style="font-size:36px;margin-bottom:10px;opacity:0.4">📝</div>
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;margin-bottom:6px">To-Do Design</div>
-      <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Lista de demandas de design pendentes (briefings sem arte ainda).</div>
-      <div style="display:inline-block;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--surface2);color:var(--text3);letter-spacing:0.5px">FASE 2 · EM BREVE</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap">
+      <div style="font-size:12.5px;color:var(--text3)">Demandas pendentes pro time de design</div>
+      <button class="btn btn-primary btn-sm" id="cri-btn-demanda" onclick="abrirModalDemanda()">+ Nova demanda</button>
     </div>
+    <div id="grid-todo"><div style="text-align:center;color:var(--text3);font-size:12.5px;padding:30px">Carregando...</div></div>
   </div>
 
-  <!-- ── PUBLICADOS (Fase 2) ── -->
+  <!-- ── PUBLICADOS ── -->
   <div class="cri-panel" id="cri-publicados">
-    <div class="card" style="text-align:center;padding:40px 20px">
-      <div style="font-size:36px;margin-bottom:10px;opacity:0.4">🚀</div>
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;margin-bottom:6px">Publicados</div>
-      <div style="font-size:12.5px;color:var(--text3);margin-bottom:10px">Histórico de artes que foram ao ar + link do post + plataforma.</div>
-      <div style="display:inline-block;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--surface2);color:var(--text3);letter-spacing:0.5px">FASE 2 · EM BREVE</div>
-    </div>
+    <div style="font-size:12.5px;color:var(--text3);margin-bottom:14px">Histórico de artes publicadas — plataforma, data e link do post</div>
+    <div id="grid-publicados" class="arte-grid"><div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12.5px;padding:30px">Carregando...</div></div>
   </div>
 
 </div><!-- /padding -->
@@ -2876,6 +2875,113 @@ select.input { cursor: pointer; }
   </div>
 </div>
 
+<!-- MODAL: Nova/Editar Demanda de Design (To-Do) -->
+<div class="modal-overlay" id="modal-cri-demanda">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header"><div class="modal-title" id="cri-dem-title">+ Nova Demanda de Design</div><button class="modal-close" onclick="closeCriModal('demanda')">×</button></div>
+    <div class="form-row">
+      <label class="label">Título da demanda *</label>
+      <input class="input" id="cri-dem-titulo" placeholder="Ex: Reels Dia das Mães 15s">
+    </div>
+    <div class="form-row-2">
+      <div>
+        <label class="label">Briefing vinculado</label>
+        <select class="input" id="cri-dem-briefing"><option value="">Nenhum / avulso</option></select>
+      </div>
+      <div>
+        <label class="label">Formato</label>
+        <select class="input" id="cri-dem-formato">
+          <option value="reels">Reels (9:16)</option>
+          <option value="feed">Feed (1:1)</option>
+          <option value="stories">Stories (9:16)</option>
+          <option value="carrossel">Carrossel</option>
+          <option value="banner">Banner / Anúncio</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div>
+        <label class="label">Designer atribuído</label>
+        <select class="input" id="cri-dem-designer"><option value="">Sem designer</option></select>
+      </div>
+      <div>
+        <label class="label">Prioridade</label>
+        <select class="input" id="cri-dem-prioridade">
+          <option value="alta">🔴 Alta</option>
+          <option value="media" selected>🟡 Média</option>
+          <option value="baixa">🟢 Baixa</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="label">Prazo de entrega</label>
+      <input class="input" type="date" id="cri-dem-prazo">
+    </div>
+    <div class="form-row">
+      <label class="label">Briefing / Observações</label>
+      <textarea class="input" id="cri-dem-obs" rows="3" placeholder="Conceito, referências, cores, textos, CTAs..."></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="closeCriModal('demanda')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarDemanda()" style="flex:1" id="cri-dem-btn">Criar demanda</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Marcar como Publicado -->
+<div class="modal-overlay" id="modal-cri-publicar">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header"><div class="modal-title" style="color:var(--green)">🚀 Marcar como Publicado</div><button class="modal-close" onclick="closeCriModal('publicar')">×</button></div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Arte: <strong id="cri-pub-nome" style="color:var(--text)"></strong></div>
+    <div class="form-row-2">
+      <div>
+        <label class="label">Plataforma *</label>
+        <select class="input" id="cri-pub-plataforma">
+          <option value="instagram">📸 Instagram</option>
+          <option value="tiktok">🎵 TikTok</option>
+          <option value="facebook">f Facebook</option>
+          <option value="linkedin">in LinkedIn</option>
+          <option value="youtube">▶ YouTube</option>
+          <option value="twitter">X / Twitter</option>
+          <option value="pinterest">📌 Pinterest</option>
+          <option value="email">📧 E-mail marketing</option>
+          <option value="site">🌐 Site / E-commerce</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
+      <div>
+        <label class="label">Data de publicação</label>
+        <input class="input" type="date" id="cri-pub-data">
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="label">Link do post (opcional)</label>
+      <input class="input" type="url" id="cri-pub-link" placeholder="https://instagram.com/p/... ou https://tiktok.com/@.../video/...">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="closeCriModal('publicar')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarPublicarArte()" style="flex:1;background:var(--green);border-color:var(--green)">Marcar publicado</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Excluir demanda (confirmação) -->
+<div class="modal-overlay" id="modal-cri-excluirdemanda">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header"><div class="modal-title" style="color:var(--red)">🗑 Excluir Demanda</div><button class="modal-close" onclick="closeCriModal('excluirdemanda')">×</button></div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">
+      Excluir a demanda <strong id="cri-deldem-nome" style="color:var(--text)"></strong>?
+      <br><br>
+      <span style="color:var(--red);font-size:12px">⚠️ Essa ação não pode ser desfeita.</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="closeCriModal('excluirdemanda')" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarExcluirDemanda()" style="flex:1;background:var(--red);border-color:var(--red)">Excluir</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════════════
 // NOTIFICAÇÕES PERSONALIZADAS — helper
@@ -2968,14 +3074,16 @@ async function loadCriativos() {
   if (btnEnviar) btnEnviar.style.display = podeCriarCriativo() ? '' : 'none';
 
   try {
+    // Fase 2: carrega TODOS os status (inclui 'todo' e 'publicado')
     const { data, error } = await sb.from('criativos')
       .select('*')
-      .in('status', ['aguardando','aprovado','reprovado'])
       .order('created_at', { ascending: false })
       .limit(500);
     if (error) throw error;
     _criativosCache = data || [];
     renderCriativos();
+    if (typeof renderCriativosTodo === 'function') renderCriativosTodo();
+    if (typeof renderCriativosPublicados === 'function') renderCriativosPublicados();
     renderBriefingFilters();
   } catch (e) {
     console.error('loadCriativos:', e);
@@ -3062,8 +3170,9 @@ function renderGridCriativos(list, status) {
         <button class="btn-ver" onclick="window.open('${urlEsc}','_blank')">👁 Ver</button>
       </div>`;
     } else if (status === 'aprovado') {
+      const canPublish = podePublicarCriativo();
       actions = `<div class="arte-actions" style="margin-top:10px">
-        <button class="btn-ver" onclick="window.open('${urlEsc}','_blank')" style="flex:1">👁 Abrir arquivo</button>
+        ${canPublish ? `<button class="btn-aprovar" onclick="abrirModalPublicar('${c.id}')" style="background:var(--green);flex:1">🚀 Publicar</button>` : `<button class="btn-ver" onclick="window.open('${urlEsc}','_blank')" style="flex:1">👁 Abrir</button>`}
         ${canApprove ? `<button class="btn btn-ghost btn-sm" style="flex:none;padding:6px 10px" onclick="desfazerAprovacao('${c.id}')" title="Voltar pra aguardando">↩</button>` : ''}
         ${canDelete ? `<button class="btn btn-ghost btn-sm" style="flex:none;padding:6px 10px;color:var(--red)" onclick="abrirModalExcluirCriativo('${c.id}')" title="Excluir">🗑</button>` : ''}
       </div>`;
@@ -3266,8 +3375,17 @@ async function enviarArte() {
       payload.briefing_titulo = b?.titulo || null;
     }
 
-    const { error: insErr } = await sb.from('criativos').insert(payload);
-    if (insErr) throw insErr;
+    // Se veio de uma demanda (To-Do), transforma ela em criativo (UPDATE em vez de INSERT)
+    const demandaId = window._criDemandaParaPromover;
+    if (demandaId) {
+      payload.status = 'aguardando';
+      const { error: updErr } = await sb.from('criativos').update(payload).eq('id', demandaId);
+      if (updErr) throw updErr;
+      window._criDemandaParaPromover = null;
+    } else {
+      const { error: insErr } = await sb.from('criativos').insert(payload);
+      if (insErr) throw insErr;
+    }
 
     closeCriModal('upload-arte');
     showToast(_criUploadMode === 'link' ? '✓ Link enviado para aprovação!' : '✓ Arte enviada para aprovação!');
@@ -3414,6 +3532,392 @@ async function confirmarExcluirCriativo() {
     showToast('✓ Criativo excluído');
     logActivity('excluiu_criativo', c.titulo, 'criativos');
     _criExcluirId = null;
+    loadCriativos();
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CRIATIVOS FASE 2 — To-Do Design + Publicados
+// ═══════════════════════════════════════════════════════════
+let _criDemandaEditId = null;
+let _criDelDemandaId = null;
+let _criPublicarId = null;
+
+function podePublicarCriativo() {
+  return userPermissoes['criativo_publicar'] !== false || currentProfile?.cargo === 'admin';
+}
+
+// Fase 2 carrega TAMBÉM status 'todo' e 'publicado'
+async function loadCriativosFase2() {
+  // Reusa loadCriativos base (status in aguardando/aprovado/reprovado)
+  // + carrega 'todo' e 'publicado' em cache separado
+  try {
+    const { data, error } = await sb.from('criativos')
+      .select('*')
+      .order('prioridade', { ascending: true })
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    _criativosCache = data || [];
+    renderCriativos();            // aguardando/aprovado/reprovado
+    renderCriativosTodo();        // to-do
+    renderCriativosPublicados();  // publicados
+    renderBriefingFilters();
+  } catch (e) {
+    console.error('loadCriativosFase2:', e);
+  }
+}
+
+// ── TO-DO DESIGN ──
+function renderCriativosTodo() {
+  const grid = document.getElementById('grid-todo');
+  const badge = document.getElementById('badge-todo');
+  const btnNova = document.getElementById('cri-btn-demanda');
+  if (!grid) return;
+
+  const todos = _criativosCache.filter(c => c.status === 'todo' && filtraPorBriefing(c));
+  // Ordena: prioridade alta → media → baixa, depois por prazo asc
+  const prioOrder = { alta: 0, media: 1, baixa: 2 };
+  todos.sort((a, b) => {
+    const pa = prioOrder[a.prioridade] ?? 3;
+    const pb = prioOrder[b.prioridade] ?? 3;
+    if (pa !== pb) return pa - pb;
+    const da = a.prazo_entrega ? new Date(a.prazo_entrega).getTime() : Infinity;
+    const db = b.prazo_entrega ? new Date(b.prazo_entrega).getTime() : Infinity;
+    return da - db;
+  });
+
+  if (badge) badge.textContent = todos.length;
+  if (btnNova) btnNova.style.display = podeCriarCriativo() ? '' : 'none';
+
+  if (!todos.length) {
+    grid.innerHTML = `<div style="text-align:center;padding:40px;background:var(--white);border:1px dashed var(--border);border-radius:12px;color:var(--text3);font-size:12.5px">
+      📝 Nenhuma demanda pendente ${podeCriarCriativo() ? '— clique "+ Nova demanda" pra solicitar uma arte' : ''}
+    </div>`;
+    return;
+  }
+
+  const fmtData = (s) => {
+    if (!s) return '—';
+    const d = new Date(s + 'T12:00:00');
+    return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0');
+  };
+  const prioChip = (p) => {
+    const map = {
+      alta: '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(192,57,43,0.15);color:var(--red)">🔴 Alta</span>',
+      media: '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(217,119,6,0.15);color:var(--amber)">🟡 Média</span>',
+      baixa: '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(26,122,58,0.15);color:var(--green)">🟢 Baixa</span>'
+    };
+    return map[p] || '';
+  };
+  const prazoAlerta = (p) => {
+    if (!p) return '';
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const prazo = new Date(p + 'T12:00:00');
+    const diffDias = Math.floor((prazo - hoje) / (1000*60*60*24));
+    if (diffDias < 0) return '<span style="color:var(--red);font-weight:700">⚠ Atrasado</span>';
+    if (diffDias === 0) return '<span style="color:var(--red);font-weight:700">🚨 Hoje</span>';
+    if (diffDias <= 2) return '<span style="color:var(--amber);font-weight:700">⏰ Em '+diffDias+'d</span>';
+    return `<span style="color:var(--text3)">em ${diffDias}d</span>`;
+  };
+
+  const canUpload = podeCriarCriativo();
+  const canEdit = podeCriarCriativo();
+  const canDelete = podeExcluirCriativo();
+
+  grid.innerHTML = todos.map(c => {
+    const nome = esc(c.titulo || 'Sem título');
+    const designer = c.designer_nome ? esc(c.designer_nome) : '<em style="color:var(--text3)">sem designer</em>';
+    const solicitante = c.solicitado_por_nome ? esc(c.solicitado_por_nome) : '—';
+    const briefingTitulo = c.briefing_titulo ? esc(c.briefing_titulo) : 'Avulso';
+    const formato = esc(labelFormato(c.formato));
+
+    return `<div class="card" style="padding:14px;margin-bottom:10px;border-left:4px solid ${c.prioridade==='alta'?'var(--red)':c.prioridade==='baixa'?'var(--green)':'var(--amber)'}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
+            ${prioChip(c.prioridade)}
+            <span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:4px;background:var(--surface2);color:var(--text2)">${formato}</span>
+            <span style="font-size:10.5px;color:var(--text3)">📋 ${briefingTitulo}</span>
+          </div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:4px">${nome}</div>
+          ${c.observacoes ? `<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:6px">${esc(c.observacoes)}</div>` : ''}
+          <div style="display:flex;gap:12px;font-size:11px;color:var(--text3);flex-wrap:wrap">
+            <span>Designer: ${designer}</span>
+            <span>Pedido por: ${solicitante}</span>
+            ${c.prazo_entrega ? `<span>Prazo: <strong>${fmtData(c.prazo_entrega)}</strong> ${prazoAlerta(c.prazo_entrega)}</span>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          ${canUpload ? `<button class="btn btn-primary btn-sm" onclick="abrirUploadParaDemanda('${c.id}')" title="Enviar arte pra essa demanda" style="padding:6px 10px;font-size:11px">↑ Enviar arte</button>` : ''}
+          ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="abrirModalDemanda('${c.id}')" title="Editar" style="padding:6px 8px">✏️</button>` : ''}
+          ${canDelete ? `<button class="btn btn-ghost btn-sm" onclick="abrirModalExcluirDemanda('${c.id}')" title="Excluir demanda" style="padding:6px 8px;color:var(--red)">🗑</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function abrirModalDemanda(id) {
+  if (!podeCriarCriativo()) { showToast('Sem permissão'); return; }
+  _criDemandaEditId = id || null;
+
+  // Popular select de briefings
+  try {
+    const { data: briefs } = await sb.from('briefings_campanha').select('id, titulo').order('created_at', { ascending: false }).limit(100);
+    const sel = document.getElementById('cri-dem-briefing');
+    if (sel) {
+      sel.innerHTML = '<option value="">Nenhum / avulso</option>' +
+        (briefs || []).map(b => `<option value="${b.id}">${esc(b.titulo || '—')}</option>`).join('');
+    }
+  } catch (e) { console.warn('Load briefings:', e.message); }
+
+  const titleEl = document.getElementById('cri-dem-title');
+  const btnEl = document.getElementById('cri-dem-btn');
+
+  if (id) {
+    const c = _criativosCache.find(x => x.id === id);
+    if (!c) return;
+    if (titleEl) titleEl.textContent = '✏️ Editar Demanda';
+    if (btnEl) btnEl.textContent = 'Salvar alterações';
+    document.getElementById('cri-dem-titulo').value = c.titulo || '';
+    document.getElementById('cri-dem-briefing').value = c.briefing_id || '';
+    document.getElementById('cri-dem-formato').value = c.formato || 'reels';
+    document.getElementById('cri-dem-prioridade').value = c.prioridade || 'media';
+    document.getElementById('cri-dem-prazo').value = c.prazo_entrega || '';
+    document.getElementById('cri-dem-obs').value = c.observacoes || '';
+    fillResponsavelSelect('cri-dem-designer', c.designer_nome || '');
+  } else {
+    if (titleEl) titleEl.textContent = '+ Nova Demanda de Design';
+    if (btnEl) btnEl.textContent = 'Criar demanda';
+    document.getElementById('cri-dem-titulo').value = '';
+    document.getElementById('cri-dem-briefing').value = '';
+    document.getElementById('cri-dem-formato').value = 'reels';
+    document.getElementById('cri-dem-prioridade').value = 'media';
+    document.getElementById('cri-dem-prazo').value = '';
+    document.getElementById('cri-dem-obs').value = '';
+    fillResponsavelSelect('cri-dem-designer', '');
+  }
+
+  openCriModal('demanda');
+  setTimeout(() => document.getElementById('cri-dem-titulo')?.focus(), 100);
+}
+
+async function salvarDemanda() {
+  const titulo = document.getElementById('cri-dem-titulo').value.trim();
+  if (!titulo) { showToast('Título é obrigatório'); return; }
+
+  const briefingId = document.getElementById('cri-dem-briefing').value || null;
+  const formato = document.getElementById('cri-dem-formato').value;
+  const prioridade = document.getElementById('cri-dem-prioridade').value;
+  const prazo = document.getElementById('cri-dem-prazo').value || null;
+  const designer = document.getElementById('cri-dem-designer').value || null;
+  const designerId = getSelectedProfileId('cri-dem-designer');
+  const observacoes = document.getElementById('cri-dem-obs').value.trim() || null;
+
+  let briefingTitulo = null;
+  if (briefingId) {
+    const { data: b } = await sb.from('briefings_campanha').select('titulo').eq('id', briefingId).single();
+    briefingTitulo = b?.titulo || null;
+  }
+
+  const payload = {
+    titulo, briefing_id: briefingId, briefing_titulo: briefingTitulo,
+    formato, prioridade, prazo_entrega: prazo,
+    designer_id: designerId, designer_nome: designer,
+    observacoes,
+  };
+
+  try {
+    if (_criDemandaEditId) {
+      const { error } = await sb.from('criativos').update(payload).eq('id', _criDemandaEditId);
+      if (error) throw error;
+      showToast('✓ Demanda atualizada');
+      logActivity('editou_demanda', titulo, 'criativos');
+    } else {
+      payload.status = 'todo';
+      payload.solicitado_por = currentUser?.id || null;
+      payload.solicitado_por_nome = currentProfile?.nome || 'Anônimo';
+      const { error } = await sb.from('criativos').insert(payload);
+      if (error) throw error;
+      showToast('✓ Demanda criada');
+      logActivity('criou_demanda', titulo, 'criativos');
+
+      // Notifica designer se atribuído e não for o próprio que criou
+      if (designerId) {
+        await criarAlertaParaId(designerId,
+          '📝 Nova demanda de design pra você',
+          `"${titulo}" foi atribuída a você.` + (prazo ? ` Prazo: ${prazo}.` : ''),
+          prioridade === 'alta' ? 'urgent' : 'info',
+          'criativos', 'Ver demanda',
+          { criativo_id: 'pending', tipo: 'demanda_atribuida' }
+        );
+      }
+    }
+    closeCriModal('demanda');
+    _criDemandaEditId = null;
+    loadCriativos();
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+function abrirModalExcluirDemanda(id) {
+  if (!podeExcluirCriativo()) { showToast('Sem permissão'); return; }
+  const c = _criativosCache.find(x => x.id === id);
+  if (!c) return;
+  _criDelDemandaId = id;
+  document.getElementById('cri-deldem-nome').textContent = '"' + (c.titulo || '') + '"';
+  openCriModal('excluirdemanda');
+}
+
+async function confirmarExcluirDemanda() {
+  if (!_criDelDemandaId) return;
+  const c = _criativosCache.find(x => x.id === _criDelDemandaId);
+  try {
+    const { error } = await sb.from('criativos').delete().eq('id', _criDelDemandaId);
+    if (error) throw error;
+    closeCriModal('excluirdemanda');
+    showToast('✓ Demanda excluída');
+    logActivity('excluiu_demanda', c?.titulo || '—', 'criativos');
+    _criDelDemandaId = null;
+    loadCriativos();
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+// Abre o modal de upload pré-preenchido a partir de uma demanda
+async function abrirUploadParaDemanda(id) {
+  if (!podeCriarCriativo()) { showToast('Sem permissão'); return; }
+  const c = _criativosCache.find(x => x.id === id);
+  if (!c) return;
+
+  // Abre o modal normal de enviar arte
+  await abrirModalEnviarArte();
+
+  // Pré-preenche com dados da demanda
+  document.getElementById('cri-up-titulo').value = c.titulo || '';
+  document.getElementById('cri-up-briefing').value = c.briefing_id || '';
+  document.getElementById('cri-up-formato').value = c.formato || 'reels';
+  if (c.designer_nome) fillResponsavelSelect('cri-up-designer', c.designer_nome);
+  if (c.observacoes) document.getElementById('cri-up-obs').value = c.observacoes;
+
+  // Armazena o ID da demanda pra "virar" ela no save
+  window._criDemandaParaPromover = id;
+}
+
+// ── PUBLICADOS ──
+function renderCriativosPublicados() {
+  const grid = document.getElementById('grid-publicados');
+  const badge = document.getElementById('badge-publicados');
+  if (!grid) return;
+
+  const pubs = _criativosCache.filter(c => c.status === 'publicado' && filtraPorBriefing(c));
+  pubs.sort((a, b) => new Date(b.publicado_em || b.updated_at || 0) - new Date(a.publicado_em || a.updated_at || 0));
+
+  if (badge) badge.textContent = pubs.length;
+
+  if (!pubs.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;background:var(--white);border:1px dashed var(--border);border-radius:12px;color:var(--text3);font-size:12.5px">
+      🚀 Nenhuma arte publicada ainda. Aprove um criativo e marque como publicado.
+    </div>`;
+    return;
+  }
+
+  const fmtData = (s) => {
+    if (!s) return '—';
+    const d = new Date(s);
+    return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+  };
+  const iconePlataforma = (p) => ({
+    instagram: '📸', tiktok: '🎵', facebook: 'f', linkedin: 'in',
+    youtube: '▶', twitter: 'X', pinterest: '📌',
+    email: '📧', site: '🌐', outro: '🔗'
+  }[p] || '📎');
+
+  grid.innerHTML = pubs.map(c => {
+    const nome = esc(c.titulo || 'Sem título');
+    const urlEsc = (c.arquivo_url || '').replace(/"/g,'&quot;').replace(/'/g,"\\'");
+    const tipo = c.tipo || 'outro';
+    const plat = c.plataforma || 'outro';
+    const formato = esc(labelFormato(c.formato));
+
+    const thumb = tipo === 'imagem' && c.arquivo_url
+      ? `<div class="arte-thumb"><img src="${urlEsc}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" onerror="this.style.display='none'"><div class="arte-format-badge estatico">${formato}</div></div>`
+      : `<div class="arte-thumb"><div class="arte-thumb-placeholder"><span>${iconeTipo(tipo)}</span><p>${formato.toUpperCase()}</p></div><div class="arte-format-badge ${tipo==='video'?'video':'estatico'}">${formato}</div></div>`;
+
+    return `<div class="arte-card aprovado">
+      ${thumb}
+      <div class="arte-body">
+        <div class="arte-camp">${esc(c.briefing_titulo || 'Avulso')}</div>
+        <div class="arte-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nome}</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);margin:4px 0">
+          <span>${iconePlataforma(plat)} ${plat.charAt(0).toUpperCase()+plat.slice(1)}</span>
+          <span>·</span>
+          <span>${fmtData(c.publicado_em)}</span>
+        </div>
+        ${c.link_post ? `<a href="${esc(c.link_post)}" target="_blank" style="display:inline-block;font-size:11px;color:var(--blue);font-weight:600;margin-top:4px;text-decoration:underline">Ver post ↗</a>` : ''}
+        <div class="arte-actions" style="margin-top:10px">
+          ${c.arquivo_url ? `<button class="btn-ver" onclick="window.open('${urlEsc}','_blank')" style="flex:1">👁 Arquivo</button>` : ''}
+          ${podePublicarCriativo() ? `<button class="btn btn-ghost btn-sm" onclick="desfazerPublicacao('${c.id}')" title="Voltar pra aprovado" style="flex:none;padding:6px 10px">↩</button>` : ''}
+          ${podeExcluirCriativo() ? `<button class="btn btn-ghost btn-sm" onclick="abrirModalExcluirCriativo('${c.id}')" style="flex:none;padding:6px 10px;color:var(--red)">🗑</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function abrirModalPublicar(id) {
+  if (!podePublicarCriativo()) { showToast('Sem permissão pra publicar'); return; }
+  const c = _criativosCache.find(x => x.id === id);
+  if (!c) return;
+  _criPublicarId = id;
+  document.getElementById('cri-pub-nome').textContent = c.titulo || '—';
+  document.getElementById('cri-pub-plataforma').value = 'instagram';
+  document.getElementById('cri-pub-data').value = new Date().toISOString().slice(0,10);
+  document.getElementById('cri-pub-link').value = '';
+  openCriModal('publicar');
+}
+
+async function confirmarPublicarArte() {
+  if (!_criPublicarId) return;
+  const c = _criativosCache.find(x => x.id === _criPublicarId);
+  if (!c) return;
+  const plataforma = document.getElementById('cri-pub-plataforma').value;
+  const data = document.getElementById('cri-pub-data').value || new Date().toISOString().slice(0,10);
+  const link = document.getElementById('cri-pub-link').value.trim() || null;
+  try {
+    const { error } = await sb.from('criativos').update({
+      status: 'publicado',
+      plataforma,
+      publicado_em: data + 'T12:00:00Z',
+      link_post: link,
+    }).eq('id', _criPublicarId);
+    if (error) throw error;
+    closeCriModal('publicar');
+    showToast('🚀 Arte marcada como publicada');
+    logActivity('publicou_arte', c.titulo, 'criativos');
+
+    // Notifica designer
+    if (c.designer_id) {
+      await criarAlertaParaId(c.designer_id,
+        '🚀 Sua arte foi ao ar!',
+        `"${c.titulo}" foi publicada no ${plataforma}.` + (link ? ' Link do post disponível.' : ''),
+        'ok',
+        'criativos', 'Ver publicação',
+        { criativo_id: c.id, tipo: 'criativo_publicado' }
+      );
+    }
+    _criPublicarId = null;
+    loadCriativos();
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+async function desfazerPublicacao(id) {
+  if (!podePublicarCriativo()) return;
+  try {
+    const { error } = await sb.from('criativos').update({
+      status: 'aprovado', plataforma: null, publicado_em: null, link_post: null
+    }).eq('id', id);
+    if (error) throw error;
+    showToast('Arte voltou pra Aprovados');
     loadCriativos();
   } catch (e) { showToast('Erro: ' + e.message); }
 }
@@ -11622,7 +12126,7 @@ async function loadAdminPermissoes() {
   const cargos = [...new Set(_permData.map(p => p.cargo))].filter(c => c !== 'admin');
   let secoes = [...new Set(_permData.map(p => p.secao))].filter(s => s !== 'admin');
   // Garantir que permissoes de ações existem
-  ['calendario_criar','calendario_excluir','tarefas_criar','tarefas_excluir','briefing_criar','briefing_editar','briefing_excluir','brandkit_criar','brandkit_excluir','canal_aquisicao_criar','canal_aquisicao_editar','canal_aquisicao_excluir','criativo_criar','criativo_aprovar','criativo_excluir'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
+  ['calendario_criar','calendario_excluir','tarefas_criar','tarefas_excluir','briefing_criar','briefing_editar','briefing_excluir','brandkit_criar','brandkit_excluir','canal_aquisicao_criar','canal_aquisicao_editar','canal_aquisicao_excluir','criativo_criar','criativo_aprovar','criativo_excluir','criativo_publicar'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
   const secaoLabels = {...VIEW_META,
     calendario_criar: { title: '✏️ Criar Eventos (Calendário)' },
     calendario_excluir: { title: '🗑 Excluir Eventos (Calendário)' },
@@ -11636,8 +12140,9 @@ async function loadAdminPermissoes() {
     canal_aquisicao_criar: { title: '✏️ Criar Canal (Canais de Aquisição)' },
     canal_aquisicao_editar: { title: '✏️ Editar Canal (Canais de Aquisição)' },
     canal_aquisicao_excluir: { title: '🗑 Excluir Canal (Canais de Aquisição)' },
-    criativo_criar: { title: '✏️ Enviar Arte (Criativos)' },
+    criativo_criar: { title: '✏️ Enviar Arte / Criar Demanda (Criativos)' },
     criativo_aprovar: { title: '✅ Aprovar/Reprovar Arte (Criativos)' },
+    criativo_publicar: { title: '🚀 Marcar como Publicado (Criativos)' },
     criativo_excluir: { title: '🗑 Excluir Criativo (Criativos)' },
   };
   const map = {};
