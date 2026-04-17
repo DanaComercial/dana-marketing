@@ -8276,6 +8276,47 @@ function setupRealtimeSubscriptions() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'calendario' }, () => loadCalendario())
     .subscribe();
 
+  // Criativos (aprovar, reprovar, excluir, novo upload) — sincroniza entre PCs
+  sb.channel('realtime-criativos')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'criativos' }, () => {
+      if (typeof loadCriativos === 'function') loadCriativos();
+    })
+    .subscribe();
+
+  // Briefings salvos (criar/editar/excluir) — sincroniza entre PCs
+  sb.channel('realtime-briefings')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'briefings_campanha' }, () => {
+      if (typeof loadBriefings === 'function') loadBriefings();
+    })
+    .subscribe();
+
+  // Materiais dentro dos briefings — sincroniza entre PCs
+  sb.channel('realtime-materiais')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'materiais_briefing' }, () => {
+      if (typeof loadMateriaisGlobal === 'function' && document.getElementById('bv-tab-materiais')?.style.display !== 'none') {
+        loadMateriaisGlobal();
+      }
+      // Se tá com um briefing aberto, recarrega seus materiais
+      if (typeof _briefingAtivoId !== 'undefined' && _briefingAtivoId && typeof loadMateriaisBriefing === 'function') {
+        loadMateriaisBriefing(_briefingAtivoId);
+      }
+    })
+    .subscribe();
+
+  // Brand Kit (logos, fotos, templates, etc) — sincroniza entre PCs
+  sb.channel('realtime-brandkit')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'brandkit_itens' }, () => {
+      if (typeof loadBrandkit === 'function') loadBrandkit();
+    })
+    .subscribe();
+
+  // Canais de aquisição — sincroniza entre PCs
+  sb.channel('realtime-canais')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'canais_aquisicao' }, () => {
+      if (typeof loadCanaisAquisicao === 'function') loadCanaisAquisicao();
+    })
+    .subscribe();
+
   // Indicador realtime ativo
   const syncEl = document.getElementById('last-sync-time');
   if(syncEl) {
