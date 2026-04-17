@@ -8302,7 +8302,9 @@ async function loadAlertas() {
         const nivelLabel = { urgent:'Urgente', warn:'Atenção', info:'Info', ok:'Positivo' };
         const cls = a.lido ? '' : ' unread';
         const tempo = timeAgo(new Date(a.created_at));
-        const linkHtml = a.link_ref ? `<div style="margin-top:6px"><a onclick="event.stopPropagation();abrirLinkAlerta('${a.link_ref}',${a.id});" style="font-size:11px;color:var(--blue);font-weight:600;cursor:pointer;text-decoration:underline">${a.link_label || 'Abrir'} →</a></div>` : '';
+        // Serializa dados (criativo_id, tarefa_id, etc) pra o deep-link abrir o item
+        const dadosAttr = a.dados ? esc(JSON.stringify(a.dados)) : '';
+        const linkHtml = a.link_ref ? `<div style="margin-top:6px"><a onclick='event.stopPropagation();abrirLinkAlerta("${a.link_ref}",${a.id},${dadosAttr ? "JSON.parse(this.dataset.dados)" : "null"});' data-dados='${dadosAttr}' style="font-size:11px;color:var(--blue);font-weight:600;cursor:pointer;text-decoration:underline">${a.link_label || 'Abrir'} →</a></div>` : '';
         return `<div class="notif-item${cls}" onclick="marcarAlertaLido(${a.id},this)">
           <div class="notif-type ${nivelMap[a.nivel]||'info'}">${nivelLabel[a.nivel]||'Info'}</div>
           <div class="notif-title">${a.titulo}</div>
@@ -8326,19 +8328,71 @@ async function marcarAlertaLido(id, el) {
   updateNotifDot();
 }
 
-// Abre o link de referência do alerta (ex: link_ref='criativos' navega pra seção)
-function abrirLinkAlerta(ref, alertaId) {
-  if (alertaId) marcarAlertaLido(alertaId);
-  // Tenta resolver ref como viewId ou slug
+// Abre o link de referência do alerta + destaca o item específico (deep-link)
+function abrirLinkAlerta(ref, alertaId, dados) {
+  console.log('🔗 abrirLinkAlerta:', { ref, alertaId, dados });
+  // Fecha o dropdown de alertas
+  const panel = document.getElementById('notif-panel');
+  if (panel) panel.classList.remove('open');
+  // Marca como lido
+  if (alertaId) {
+    sb.from('alertas').update({ lido: true }).eq('id', alertaId).then(() => {
+      const count = document.querySelectorAll('.notif-item.unread').length;
+      const countLabel = document.getElementById('alertas-count-label');
+      if (countLabel) countLabel.textContent = count > 0 ? count + ' não lidas' : 'tudo lido';
+      if (typeof updateNotifDot === 'function') updateNotifDot();
+    });
+  }
+  // Resolve viewId
   let viewId = ref;
   if (VIEW_SLUG_TO_ID && VIEW_SLUG_TO_ID[ref]) viewId = VIEW_SLUG_TO_ID[ref];
-  const navEl = document.querySelector('[onclick*="\''+viewId+'\'"]');
-  if (navEl) {
-    go(navEl, viewId);
-    // Fecha o dropdown de alertas
-    const dropdown = document.getElementById('notif-dropdown');
-    if (dropdown) dropdown.classList.remove('open');
+  const navEl = document.querySelector(`[onclick*="go(this,'${viewId}')"]`);
+  if (navEl) go(navEl, viewId);
+  else if (typeof go === 'function') go(null, viewId);
+
+  // Deep-link: se tem criativo_id, troca pra aba do status e destaca o card
+  if (dados && dados.criativo_id && viewId === 'criativos') {
+    setTimeout(() => focarCriativo(dados.criativo_id), 400);
   }
+  // Deep-link pra tarefa (abre o modal de ver tarefa)
+  if (dados && dados.tarefa_id && viewId === 'tarefas') {
+    setTimeout(() => {
+      if (typeof abrirTarefa === 'function') abrirTarefa(dados.tarefa_id);
+    }, 400);
+  }
+}
+
+// Foca um criativo específico: muda aba conforme status + scroll + highlight
+async function focarCriativo(criativoId) {
+  // Aguarda loadCriativos terminar (pode estar rodando ainda)
+  let tentativas = 0;
+  while (!_criativosCache?.length && tentativas < 10) {
+    await new Promise(r => setTimeout(r, 150));
+    tentativas++;
+  }
+  const c = _criativosCache.find(x => x.id === criativoId);
+  if (!c) { console.warn('🔗 Criativo não encontrado em cache:', criativoId); return; }
+
+  // Troca pra aba correta (aguardando/aprovado/reprovado)
+  const tabEl = document.querySelector(`.cri-tab[onclick*="'${c.status}'"]`);
+  if (tabEl) switchCri(tabEl, c.status);
+
+  // Aguarda render e destaca o card
+  setTimeout(() => {
+    const cards = document.querySelectorAll(`#grid-${c.status} .arte-card`);
+    cards.forEach(card => {
+      if (card.querySelector('.arte-name')?.textContent?.includes(c.titulo)) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.style.transition = 'box-shadow 0.3s, transform 0.3s';
+        card.style.boxShadow = '0 0 0 3px var(--blue)';
+        card.style.transform = 'scale(1.02)';
+        setTimeout(() => {
+          card.style.boxShadow = '';
+          card.style.transform = '';
+        }, 2500);
+      }
+    });
+  }, 300);
 }
 
 function timeAgo(date) {
