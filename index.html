@@ -7013,32 +7013,25 @@ function abrirModalExcluir() {
 }
 
 async function confirmarExcluirBriefing() {
-  console.log('🔴 [DELETE BRIEFING] Iniciando. _briefingAtivoId =', _briefingAtivoId);
   const b = _briefingsCache.find(x => x.id === _briefingAtivoId);
-  if (!b) { console.warn('🔴 Briefing não encontrado no cache'); return; }
+  if (!b) return;
   try {
     // 1. Buscar storage_paths dos materiais antes do cascade apagar os registros
     const { data: mats, error: matsErr } = await sb.from('materiais_briefing')
-      .select('id, nome, storage_path, tipo')
+      .select('storage_path')
       .eq('briefing_id', _briefingAtivoId);
-    console.log('🔴 [DELETE BRIEFING] Materiais encontrados:', mats);
-    if (matsErr) console.warn('🔴 Erro ao buscar materiais:', matsErr.message);
+    if (matsErr) console.warn('Busca de materiais:', matsErr.message);
 
     // 2. Deletar arquivos do Storage (ignora links externos que não têm storage_path)
     const paths = (mats || []).map(m => m.storage_path).filter(Boolean);
-    console.log('🔴 [DELETE BRIEFING] Paths pra deletar do Storage:', paths);
     if (paths.length) {
-      const removeResult = await sb.storage.from('kanban').remove(paths);
-      console.log('🔴 [DELETE BRIEFING] Resultado remove Storage:', removeResult);
-      if (removeResult.error) console.warn('🔴 Storage remove warning:', removeResult.error.message);
-    } else {
-      console.log('🔴 [DELETE BRIEFING] Nenhum arquivo físico pra remover (só links ou sem materiais)');
+      const { error: stErr } = await sb.storage.from('kanban').remove(paths);
+      if (stErr) console.warn('Storage remove warning:', stErr.message);
     }
 
     // 3. Deletar o briefing (cascade remove as linhas de materiais_briefing)
     const { error } = await sb.from('briefings_campanha').delete().eq('id', _briefingAtivoId);
     if (error) throw error;
-    console.log('🔴 [DELETE BRIEFING] DB delete OK');
 
     closeModal('excluir-briefing');
     closeModal('ver-briefing');
@@ -7047,7 +7040,7 @@ async function confirmarExcluirBriefing() {
     logActivity('excluiu_briefing', b.titulo, 'briefingvisual');
     loadBriefings();
   } catch (e) {
-    console.error('🔴 [DELETE BRIEFING] Erro:', e);
+    console.error('Erro ao excluir briefing:', e);
     showToast('Erro: ' + e.message);
   }
 }
