@@ -2068,6 +2068,10 @@ select.input { cursor: pointer; }
     color: white !important;
     border: 2px solid var(--amber) !important;
   }
+  /* Garante painel ativo visivel no mobile */
+  #view-admin .mkt-panel.active {
+    display: block !important;
+  }
 
   /* ═ CALCULADORA ROI ═ */
   .roi-container, .roi-calc-grid, .roi-inputs,
@@ -9015,7 +9019,19 @@ function go(el, viewId) {
   // Log navegacao
   logActivity('visualizou', meta.title || viewId, viewId);
   // Carregar dados especiais
-  if (viewId === 'admin') loadAdminUsers();
+  if (viewId === 'admin') {
+    // Garante que o painel Usuarios esta ativo (mobile as vezes perde sincronizacao)
+    const adminView = document.getElementById('view-admin');
+    if (adminView) {
+      adminView.querySelectorAll('.mkt-tab').forEach(t => t.classList.remove('active'));
+      adminView.querySelectorAll('.mkt-panel').forEach(p => p.classList.remove('active'));
+      const firstTab = adminView.querySelector('.mkt-tab');
+      const firstPanel = document.getElementById('admin-usuarios');
+      if (firstTab) firstTab.classList.add('active');
+      if (firstPanel) firstPanel.classList.add('active');
+    }
+    loadAdminUsers();
+  }
   if (viewId === 'perfil') loadPerfilView();
   if (viewId === 'briefingvisual') { if (typeof loadBriefings === 'function') loadBriefings(); }
   if (viewId === 'canaisaquisicao') { if (typeof loadCanaisAquisicao === 'function') loadCanaisAquisicao(); }
