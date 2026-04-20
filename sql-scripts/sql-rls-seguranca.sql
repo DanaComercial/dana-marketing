@@ -15,16 +15,14 @@
 -- ══════════════════════════════════════════════════════════
 
 -- ── PASSO 0 · VERIFICAR QUE EXISTE ADMIN ──
-DO $$
-DECLARE
-  admin_count int;
+DO $do$
 BEGIN
-  SELECT COUNT(*) INTO admin_count FROM profiles WHERE cargo = 'admin';
-  IF admin_count = 0 THEN
+  IF (SELECT COUNT(*) FROM public.profiles WHERE cargo = 'admin') = 0 THEN
     RAISE EXCEPTION 'Nenhum admin cadastrado. Abortando pra não te bloquear.';
   END IF;
-  RAISE NOTICE 'Admins cadastrados: %. Prosseguindo...', admin_count;
-END $$;
+  RAISE NOTICE 'Admins OK. Prosseguindo...';
+END
+$do$;
 
 -- ── PASSO 1 · FUNÇÃO is_admin() (helper cacheável) ──
 CREATE OR REPLACE FUNCTION public.is_admin()

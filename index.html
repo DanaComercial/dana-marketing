@@ -8143,12 +8143,12 @@ updateDynamicField('foto');
     <div class="card">
       <div class="card-title" style="margin-bottom:10px">Meu Cargo</div>
       <div id="perfil-cargo-nome" style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--black);margin-bottom:6px">--</div>
-      <div style="font-size:12px;color:var(--text3);line-height:1.6" id="perfil-cargo-desc">Seu cargo define quais secoes do sistema voce pode acessar. Apenas o administrador pode alterar cargos.</div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6" id="perfil-cargo-desc">Seu cargo define quais seções do sistema você pode acessar. Apenas o administrador pode alterar cargos.</div>
     </div>
 
-    <!-- Secoes com acesso -->
+    <!-- Seções com acesso -->
     <div class="card">
-      <div class="card-title" style="margin-bottom:10px">Minhas Secoes</div>
+      <div class="card-title" style="margin-bottom:10px">Minhas Seções</div>
       <div id="perfil-secoes-list" style="display:flex;flex-wrap:wrap;gap:6px">--</div>
     </div>
   </div>
@@ -8167,17 +8167,17 @@ updateDynamicField('foto');
   <div style="font-size:12.5px;color:var(--text3);margin-bottom:20px">Gerenciar usuarios, permissoes e monitorar atividades</div>
 
   <div class="mkt-tabs" style="margin-bottom:20px">
-    <div class="mkt-tab active" onclick="switchAdminTab(this,'usuarios')">Usuarios</div>
-    <div class="mkt-tab" onclick="switchAdminTab(this,'permissoes')">Permissoes por Cargo</div>
-    <div class="mkt-tab" onclick="switchAdminTab(this,'atividades')">Relatorio de Atividades</div>
+    <div class="mkt-tab active" onclick="switchAdminTab(this,'usuarios')">Usuários</div>
+    <div class="mkt-tab" onclick="switchAdminTab(this,'permissoes')">Permissões por Cargo</div>
+    <div class="mkt-tab" onclick="switchAdminTab(this,'atividades')">Relatório de Atividades</div>
   </div>
 
   <!-- ABA USUARIOS -->
   <div class="mkt-panel active" id="admin-usuarios">
     <div class="card mb20">
       <div class="card-header">
-        <div><div class="card-title">Usuarios do Sistema</div><div class="card-sub">Gerencie cargos e acessos</div></div>
-        <button class="btn btn-primary btn-sm" onclick="openModal('criar-usuario')">+ Novo Usuario</button>
+        <div><div class="card-title">Usuários do Sistema</div><div class="card-sub">Gerencie cargos e acessos</div></div>
+        <button class="btn btn-primary btn-sm" onclick="openModal('criar-usuario')">+ Novo Usuário</button>
       </div>
       <div id="admin-users-table"><div style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Carregando...</div></div>
     </div>
@@ -8187,8 +8187,8 @@ updateDynamicField('foto');
   <div class="mkt-panel" id="admin-permissoes">
     <div class="card">
       <div class="card-header">
-        <div><div class="card-title">Permissoes por Cargo</div><div class="card-sub">Marque/desmarque para controlar acesso a cada secao</div></div>
-        <button class="btn btn-primary btn-sm" onclick="savePermissoes()">Salvar Alteracoes</button>
+        <div><div class="card-title">Permissões por Cargo</div><div class="card-sub">Marque/desmarque para controlar acesso a cada seção</div></div>
+        <button class="btn btn-primary btn-sm" onclick="savePermissoes()">Salvar Alterações</button>
       </div>
       <div id="admin-perm-grid" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Carregando...</div></div>
     </div>
@@ -8198,7 +8198,7 @@ updateDynamicField('foto');
   <div class="mkt-panel" id="admin-atividades">
     <div class="card">
       <div class="card-header">
-        <div><div class="card-title">Relatorio de Atividades</div><div class="card-sub">Ultimas acoes dos usuarios no sistema</div></div>
+        <div><div class="card-title">Relatório de Atividades</div><div class="card-sub">Últimas ações dos usuários no sistema</div></div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:14px">
         <select id="admin-log-filter" class="input" style="width:auto;font-size:12px" onchange="loadActivityLog()">
@@ -8228,10 +8228,10 @@ updateDynamicField('foto');
     <div style="margin-bottom:16px"><label class="label">Cargo</label>
       <select class="input" id="new-user-cargo">
         <option value="vendedor">Vendedor</option>
-        <option value="expedicao">Expedicao</option>
+        <option value="expedicao">Expedição</option>
         <option value="designer">Designer</option>
-        <option value="trafego_pago">Trafego Pago</option>
-        <option value="producao_conteudo">Producao de Conteudo</option>
+        <option value="trafego_pago">Tráfego Pago</option>
+        <option value="producao_conteudo">Produção de Conteúdo</option>
         <option value="analista_marketplace">Analista de Marketplace</option>
         <option value="gerente_comercial">Gerente Comercial</option>
         <option value="gerente_financeiro">Gerente Financeiro</option>
@@ -9003,7 +9003,7 @@ const VIEW_META = {
   projecoes: { title: 'Projeções', sub: '2025 vs 2026 — real + projetado', action: '' },
   canaisvendas: { title: 'Canais e Vendas', sub: 'Clientes, canais de venda, revendas e eventos', action: '' },
   perfil: { title: 'Meu Perfil', sub: 'Configuracoes da sua conta', action: '' },
-  admin: { title: 'Administrador', sub: 'Usuarios, permissoes e atividades', action: '' }
+  admin: { title: 'Administrador', sub: 'Usuários, permissões e atividades', action: '' }
 };
 
 // ── NAVIGATION: Mapa slug ↔ viewId pro URL hash ──
@@ -9048,7 +9048,7 @@ function go(el, viewId) {
   }
   // 2. Bloqueio via cargo_permissoes (perfil sempre acessivel)
   if (viewId !== 'perfil' && userPermissoes[viewId] === false) {
-    if (typeof showToast === 'function') showToast('Voce nao tem acesso a esta secao');
+    if (typeof showToast === 'function') showToast('Você não tem acesso a esta seção');
     if (viewId !== 'home') {
       const home = document.querySelector('[onclick*="\'home\'"]');
       if (home) return go(home, 'home');
@@ -15116,12 +15116,12 @@ const CARGO_LABELS = {
   gerente_marketing: 'Gerente de Marketing',
   gerente_comercial: 'Gerente Comercial',
   gerente_financeiro: 'Gerente Financeiro',
-  trafego_pago: 'Trafego Pago',
-  producao_conteudo: 'Producao de Conteudo',
+  trafego_pago: 'Tráfego Pago',
+  producao_conteudo: 'Produção de Conteúdo',
   designer: 'Designer',
   analista_marketplace: 'Analista de Marketplace',
   vendedor: 'Vendedor',
-  expedicao: 'Expedicao',
+  expedicao: 'Expedição',
 };
 
 // ── CHECK AUTH ON LOAD ──
@@ -15229,14 +15229,19 @@ function loadPerfilView() {
   if (el('perfil-cargo-badge')) el('perfil-cargo-badge').textContent = CARGO_LABELS[currentProfile.cargo] || currentProfile.cargo;
   if (el('perfil-cargo-nome')) el('perfil-cargo-nome').textContent = CARGO_LABELS[currentProfile.cargo] || currentProfile.cargo;
 
-  // Listar secoes com acesso
+  // Listar seções com acesso
   const secoesEl = el('perfil-secoes-list');
   if (secoesEl) {
-    const secoes = Object.entries(userPermissoes).filter(([,v]) => v !== false).map(([k]) => k);
+    const isAdmin = currentProfile.cargo === 'admin';
+    const secoes = Object.entries(userPermissoes)
+      .filter(([k,v]) => v !== false)
+      // Exclui seções admin-only se não for admin
+      .filter(([k]) => isAdmin || !ADMIN_ONLY_VIEWS.includes(k))
+      .map(([k]) => k);
     secoesEl.innerHTML = secoes.map(s => {
       const meta = VIEW_META[s];
       return meta ? `<span style="font-size:11px;padding:4px 10px;background:var(--green-bg);color:var(--green);border-radius:6px;font-weight:600">${meta.title}</span>` : '';
-    }).filter(Boolean).join('') || '<span style="font-size:12px;color:var(--text3)">Todas as secoes</span>';
+    }).filter(Boolean).join('') || '<span style="font-size:12px;color:var(--text3)">Todas as seções</span>';
   }
 }
 
