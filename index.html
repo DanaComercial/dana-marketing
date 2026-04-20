@@ -3031,49 +3031,29 @@ select.input { cursor: pointer; }
 </div>
 </div>
 
-<!-- ════════ E-COMMERCE (Site) ════════ -->
+<!-- ════════ E-COMMERCE (Site) — PLACEHOLDER aguardando API Magazord ════════ -->
 <div class="view" id="view-ecommerce">
 <div style="padding:24px 28px">
 
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap">
-    <div>
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px">🌐 E-commerce</div>
-      <div style="font-size:12.5px;color:var(--text3);margin-top:3px">Vendas do site · <strong>danajalecos.com.br</strong> · dados Bling ao vivo</div>
+  <div style="margin-bottom:20px">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px">🌐 E-commerce</div>
+    <div style="font-size:12.5px;color:var(--text3);margin-top:3px">Vendas do site · <strong>danajalecos.com.br</strong></div>
+  </div>
+
+  <div class="card" style="padding:48px 32px;text-align:center;background:linear-gradient(135deg,rgba(59,130,246,0.04),rgba(139,92,246,0.04));border:1px dashed rgba(59,130,246,0.25)">
+    <div style="font-size:48px;margin-bottom:12px">📊</div>
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;margin-bottom:10px">Aguardando integração Magazord</div>
+    <div style="font-size:13.5px;color:var(--text2);max-width:620px;margin:0 auto 20px;line-height:1.6">
+      Os dados oficiais de e-commerce (faturamento, pedidos, ticket médio, top produtos) virão diretamente da <strong>Magazord</strong>, plataforma do site <strong>danajalecos.com.br</strong>.
+      <br><br>
+      O Bling não espelha 1:1 os valores do checkout (descontos, cupons e frete zeram o campo <code style="background:rgba(0,0,0,0.06);padding:1px 6px;border-radius:3px;font-size:11.5px">total</code>), por isso esta seção fica reservada até a API estar ativa.
     </div>
-    <select class="input" id="ec-filtro-periodo" onchange="loadEcommerce()" style="width:auto;min-width:180px">
-      <option value="ytd">Acumulado 2026</option>
-      <option value="atual" selected>Mês atual</option>
-      <option value="2025">Ano 2025</option>
-    </select>
-  </div>
-
-  <!-- KPIs -->
-  <div class="kpi-grid mb20">
-    <div class="kpi-card dark"><div class="kpi-label">Faturamento</div><div class="kpi-value" id="ec-kpi-fat">--</div><div class="kpi-change up" id="ec-kpi-fat-sub">carregando...</div></div>
-    <div class="kpi-card"><div class="kpi-label">Pedidos</div><div class="kpi-value" id="ec-kpi-ped">--</div><div class="kpi-change up" id="ec-kpi-ped-sub">carregando...</div></div>
-    <div class="kpi-card"><div class="kpi-label">Ticket Médio</div><div class="kpi-value" id="ec-kpi-ticket">--</div><div class="kpi-change up">Site</div></div>
-    <div class="kpi-card"><div class="kpi-label">Share do Total</div><div class="kpi-value" id="ec-kpi-share">--</div><div class="kpi-change up">% do faturamento geral</div></div>
-  </div>
-
-  <!-- Gráfico mensal -->
-  <div class="card mb20">
-    <div class="card-title" style="margin-bottom:14px">📈 Evolução mensal (site)</div>
-    <div id="ec-grafico" style="min-height:180px;display:flex;align-items:flex-end;gap:8px;padding:8px 0"></div>
-  </div>
-
-  <!-- Top produtos + Top clientes -->
-  <div class="g2">
-    <div class="card">
-      <div class="card-header">
-        <div><div class="card-title">🥇 Top Produtos (site)</div><div class="card-sub" id="ec-prod-sub">Por quantidade vendida · período selecionado</div></div>
-      </div>
-      <div id="ec-top-produtos"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+    <div style="display:inline-block;background:rgba(0,0,0,0.04);padding:12px 18px;border-radius:10px;font-size:12.5px;color:var(--text2);text-align:left;max-width:520px">
+      <div style="font-weight:700;color:var(--black);margin-bottom:6px">📧 Próximo passo</div>
+      Dana precisa enviar e-mail pra <strong>integracao@magazord.com.br</strong> solicitando credenciais de API. Assim que as chaves chegarem, integramos aqui.
     </div>
-    <div class="card">
-      <div class="card-header">
-        <div><div class="card-title">👥 Top Clientes (site)</div><div class="card-sub" id="ec-cli-sub">Por volume de pedidos · período selecionado</div></div>
-      </div>
-      <div id="ec-top-clientes"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
+    <div style="margin-top:24px;font-size:11.5px;color:var(--text3)">
+      💡 Enquanto isso, confira <strong>Faturamento geral</strong> no Dashboard ou <strong>Marketplaces</strong> pra canais externos.
     </div>
   </div>
 
@@ -9122,7 +9102,7 @@ window.addEventListener('popstate', () => {
 const EXPORT_PDF_VIEWS = {
   relatorio:    'Relatório Executivo',
   financeiro:   'Financeiro',
-  ecommerce:    'E-commerce',
+  // ecommerce:    'E-commerce', // desativado — seção em placeholder aguardando Magazord
   lojafisica:   'Loja Física + WhatsApp',
   marketplaces: 'Marketplaces',
   projecoes:    'Projeções',
@@ -14752,8 +14732,8 @@ async function carregarCanal(prefix, canal, filtro) {
 }
 
 async function loadEcommerce() {
-  const filtro = document.getElementById('ec-filtro-periodo')?.value || 'atual';
-  carregarCanal('ec', 'site', filtro);
+  // Placeholder ativo — aguardando integração Magazord.
+  // Quando a API chegar, restaurar: carregarCanal('ec', 'site', document.getElementById('ec-filtro-periodo')?.value || 'atual');
 }
 
 async function loadLojaFisica() {
