@@ -2471,40 +2471,85 @@ select.input { cursor: pointer; }
   </div>
 
   <div class="nav-section">
-    <div class="nav-label">Principal</div>
+    <div class="nav-label">Visão Geral</div>
     <div class="nav-item active" onclick="go(this,'home')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 6l6-4 6 4v8H10V9H6v5H2z"/></svg></div>Dashboard
-    </div>
-    <div class="nav-item" onclick="go(this,'canaisaquisicao')">
-      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 2v12M2 8h12"/></svg></div>Canais de Aquisição
     </div>
     <div class="nav-item" onclick="go(this,'analytics')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 14V2M2 14h12M5 11V7M8 11V5M11 11V9"/></svg></div>Analytics
     </div>
+    <div class="nav-item" onclick="go(this,'relatorio')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 12l4-5 3 3 2.5-3 2.5 2.5"/><rect x="1" y="1" width="14" height="14" rx="2"/></svg></div>Relatório Executivo
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Vendas</div>
     <div class="nav-item" onclick="go(this,'ecommerce')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12l-1 9H3z"/><circle cx="6" cy="14.5" r="1"/><circle cx="11" cy="14.5" r="1"/><path d="M2 4L1 2"/></svg></div>E-commerce
     </div>
     <div class="nav-item" onclick="go(this,'lojafisica')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 5h12v9H2z"/><path d="M2 5l1-3h10l1 3"/><path d="M6 14V9h4v5"/></svg></div>Loja Física
     </div>
+    <div class="nav-item" onclick="go(this,'marketplaces')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12l-1.5 7H3.5z"/><circle cx="5.5" cy="13" r="1.5"/><circle cx="10.5" cy="13" r="1.5"/><path d="M2 4l-.8-2H.5"/></svg></div>Marketplaces
+    </div>
+    <div class="nav-item" onclick="go(this,'canaisvendas')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 3h14v2H1z"/><path d="M2 5v8h12V5"/><path d="M6 8h4v3H6z"/></svg></div>Canais e Vendas
+    </div>
+    <div class="nav-item" onclick="go(this,'comunidade')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 10c0 1.1-.9 2-2 2H4l-2.5 2V4c0-1.1.9-2 2-2h8.5c1.1 0 2 .9 2 2z"/></svg></div>Comunidade e CRM
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Financeiro</div>
+    <div class="nav-item" onclick="go(this,'financeiro')">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 7h14M4 10h2M10 10h2"/></svg>
+      Financeiro
+    </div>
+    <div class="nav-item" onclick="go(this,'projecoes')">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l4-5 3 3 5-8"/><circle cx="14" cy="4" r="1.5"/></svg>
+      Projeções
+    </div>
+    <div class="nav-item" onclick="go(this,'roi')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 14V6l4-4h8v12z"/><path d="M6 2v4H2M5 9h6M5 12h4"/></svg></div>Calculadora ROI
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Marketing</div>
+    <div class="nav-item" onclick="go(this,'canaisaquisicao')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 2v12M2 8h12"/></svg></div>Canais de Aquisição
+    </div>
     <div class="nav-item" onclick="go(this,'campanhas')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 6h14M5 2v2M11 2v2"/></svg></div>Campanhas
+    </div>
+    <div class="nav-item" onclick="go(this,'construtor')" style="background:rgba(255,255,255,0.1);border-radius:7px;margin-top:4px">
+      <div class="nav-icon" style="background:rgba(255,255,255,0.15)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3h10v2H3zM3 7h7v2H3zM3 11h5v2H3z"/><path d="M12 9l2 2-2 2"/></svg></div>
+      <span style="color:white;font-weight:700">Construtor de Campanha</span>
     </div>
     <div class="nav-item" onclick="go(this,'criativos')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1.5" y="1.5" width="13" height="10" rx="1.5"/><path d="M1.5 11.5l4-4 3 3 2.5-2.5 3 3"/></svg></div>Criativos
       <span class="nav-badge alert" id="nav-criativos-badge" style="display:none" title="Artes aguardando aprovação">0</span>
     </div>
+    <div class="nav-item" onclick="go(this,'briefingvisual')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h4"/></svg></div>Briefing Visual
+    </div>
     <div class="nav-item" onclick="go(this,'influenciadores')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6" cy="5" r="3"/><path d="M1 14c0-3 2.2-5 5-5s5 2 5 5"/><path d="M12 7c1.1 0 2 .9 2 2s-.9 2-2 2M14.5 14H11"/></svg></div>Influenciadores
     </div>
-    <div class="nav-item" onclick="go(this,'personas')" style="background:rgba(255,255,255,0.07);border-radius:7px">
-      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="3"/><path d="M1 14c0-4 3-6 7-6s7 2 7 6"/></svg></div>
-      <span style="color:rgba(255,255,255,0.75);font-weight:600">Públicos Ideais</span>
+    <div class="nav-item" onclick="go(this,'provasocial')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.4l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg></div>Prova Social
     </div>
   </div>
 
   <div class="nav-section">
     <div class="nav-label">Inteligência</div>
+    <div class="nav-item" onclick="go(this,'personas')" style="background:rgba(255,255,255,0.07);border-radius:7px">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="5" r="3"/><path d="M1 14c0-4 3-6 7-6s7 2 7 6"/></svg></div>
+      <span style="color:rgba(255,255,255,0.75);font-weight:600">Públicos Ideais</span>
+    </div>
     <div class="nav-item" onclick="go(this,'keywords')">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="5"/><path d="M10 10l4.5 4.5"/></svg>
       Palavras-Chave
@@ -2522,65 +2567,29 @@ select.input { cursor: pointer; }
   </div>
 
   <div class="nav-section">
-    <div class="nav-label">Operacional</div>
-    <div class="nav-item" onclick="go(this,'comunidade')">
-      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 10c0 1.1-.9 2-2 2H4l-2.5 2V4c0-1.1.9-2 2-2h8.5c1.1 0 2 .9 2 2z"/></svg></div>Comunidade e CRM
-    </div>
-    <div class="nav-item" onclick="go(this,'financeiro')">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 7h14M4 10h2M10 10h2"/></svg>
-      Financeiro
-    </div>
-    <div class="nav-item" onclick="go(this,'projecoes')">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14l4-5 3 3 5-8"/><circle cx="14" cy="4" r="1.5"/></svg>
-      Projeções
-    </div>
-    <div class="nav-item" onclick="go(this,'marketplaces')">
-      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12l-1.5 7H3.5z"/><circle cx="5.5" cy="13" r="1.5"/><circle cx="10.5" cy="13" r="1.5"/><path d="M2 4l-.8-2H.5"/></svg></div>Marketplaces
-    </div>
-    <div class="nav-item" onclick="go(this,'canaisvendas')">
-      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 3h14v2H1z"/><path d="M2 5v8h12V5"/><path d="M6 8h4v3H6z"/></svg></div>Canais e Vendas
-    </div>
-    <div class="nav-item" onclick="go(this,'provasocial')">
-      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.4l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg></div>Prova Social
-    </div>
-    <div class="nav-item" onclick="go(this,'apis')" style="position:relative">
-      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 8H2.5A1.5 1.5 0 011 6.5v-2A1.5 1.5 0 012.5 3h11A1.5 1.5 0 0115 4.5v2A1.5 1.5 0 0113.5 8H11"/><rect x="5" y="6" width="6" height="7" rx="1"/></svg></div>Conectar APIs
-      <div style="width:7px;height:7px;background:var(--red);border-radius:50%;margin-left:auto"></div>
-    </div>
-  </div>
-
-  <div class="nav-section">
     <div class="nav-label">Produtividade</div>
     <div class="nav-item" onclick="go(this,'tarefas')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="1" width="14" height="14" rx="2"/><path d="M5 8l2 2 4-4"/></svg></div>Tarefas e Kanban
       <span class="nav-badge alert" id="nav-tarefas-badge" style="display:none">0</span>
     </div>
-    <div class="nav-item" onclick="go(this,'roi')">
-      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 14V6l4-4h8v12z"/><path d="M6 2v4H2M5 9h6M5 12h4"/></svg></div>Calculadora ROI
-    </div>
-    <div class="nav-item" onclick="go(this,'relatorio')">
-      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 12l4-5 3 3 2.5-3 2.5 2.5"/><rect x="1" y="1" width="14" height="14" rx="2"/></svg></div>Relatório Executivo
-    </div>
     <div class="nav-item" onclick="go(this,'calendario')">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="12" rx="1.5"/><path d="M1.5 6.5h13M5 1v3M11 1v3"/></svg>
       Calendário
     </div>
-    <div class="nav-item" onclick="go(this,'construtor')" style="background:rgba(255,255,255,0.1);border-radius:7px;margin-top:4px">
-      <div class="nav-icon" style="background:rgba(255,255,255,0.15)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3h10v2H3zM3 7h7v2H3zM3 11h5v2H3z"/><path d="M12 9l2 2-2 2"/></svg></div>
-      <span style="color:white;font-weight:700">Construtor de Campanha</span>
-    </div>
-    <div class="nav-item" onclick="go(this,'briefingvisual')">
-      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h4"/></svg></div>Briefing Visual
-    </div>
   </div>
 
-  <div class="nav-section" id="nav-admin-section" style="display:none">
+  <div class="nav-section">
     <div class="nav-label">Sistema</div>
+    <div class="nav-item" onclick="go(this,'apis')" style="position:relative">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 8H2.5A1.5 1.5 0 011 6.5v-2A1.5 1.5 0 012.5 3h11A1.5 1.5 0 0115 4.5v2A1.5 1.5 0 0113.5 8H11"/><rect x="5" y="6" width="6" height="7" rx="1"/></svg></div>Conectar APIs
+      <div style="width:7px;height:7px;background:var(--red);border-radius:50%;margin-left:auto"></div>
+    </div>
     <div class="nav-item" onclick="go(this,'admin')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1a3 3 0 00-3 3v2H4a1 1 0 00-1 1v6a1 1 0 001 1h8a1 1 0 001-1V7a1 1 0 00-1-1h-1V4a3 3 0 00-3-3zm-1 3a1 1 0 112 0v2H7V4z"/></svg></div>Administrador
       <span style="font-size:9px;padding:1px 6px;background:var(--red);color:white;border-radius:4px;margin-left:auto">Admin</span>
     </div>
   </div>
+
 
   <div class="sidebar-footer">
     <div class="save-badge saving" id="save-indicator">
@@ -15824,11 +15833,7 @@ async function loadProfile() {
   if (name) name.textContent = currentProfile.nome || currentUser.email;
   if (role) role.textContent = CARGO_LABELS[currentProfile.cargo] || currentProfile.cargo;
 
-  // Mostrar seção admin no sidebar se for admin
-  const adminNav = document.getElementById('nav-admin-section');
-  if (adminNav) adminNav.style.display = currentProfile.cargo === 'admin' ? '' : 'none';
-
-  // Esconder itens do sidebar sem permissao
+  // Esconder itens do sidebar sem permissao (admin item é ocultado via ADMIN_ONLY_VIEWS no applyNavPermissions)
   applyNavPermissions();
 
   // Atualizar last_login
@@ -15836,15 +15841,24 @@ async function loadProfile() {
 }
 
 function applyNavPermissions() {
+  const ehAdmin = currentProfile?.cargo === 'admin';
   document.querySelectorAll('.nav-item[onclick]').forEach(item => {
     const match = item.getAttribute('onclick')?.match(/go\(this,'(\w+)'\)/);
     if (!match) return;
     const secao = match[1];
+    // Views só-admin ficam ocultas pra outros cargos
+    if (!ehAdmin && ADMIN_ONLY_VIEWS.includes(secao)) { item.style.display = 'none'; return; }
     if (userPermissoes[secao] === false) {
       item.style.display = 'none';
     } else {
       item.style.display = '';
     }
+  });
+  // Esconde seções (label + itens) em que TODOS os nav-items estão escondidos
+  document.querySelectorAll('.sidebar .nav-section').forEach(sec => {
+    const itens = sec.querySelectorAll('.nav-item[onclick]');
+    const visiveis = Array.from(itens).filter(it => it.style.display !== 'none');
+    sec.style.display = (itens.length > 0 && visiveis.length === 0) ? 'none' : '';
   });
 }
 
