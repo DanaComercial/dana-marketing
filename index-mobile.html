@@ -1900,6 +1900,26 @@ select.input { cursor: pointer; }
   /* Modal: padding interno pra respirar + scroll interno */
   .modal-overlay .modal, .modal-overlay > div:not(.modal-overlay) {
     padding: 16px !important;
+    padding-bottom: 80px !important;  /* espaço extra pra não cortar o footer de botões */
+  }
+
+  /* Footer de botões (Salvar/Cancelar/Excluir) STICKY no fundo do modal
+     pra ficar sempre visível mesmo com conteúdo longo */
+  .modal-overlay #vt-botoes,
+  .modal-overlay [id$="-botoes"],
+  .modal-overlay [class*="modal-footer"],
+  .modal-overlay > .modal > div:last-child:has(.btn),
+  .modal-overlay .modal > div:last-child[style*="display:flex"][style*="gap"],
+  .modal-overlay .modal > div:last-child[style*="display: flex"][style*="gap"] {
+    position: sticky !important;
+    bottom: 0 !important;
+    background: var(--white) !important;
+    padding: 12px 0 !important;
+    margin: 12px -16px -16px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    border-top: 1px solid var(--border) !important;
+    z-index: 10 !important;
   }
 
   /* Canvas/gráficos de outras seções */
@@ -2308,25 +2328,29 @@ select.input { cursor: pointer; }
     text-align: center !important;
   }
 
-  /* ═ CALENDÁRIO · eventos ilegíveis em células de 33px ═ */
-  /* Opção pragmática: esconder título, só mostrar indicador colorido */
+  /* ═ CALENDÁRIO · eventos legíveis em células pequenas ═ */
   #view-calendario .cal-event,
   #view-calendario [class*="event-title"],
   .cal-day [class*="event"] {
-    font-size: 8px !important;
-    line-height: 1 !important;
-    padding: 1px 3px !important;
-    max-height: 12px !important;
+    font-size: 9px !important;
+    line-height: 1.15 !important;
+    padding: 2px 4px !important;
+    max-height: 28px !important;
     overflow: hidden !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    word-break: break-word !important;
+    white-space: normal !important;
+    margin-bottom: 2px !important;
+    border-radius: 4px !important;
   }
-  /* Esconder títulos truncados — só mantém bolinha de cor */
-  #view-calendario .cal-day-events [class*="event"] span,
-  #view-calendario .cal-day-events [class*="event"] div {
-    font-size: 8px !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+  /* Células do calendário com altura mínima pra caber eventos */
+  #view-calendario .cal-day, #view-calendario [class*="day-cell"] {
+    min-height: 72px !important;
+    padding: 4px 3px !important;
   }
+  #view-calendario .cal-day-num { font-size: 10.5px !important; }
 
   /* ═ CONSTRUTOR · stepper (.cb-step horizontal de 896px) ═ */
   .cb-stepper {
