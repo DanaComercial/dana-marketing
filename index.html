@@ -7004,7 +7004,7 @@ updateDynamicField('foto');
   <!-- Top Produtos Vendidos -->
   <div class="card mb20">
     <div class="card-header">
-      <div><div class="card-title">Top 10 Produtos Mais Vendidos</div><div class="card-sub" id="mp-sku-sub">Últimos 60 dias · dados Bling</div></div>
+      <div><div class="card-title">Top 10 Produtos Mais Vendidos</div><div class="card-sub" id="mp-sku-sub">Somente dos marketplaces (ML, Shopee, TikTok, Magalu) · dados Bling</div></div>
     </div>
     <div id="mp-top-skus" style="overflow-x:auto"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando...</div></div>
   </div>
@@ -15157,17 +15157,17 @@ async function loadMarketplacesExtras() {
   try {
     const skuEl = document.getElementById('mp-top-skus');
     const subEl = document.getElementById('mp-sku-sub');
-    if (subEl) subEl.textContent = 'SKUs mais vendidos · ' + labelP;
+    if (subEl) subEl.textContent = 'SKUs mais vendidos em marketplaces · ' + labelP;
 
-    // Tentar buscar da view top_produtos_mes (se existe)
+    // Usa views FILTRADAS só de marketplaces (exclui site + loja física)
     let prodData = null;
     if (filtro === 'ytd') {
-      const { data } = await sb.from('top_produtos').select('*').limit(10);
+      const { data } = await sb.from('top_produtos_marketplaces').select('*').limit(10);
       prodData = data;
     } else {
       const mesQ = filtro === 'atual' ? mesAtual : parseInt(filtro.split('-')[1]);
       const anoQ = filtro === 'atual' ? anoAtual : parseInt(filtro.split('-')[0]);
-      const { data } = await sb.from('top_produtos_mes').select('*').eq('ano', anoQ).eq('mes', mesQ).limit(10);
+      const { data } = await sb.from('top_produtos_marketplaces_mes').select('*').eq('ano', anoQ).eq('mes', mesQ).limit(10);
       prodData = data;
     }
 
