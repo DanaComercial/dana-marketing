@@ -16811,20 +16811,37 @@ document.addEventListener('click', e => {
 // ═════════════════════════════════════════════════════
 // AI CHAT · agente flutuante (Groq + Gemini fallback)
 // ═════════════════════════════════════════════════════
-const AI_STORAGE_KEY = 'dms_ai_chat_v1';
+function aiChatStorageKey() {
+  // Chave por usuário — garante isolamento entre contas no mesmo navegador
+  const uid = (typeof currentProfile !== 'undefined' && currentProfile?.id) ? currentProfile.id : 'anon';
+  return `dms_ai_chat_v2_${uid}`;
+}
 let aiChatHistorico = [];
 let aiChatLoading = false;
 
 function aiChatLoad() {
   try {
-    aiChatHistorico = JSON.parse(localStorage.getItem(AI_STORAGE_KEY) || '[]');
+    aiChatHistorico = JSON.parse(localStorage.getItem(aiChatStorageKey()) || '[]');
   } catch { aiChatHistorico = []; }
   aiChatRender();
 }
 function aiChatSave() {
   try {
     // Limita a 50 msgs pra não estourar localStorage
-    localStorage.setItem(AI_STORAGE_KEY, JSON.stringify(aiChatHistorico.slice(-50)));
+    localStorage.setItem(aiChatStorageKey(), JSON.stringify(aiChatHistorico.slice(-50)));
+  } catch {}
+}
+// Limpa históricos de chats de usuários anteriores no mesmo browser
+function aiChatLimparHistoricoOutrosUsers() {
+  try {
+    const atualKey = aiChatStorageKey();
+    // Remove keys antigas v1 (antes do isolamento por user)
+    localStorage.removeItem('dms_ai_chat_v1');
+    // Limpa keys v2 de OUTROS users (guarda só a do atual + anon vazia)
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('dms_ai_chat_v2_'));
+    for (const k of keys) {
+      if (k !== atualKey) localStorage.removeItem(k);
+    }
   } catch {}
 }
 function aiChatClear() {
@@ -17008,6 +17025,7 @@ function aiChatMount() {
       </div>
     </div>`;
   document.body.appendChild(wrap);
+  aiChatLimparHistoricoOutrosUsers();
   aiChatLoad();
 }
 // Monta só quando o usuário estiver logado (após checkAuth)
