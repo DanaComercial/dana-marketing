@@ -58,11 +58,7 @@ GROUP BY ano, mes, pi.descricao, pi.codigo
 ORDER BY ano DESC, mes DESC, total_quantidade DESC;
 
 -- ── TESTE ──
--- Compara top 5 geral vs marketplaces pra validar
-SELECT 'GERAL' AS fonte, descricao, total_quantidade, total_receita
-FROM top_produtos
-LIMIT 5;
-
-SELECT 'MARKETPLACES' AS fonte, descricao, total_quantidade, total_receita
+-- Mostra top 10 produtos dos marketplaces
+SELECT descricao, total_quantidade, total_receita
 FROM top_produtos_marketplaces
-LIMIT 5;
+LIMIT 10;
