@@ -11251,6 +11251,11 @@ window.addEventListener('load', async () => {
   if (typeof checkAuth === 'function') {
     try { await checkAuth(); } catch(e) { console.warn('checkAuth:', e); }
   }
+  // Carrega alertas ASAP (pra bolinha vermelha do sininho aparecer na hora)
+  // — não espera loadSupabaseData nem initUpgradeFeatures (que são mais pesados)
+  if (typeof loadAlertas === 'function' && currentUser?.id) {
+    loadAlertas().catch(e => console.warn('loadAlertas (init):', e));
+  }
   // Carregar dados do Supabase
   if (typeof loadSupabaseData === 'function') loadSupabaseData();
   // Carregar features upgrade
