@@ -11048,22 +11048,25 @@ function loadData() {
 }
 
 // ── INIT ──
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
   renderChart();
   updateKanbanCounts();
   calcROI();
   calcMetrics();
   loadData();
   updateNotifDot();
-  // Auth check (mostra login se nao logado)
-  if (typeof checkAuth === 'function') checkAuth();
+  // Auth check — AGUARDA terminar antes de restaurar view, senão
+  // loadPerfilView() e similares rodam com currentProfile=null
+  if (typeof checkAuth === 'function') {
+    try { await checkAuth(); } catch(e) { console.warn('checkAuth:', e); }
+  }
   // Carregar dados do Supabase
   if (typeof loadSupabaseData === 'function') loadSupabaseData();
   // Carregar features upgrade
   if (typeof initUpgradeFeatures === 'function') initUpgradeFeatures();
   // Recarregar a cada 5 minutos
   setInterval(() => { if (typeof loadSupabaseData === 'function') loadSupabaseData(); }, 300000);
-  // Restaurar view: prioridade → URL hash → localStorage
+  // Restaurar view (agora com currentProfile já carregado)
   try {
     const hash = (location.hash || '').slice(1);
     let targetView = null;
