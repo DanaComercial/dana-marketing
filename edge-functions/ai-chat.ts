@@ -190,6 +190,21 @@ const TOOLS = [
   }
 ]
 
+// Mapa ferramenta → seções exigidas (o usuário precisa ter permissão em pelo menos UMA)
+const TOOL_SECOES: Record<string, string[]> = {
+  consultar_faturamento:          ['financeiro', 'home', 'marketplaces', 'canaisvendas', 'relatorio'],
+  consultar_contas_financeiras:   ['financeiro'],
+  top_clientes:                   ['comunidade', 'financeiro'],
+  top_produtos:                   ['marketplaces', 'home', 'financeiro'],
+  vendas_por_canal:               ['financeiro', 'marketplaces', 'canaisvendas', 'home'],
+  buscar_tarefas:                 ['tarefas'],
+  resumo_kanban:                  ['tarefas'],
+  buscar_contato:                 ['comunidade'],
+  info_produto:                   ['marketplaces', 'home'],
+  listar_schema:                  [], // disponível pra todos
+  consultar_tabela:               ['admin'], // só admins
+}
+
 // Whitelist de tabelas/views que o agente pode consultar (read-only)
 const TABELAS_PERMITIDAS = new Set([
   // Dados Bling
@@ -259,8 +274,17 @@ function resolverPeriodo(periodo: string): { inicio: string, fim: string, label:
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-async function executarFerramenta(nome: string, args: any): Promise<any> {
+async function executarFerramenta(nome: string, args: any, contextoUsuario: { cargo: string, secoes: Set<string> }): Promise<any> {
   try {
+    // Gate de permissão antes de tocar em qualquer tabela
+    const secoesExigidas = TOOL_SECOES[nome] || []
+    if (secoesExigidas.length > 0) {
+      const ehAdmin = contextoUsuario.cargo === 'admin'
+      const temAlguma = secoesExigidas.some(s => contextoUsuario.secoes.has(s))
+      if (!ehAdmin && !temAlguma) {
+        return { erro_permissao: `Usuário sem acesso à(s) seção(ões) ${secoesExigidas.join(', ')}. Não posso responder sobre esse tópico.` }
+      }
+    }
     if (nome === 'consultar_faturamento') {
       const { inicio, fim, label } = resolverPeriodo(args.periodo || 'mes_atual')
       const { data, error } = await supabaseAdmin.from('pedidos')
@@ -672,8 +696,11 @@ async function chamarGemini(messages: any[]): Promise<any> {
 }
 
 // ═════════ LOOP PRINCIPAL (chat completion com tool-calling) ═════════
-async function rodarAgente(messages: any[]): Promise<{ resposta: string, modelo: string, tools: string[], tokens: number }> {
-  const msgs = [{ role: 'system', content: SYSTEM_PROMPT }, ...messages]
+async function rodarAgente(messages: any[], contextoUsuario: { cargo: string, secoes: Set<string> }): Promise<{ resposta: string, modelo: string, tools: string[], tokens: number }> {
+  // System prompt personalizado com info de permissões do usuário
+  const secoesLista = Array.from(contextoUsuario.secoes).sort().join(', ')
+  const contextoExtra = `\n\nCONTEXTO DO USUÁRIO ATUAL:\n- Cargo: ${contextoUsuario.cargo}\n- Seções com acesso: ${secoesLista || '(nenhuma)'}\n\nRESTRIÇÕES POR CARGO (REGRA OBRIGATÓRIA):\n- Você SÓ pode responder sobre tópicos cujas seções o usuário tem acesso.\n- Se a pergunta exigir dados de seção que ele não tem, responda educadamente: "Essa informação está em [nome da seção], que você não tem acesso. Fale com o admin (Dana ou Juan) se precisar."\n- Tool que retornar "erro_permissao" → explique ao usuário que ele não tem acesso, sem revelar os valores ou detalhes dos dados.\n- Usuários com cargo "designer", "vendedor", "expedicao", "producao_conteudo", "analista_marketplace" tipicamente NÃO veem financeiro/vendas.`
+  const msgs = [{ role: 'system', content: SYSTEM_PROMPT + contextoExtra }, ...messages]
   const toolsUsadas: string[] = []
   let usouFallback = false
   let tokensTotal = 0
@@ -701,7 +728,7 @@ async function rodarAgente(messages: any[]): Promise<{ resposta: string, modelo:
         const nome = tc.function.name
         const args = JSON.parse(tc.function.arguments || '{}')
         toolsUsadas.push(nome)
-        const resultado = await executarFerramenta(nome, args)
+        const resultado = await executarFerramenta(nome, args, contextoUsuario)
         msgs.push({
           role: 'tool',
           tool_call_id: tc.id,
@@ -751,8 +778,15 @@ Deno.serve(async (req) => {
     if (userErr || !userData.user) return json({ error: 'JWT inválido' }, 401)
     userId = userData.user.id
 
-    const { data: profile } = await supabaseAdmin.from('profiles').select('nome').eq('id', userId).single()
+    const { data: profile } = await supabaseAdmin.from('profiles').select('nome, cargo').eq('id', userId).single()
     userNome = profile?.nome || userData.user.email
+    const cargo = profile?.cargo || 'vendedor'
+
+    // Carregar seções permitidas do cargo
+    const { data: perms } = await supabaseAdmin.from('cargo_permissoes')
+      .select('secao').eq('cargo', cargo).eq('permitido', true)
+    const secoes = new Set<string>((perms || []).map((p: any) => p.secao))
+    const contextoUsuario = { cargo, secoes }
 
     // Rate limit: 50/hora
     const umaHoraAtras = new Date(Date.now() - 3600_000).toISOString()
@@ -770,8 +804,8 @@ Deno.serve(async (req) => {
 
     const ultimaPergunta = [...messages].reverse().find(m => m.role === 'user')?.content || ''
 
-    // Rodar agente
-    const { resposta, modelo, tools, tokens } = await rodarAgente(messages)
+    // Rodar agente com contexto de permissões
+    const { resposta, modelo, tools, tokens } = await rodarAgente(messages, contextoUsuario)
     const duracao = Date.now() - t0
 
     // Log
