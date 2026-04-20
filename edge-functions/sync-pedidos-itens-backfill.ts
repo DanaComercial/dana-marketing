@@ -138,6 +138,7 @@ Deno.serve(async (req) => {
     }
 
     let totalItens = 0
+    let totalVendedores = 0
     let erros = 0
 
     // Buscar itens em batches de 5 (rate limit Bling)
@@ -147,9 +148,14 @@ Deno.serve(async (req) => {
         batch.map(async (pedidoId) => {
           try {
             const resp = await blingFetch(`pedidos/vendas/${pedidoId}`, token)
-            const pedido = resp?.data   // defensive: blingFetch pode retornar undefined em caso de falha de rede
-            if (!pedido || !pedido.itens || pedido.itens.length === 0) {
-              return [{
+            const pedido = resp?.data
+            if (!pedido) return null
+            // Extrai vendedor (aproveita a mesma request detalhada)
+            const vendedor_id = pedido.vendedor?.id || null
+            const vendedor_nome = pedido.vendedor?.nome || null
+            let itens: any[]
+            if (!pedido.itens || pedido.itens.length === 0) {
+              itens = [{
                 pedido_id: pedidoId,
                 produto_id: 'sem_itens_0',
                 codigo: '',
@@ -159,32 +165,45 @@ Deno.serve(async (req) => {
                 valor_total: 0,
                 unidade: 'UN'
               }]
+            } else {
+              itens = pedido.itens.map((item: any, idx: number) => ({
+                pedido_id: pedidoId,
+                produto_id: String(item.produto?.id || item.id || '0') + '_' + idx,
+                codigo: item.codigo || item.produto?.codigo || '',
+                descricao: item.descricao || item.produto?.descricao || '',
+                quantidade: item.quantidade || 0,
+                valor_unitario: item.valor || item.valorUnidade || 0,
+                valor_total: (item.quantidade || 0) * (item.valor || item.valorUnidade || 0),
+                unidade: item.unidade || 'UN',
+              }))
             }
-            return pedido.itens.map((item: any, idx: number) => ({
-              pedido_id: pedidoId,
-              produto_id: String(item.produto?.id || item.id || '0') + '_' + idx,
-              codigo: item.codigo || item.produto?.codigo || '',
-              descricao: item.descricao || item.produto?.descricao || '',
-              quantidade: item.quantidade || 0,
-              valor_unitario: item.valor || item.valorUnidade || 0,
-              valor_total: (item.quantidade || 0) * (item.valor || item.valorUnidade || 0),
-              unidade: item.unidade || 'UN',
-            }))
+            return { pedido_id: pedidoId, itens, vendedor_id, vendedor_nome }
           } catch (e) {
             console.warn(`Erro pedido ${pedidoId}:`, e)
             erros++
-            return []
+            return null
           }
         })
       )
 
-      const todosItens = results.flat().filter(i => i.pedido_id)
+      // Flatten e inserir itens
+      const todosItens = results.flatMap(r => r?.itens || []).filter(i => i.pedido_id)
       if (todosItens.length > 0) {
         const upsertResult = await supabase.from('pedidos_itens').upsert(todosItens, {
           onConflict: 'pedido_id,produto_id',
         })
         if (upsertResult?.error) console.error('Upsert itens error:', upsertResult.error.message)
         else totalItens += todosItens.length
+      }
+
+      // Atualizar vendedor nos pedidos
+      for (const r of results) {
+        if (!r || !r.vendedor_id) continue
+        const { error } = await supabase.from('pedidos')
+          .update({ vendedor_id: r.vendedor_id, vendedor_nome: r.vendedor_nome })
+          .eq('id', r.pedido_id)
+        if (error) console.warn('Update vendedor error:', error.message)
+        else totalVendedores++
       }
 
       // Rate limit Bling (3 req/s) — 1s entre batches de 5
@@ -199,7 +218,7 @@ Deno.serve(async (req) => {
       tipo: 'backfill',
       registros: totalItens,
       status: erros > 0 ? 'parcial' : 'ok',
-      detalhes: `Backfill ${inicio}+ · processados ${paraProcessar.length} · ${totalItens} itens · restam ${faltaAinda} · cobertura ${coberturaFinal.toFixed(1)}%`,
+      detalhes: `Backfill ${inicio}+ · ${paraProcessar.length} pedidos · ${totalItens} itens · ${totalVendedores} vendedores · restam ${faltaAinda} · cobertura ${coberturaFinal.toFixed(1)}%`,
     })
 
     return jsonResponse({

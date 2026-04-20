@@ -14572,9 +14572,11 @@ function fmtRbr(v) {
 
 // Query base pra pedidos filtrados por canal
 async function queryPedidosPorCanal(filtroLojaId, inicio, fim) {
-  let q = sb.from('pedidos').select('id, total, data, contato_nome, loja_id, situacao_id').gte('data', inicio).lt('data', fim).limit(10000);
+  let q = sb.from('pedidos').select('id, total, data, contato_nome, loja_id, situacao_id, vendedor_nome').gte('data', inicio).lt('data', fim).limit(10000);
   if (filtroLojaId === 'site') {
-    q = q.or('loja_id.is.null,loja_id.eq.0');
+    // Site real = loja_id 0/NULL E vendedor "SITE" no Bling (exclui vendas
+    // manuais B2B lançadas no Bling que caem com loja_id 0 por padrão)
+    q = q.or('loja_id.is.null,loja_id.eq.0').ilike('vendedor_nome', '%site%');
   } else if (filtroLojaId === 'lojafisica') {
     q = q.eq('loja_id', LOJA_ID_LOJA_WHATS);
   }
