@@ -15871,6 +15871,18 @@ async function doLogin() {
   currentUser = data.user;
   await loadProfile();
   showApp();
+  // SPA puro — precisa recarregar dados do novo usuário (init da página não roda de novo)
+  try {
+    if (typeof loadAlertas === 'function') loadAlertas();
+    if (typeof loadSupabaseData === 'function') loadSupabaseData();
+    if (typeof loadTarefas === 'function') loadTarefas();
+    if (typeof loadCalendario === 'function') loadCalendario();
+    // Limpa cache de menções pra recarregar lista de usuários
+    _mentionsUsers = null;
+    // Limpa cache do AI chat (pode ter histórico do user anterior)
+    if (typeof aiChatLimparHistoricoOutrosUsers === 'function') aiChatLimparHistoricoOutrosUsers();
+    if (typeof aiChatLoad === 'function') aiChatLoad();
+  } catch (e) { console.warn('Post-login reload:', e); }
   btn.textContent = 'Entrar'; btn.disabled = false;
 }
 
@@ -15935,6 +15947,13 @@ async function doLogout() {
   await sb.auth.signOut();
   currentUser = null; currentProfile = null; userPermissoes = {};
   try { localStorage.removeItem('dms-active-view'); } catch {}
+  // Limpa caches do usuário anterior pra não vazar dados no próximo login
+  try {
+    _alertasCache = [];
+    if (typeof updateNotifDot === 'function') updateNotifDot();
+    _mentionsUsers = null;
+    _comentariosCache = {};
+  } catch {}
   document.getElementById('login-screen').style.display = 'flex';
   // Voltar para home ao relogar
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
