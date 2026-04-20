@@ -17424,7 +17424,14 @@ function aiChatToggle() {
   const open = panel.classList.toggle('open');
   if (bubble) bubble.classList.toggle('hide', open);
   if (open) {
-    setTimeout(() => document.getElementById('ai-chat-input')?.focus(), 200);
+    // No mobile, esperar animação + deixa input acessível ao abrir teclado
+    const isMobile = window.innerWidth <= 768;
+    setTimeout(() => {
+      const inp = document.getElementById('ai-chat-input');
+      if (inp && !isMobile) inp.focus(); // desktop: foca direto
+      // No mobile NÃO foca automaticamente pra não abrir teclado de cara
+      // (user clica no campo quando quiser digitar)
+    }, 200);
     const listEl = document.getElementById('ai-chat-messages');
     if (listEl) listEl.scrollTop = listEl.scrollHeight;
   }
@@ -17555,9 +17562,10 @@ function aiChatMount() {
       .ai-typing span:nth-child(2){animation-delay:.2s}
       .ai-typing span:nth-child(3){animation-delay:.4s}
       @keyframes aiPulse{0%,60%,100%{opacity:.35;transform:scale(.85)}30%{opacity:1;transform:scale(1)}}
-      .ai-chat-footer{padding:10px 12px;background:#fff;border-top:1px solid #e5e7eb}
+      .ai-chat-header{flex-shrink:0}
+      .ai-chat-footer{padding:10px 12px;background:#fff;border-top:1px solid #e5e7eb;flex-shrink:0}
       .ai-chat-input-row{display:flex;gap:8px;align-items:flex-end}
-      #ai-chat-input{flex:1;border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px;font-size:13.5px;resize:none;font-family:inherit;background:#f9fafb;outline:none;max-height:120px;min-height:40px}
+      #ai-chat-input{flex:1;border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px;font-size:16px;resize:none;font-family:inherit;background:#f9fafb;outline:none;max-height:120px;min-height:40px}
       #ai-chat-input:focus{border-color:#1e3a8a;background:#fff}
       .ai-send-btn{background:#0f172a;color:#fff;border:none;width:40px;height:40px;border-radius:10px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:background .15s;flex-shrink:0}
       .ai-send-btn:hover{background:#1e3a8a}
@@ -17565,7 +17573,23 @@ function aiChatMount() {
       .ai-disclaimer{text-align:center;font-size:10px;color:#94a3b8;margin-top:6px}
       @media (max-width:768px){
         #ai-chat-bubble{bottom:18px;right:18px;width:52px;height:52px;font-size:22px}
-        #ai-chat-panel{bottom:0;right:0;left:0;top:0;width:100%;height:100vh;max-height:100vh;border-radius:0}
+        #ai-chat-panel{
+          bottom:0;right:0;left:0;top:0;width:100%;
+          /* dvh = dynamic viewport height: recua quando teclado/address bar aparecem */
+          height:100dvh; max-height:100dvh;
+          /* fallback pra browsers antigos */
+          height:100vh; max-height:100vh;
+          height:-webkit-fill-available;
+          border-radius:0
+        }
+        /* Suporte moderno */
+        @supports (height: 100dvh) {
+          #ai-chat-panel{ height:100dvh; max-height:100dvh }
+        }
+        /* Safe area pra iPhones com notch */
+        .ai-chat-footer{ padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)) }
+        /* Previne iOS de dar zoom ao focar input com font < 16px */
+        #ai-chat-input{ font-size:16px }
       }
     </style>
     <button id="ai-chat-bubble" title="Perguntar à IA" onclick="aiChatToggle()">💬</button>
