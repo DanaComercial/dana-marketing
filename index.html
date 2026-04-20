@@ -8980,6 +8980,12 @@ updateDynamicField('foto');
         </div>
 
         <div id="vt-checklist" style="margin-bottom:12px"></div>
+
+        <div style="display:flex;gap:8px;margin-top:14px" id="vt-botoes">
+          <button class="btn btn-primary" onclick="salvarTarefaEdit()" style="flex:1" id="vt-btn-salvar">Salvar</button>
+          <button class="btn btn-ghost" onclick="closeModal('ver-tarefa')" id="vt-btn-fechar" style="display:none;flex:1">Fechar</button>
+          <button class="btn btn-ghost" onclick="deleteTarefaFromModal()" style="color:var(--red);border-color:var(--red)" id="vt-btn-excluir">Excluir</button>
+        </div>
       </div>
 
       <!-- Coluna direita: comentários -->
@@ -8996,12 +9002,6 @@ updateDynamicField('foto');
           <div id="vt-mention-pop" style="display:none;position:absolute;bottom:100%;left:0;right:60px;background:var(--white);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);max-height:180px;overflow-y:auto;z-index:100;margin-bottom:4px"></div>
         </div>
       </div>
-    </div>
-
-    <div style="display:flex;gap:8px;margin-top:14px;flex-shrink:0" id="vt-botoes">
-      <button class="btn btn-primary" onclick="salvarTarefaEdit()" style="flex:1" id="vt-btn-salvar">Salvar</button>
-      <button class="btn btn-ghost" onclick="closeModal('ver-tarefa')" id="vt-btn-fechar" style="display:none;flex:1">Fechar</button>
-      <button class="btn btn-ghost" onclick="deleteTarefaFromModal()" style="color:var(--red);border-color:var(--red)" id="vt-btn-excluir">Excluir</button>
     </div>
 
     <style>
