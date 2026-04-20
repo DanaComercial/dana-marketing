@@ -76,11 +76,14 @@ async function loadSupabaseData() {
     const anoAtual = now.getFullYear();
 
     // ── QUERIES EM PARALELO ──
+    // Views agora tem 1 linha por empresa + 1 linha 'todas' (soma).
+    // Seletor global escolhe qual linha usar.
+    const empSelecionada = empresaAtual(); // 'matriz' | 'bc' | 'todas'
     const [resumoRes, mensalRes, contasRes, vendedoresRes, syncRes] = await Promise.all([
-      sb.from('dashboard_resumo').select('*').single(),
-      sb.from('dashboard_mensal').select('*').order('ano').order('mes'),
-      sb.from('dashboard_contas').select('*').single(),
-      sb.from('vendedores').select('id', { count: 'exact', head: true }),
+      sb.from('dashboard_resumo').select('*').eq('empresa', empSelecionada).maybeSingle(),
+      sb.from('dashboard_mensal').select('*').eq('empresa', empSelecionada).order('ano').order('mes'),
+      sb.from('dashboard_contas').select('*').eq('empresa', empSelecionada).maybeSingle(),
+      aplicarEmpresa(sb.from('vendedores').select('id', { count: 'exact', head: true })),
       sb.from('sync_log').select('created_at').order('created_at', { ascending: false }).limit(1),
     ]);
 
@@ -13428,7 +13431,7 @@ function renderFunil(t) {
 // ── ANALYTICS POR CANAL ──
 async function loadCanalAnalytics() {
   try {
-    const { data: mensal } = await sb.from('dashboard_mensal').select('*');
+    const { data: mensal } = await sb.from('dashboard_mensal').select('*').eq('empresa', empresaAtual());
     if(!mensal) return;
 
     const now = new Date();
