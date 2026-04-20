@@ -14577,7 +14577,7 @@ function fmtRbr(v) {
 
 // Query base pra pedidos filtrados por canal
 async function queryPedidosPorCanal(filtroLojaId, inicio, fim) {
-  let q = sb.from('pedidos').select('id, total, data, contato_nome, loja_id, situacao_id, vendedor_id').gte('data', inicio).lt('data', fim).limit(10000);
+  let q = sb.from('pedidos').select('id, total, total_produtos, data, contato_nome, loja_id, situacao_id, vendedor_id').gte('data', inicio).lt('data', fim).limit(10000);
   if (filtroLojaId === 'site') {
     // Site real = vendedor "Site" (id 4283606619) no Bling.
     // Exclui vendas manuais B2B que caem com loja_id=0 sem vendedor.
@@ -14586,7 +14586,12 @@ async function queryPedidosPorCanal(filtroLojaId, inicio, fim) {
     q = q.eq('loja_id', LOJA_ID_LOJA_WHATS);
   }
   const { data } = await q;
-  return data || [];
+  // Fallback: Bling zera 'total' pra vendas do site (Magazord calcula separado).
+  // Use total_produtos como valor efetivo quando total = 0.
+  return (data || []).map(p => ({
+    ...p,
+    total: (+p.total || +p.total_produtos || 0)
+  }));
 }
 
 // Query itens dos pedidos de um canal (pra Top Produtos)
