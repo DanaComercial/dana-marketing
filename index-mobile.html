@@ -2373,6 +2373,36 @@ select.input { cursor: pointer; }
     padding: 6px 10px !important;
   }
 
+  /* Brand Kit: todos os textos quebram, todos os containers respeitam largura */
+  #bv-tab-brandkit *,
+  #bv-tab-brandkit > div,
+  #bv-tab-brandkit > div > div {
+    max-width: 100% !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    white-space: normal !important;
+    box-sizing: border-box !important;
+  }
+  /* Grids internos do brand kit em 1 coluna */
+  #bv-tab-brandkit [style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  /* Paleta de cores: chips menores */
+  #bv-tab-brandkit .chip {
+    font-size: 10px !important;
+    padding: 3px 8px !important;
+  }
+  /* Container de lista de modelos/tamanhos: font reduzido */
+  #bv-tab-brandkit [style*="background:var(--surface2)"] {
+    padding: 8px 10px !important;
+  }
+  #bv-tab-brandkit [style*="background:var(--surface2)"] [style*="font-size:12.5"],
+  #bv-tab-brandkit [style*="background:var(--surface2)"] [style*="font-size: 12.5"] {
+    font-size: 11.5px !important;
+    line-height: 1.4 !important;
+  }
+
 </style>
 </head>
 <body>
