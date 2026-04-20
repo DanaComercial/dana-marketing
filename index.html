@@ -11177,7 +11177,9 @@ function filterAlertas(filtro) {
 async function loadAlertas() {
   try {
     // Filtra: alertas globais (destinatario_id IS NULL) OU do usuário logado
-    let query = sb.from('alertas').select('*').order('created_at', { ascending: false }).limit(50);
+    // Limit 500 (era 50) pra mostrar histórico completo — antes os alertas
+    // antigos marcados como lidos sumiam da lista quando novos eram criados
+    let query = sb.from('alertas').select('*').order('created_at', { ascending: false }).limit(500);
     if (currentUser?.id) {
       query = query.or(`destinatario_id.is.null,destinatario_id.eq.${currentUser.id}`);
     } else {
