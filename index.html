@@ -8945,57 +8945,73 @@ updateDynamicField('foto');
 </div>
 
 <div class="modal-overlay" id="modal-ver-tarefa">
-  <div class="modal" style="max-width:550px">
+  <div class="modal vt-modal-2col" style="max-width:980px;width:95vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column">
     <div class="modal-header"><div class="modal-title" id="vt-title">Tarefa</div><button class="modal-close" onclick="closeModal('ver-tarefa')">×</button></div>
-    <div id="vt-coluna-badge" style="display:inline-block;font-size:10px;font-weight:700;padding:3px 10px;border-radius:6px;background:var(--surface2);color:var(--text2);margin-bottom:12px"></div>
-    <div style="margin-bottom:12px"><label class="label">Descrição <span style="font-size:10px;color:var(--text4)">(clique para editar)</span></label><div id="vt-desc"></div></div>
-    <div class="form-row-2" style="margin-bottom:12px">
-      <div><label class="label">Tag</label><input class="input" id="vt-tag"></div>
-      <div><label class="label">Prioridade</label><select class="input" id="vt-prio"><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select></div>
-    </div>
-    <div class="form-row-2" style="margin-bottom:12px">
-      <div><label class="label">Responsável</label><select class="input" id="vt-resp"><option value="">Sem responsável</option></select></div>
-      <div><label class="label">Prazo</label><input class="input" type="date" id="vt-prazo"></div>
-    </div>
-    <div id="vt-links" style="margin-bottom:12px"></div>
+    <div id="vt-body" style="display:flex;gap:16px;flex:1;min-height:0;overflow:hidden">
+      <!-- Coluna esquerda: detalhes da tarefa -->
+      <div id="vt-left" style="flex:1;min-width:0;overflow-y:auto;padding-right:8px">
+        <div id="vt-coluna-badge" style="display:inline-block;font-size:10px;font-weight:700;padding:3px 10px;border-radius:6px;background:var(--surface2);color:var(--text2);margin-bottom:12px"></div>
+        <div style="margin-bottom:12px"><label class="label">Descrição <span style="font-size:10px;color:var(--text4)">(clique para editar)</span></label><div id="vt-desc"></div></div>
+        <div class="form-row-2" style="margin-bottom:12px">
+          <div><label class="label">Tag</label><input class="input" id="vt-tag"></div>
+          <div><label class="label">Prioridade</label><select class="input" id="vt-prio"><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select></div>
+        </div>
+        <div class="form-row-2" style="margin-bottom:12px">
+          <div><label class="label">Responsável</label><select class="input" id="vt-resp"><option value="">Sem responsável</option></select></div>
+          <div><label class="label">Prazo</label><input class="input" type="date" id="vt-prazo"></div>
+        </div>
+        <div id="vt-links" style="margin-bottom:12px"></div>
 
-    <!-- Adicionar imagem/link na tarefa existente -->
-    <div id="vt-add-anexo" style="margin-bottom:12px;display:none">
-      <label class="label">Adicionar Anexo</label>
-      <div style="display:flex;gap:8px;margin-bottom:6px">
-        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('vt-file-input').click()" style="flex:1">📷 Imagem</button>
-        <button type="button" class="btn btn-ghost btn-sm" onclick="vt_togglePasteUrl()" style="flex:1">🔗 Link</button>
+        <!-- Adicionar imagem/link na tarefa existente -->
+        <div id="vt-add-anexo" style="margin-bottom:12px;display:none">
+          <label class="label">Adicionar Anexo</label>
+          <div style="display:flex;gap:8px;margin-bottom:6px">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('vt-file-input').click()" style="flex:1">📷 Imagem</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="vt_togglePasteUrl()" style="flex:1">🔗 Link</button>
+          </div>
+          <input type="file" id="vt-file-input" accept="image/*" multiple style="display:none" onchange="vt_uploadFiles(this.files)">
+          <div id="vt-paste-url" style="display:none;margin-top:6px">
+            <div style="display:flex;gap:6px">
+              <input class="input" type="url" id="vt-url-input" placeholder="https://..." style="flex:1">
+              <button type="button" class="btn btn-primary btn-sm" onclick="vt_addUrl()">Adicionar</button>
+            </div>
+          </div>
+          <div id="vt-upload-status" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
+        </div>
+
+        <div id="vt-checklist" style="margin-bottom:12px"></div>
       </div>
-      <input type="file" id="vt-file-input" accept="image/*" multiple style="display:none" onchange="vt_uploadFiles(this.files)">
-      <div id="vt-paste-url" style="display:none;margin-top:6px">
-        <div style="display:flex;gap:6px">
-          <input class="input" type="url" id="vt-url-input" placeholder="https://..." style="flex:1">
-          <button type="button" class="btn btn-primary btn-sm" onclick="vt_addUrl()">Adicionar</button>
+
+      <!-- Coluna direita: comentários -->
+      <div id="vt-right" style="width:360px;min-width:260px;display:flex;flex-direction:column;border-left:1px solid var(--border);padding-left:16px;min-height:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-shrink:0">
+          <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:13px">💬 Comentários</span>
+          <span id="vt-com-count" style="font-size:10.5px;color:var(--text3);background:var(--surface2);padding:2px 8px;border-radius:10px;font-weight:600">0</span>
+        </div>
+        <div id="vt-com-lista" style="flex:1;overflow-y:auto;margin-bottom:10px;display:flex;flex-direction:column;gap:8px;min-height:0"></div>
+        <div style="display:flex;gap:6px;align-items:flex-end;flex-shrink:0;position:relative">
+          <textarea id="vt-com-input" class="input" rows="2" placeholder="Escreva… digite @ pra marcar alguém" style="flex:1;resize:none;font-size:13px" onkeydown="vtComentarioKeydown(event)" oninput="vtComentarioInput(event)"></textarea>
+          <button class="btn btn-primary btn-sm" onclick="enviarComentarioTarefa()" style="padding:8px 14px">Enviar</button>
+          <!-- Dropdown de menções -->
+          <div id="vt-mention-pop" style="display:none;position:absolute;bottom:100%;left:0;right:60px;background:var(--white);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);max-height:180px;overflow-y:auto;z-index:100;margin-bottom:4px"></div>
         </div>
       </div>
-      <div id="vt-upload-status" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
     </div>
 
-    <div id="vt-checklist" style="margin-bottom:12px"></div>
-
-    <!-- Comentários -->
-    <div id="vt-comentarios-wrap" style="margin:18px 0 12px;border-top:1px solid var(--border);padding-top:14px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:13px">💬 Comentários</span>
-        <span id="vt-com-count" style="font-size:10.5px;color:var(--text3);background:var(--surface2);padding:2px 8px;border-radius:10px;font-weight:600">0</span>
-      </div>
-      <div id="vt-com-lista" style="max-height:300px;overflow-y:auto;margin-bottom:10px;display:flex;flex-direction:column;gap:8px"></div>
-      <div style="display:flex;gap:6px;align-items:flex-end">
-        <textarea id="vt-com-input" class="input" rows="2" placeholder="Escreva um comentário… (Enter envia, Shift+Enter quebra linha)" style="flex:1;resize:none;font-size:13px" onkeydown="vtComentarioKeydown(event)"></textarea>
-        <button class="btn btn-primary btn-sm" onclick="enviarComentarioTarefa()" style="padding:8px 14px">Enviar</button>
-      </div>
-    </div>
-
-    <div style="display:flex;gap:8px" id="vt-botoes">
+    <div style="display:flex;gap:8px;margin-top:14px;flex-shrink:0" id="vt-botoes">
       <button class="btn btn-primary" onclick="salvarTarefaEdit()" style="flex:1" id="vt-btn-salvar">Salvar</button>
       <button class="btn btn-ghost" onclick="closeModal('ver-tarefa')" id="vt-btn-fechar" style="display:none;flex:1">Fechar</button>
       <button class="btn btn-ghost" onclick="deleteTarefaFromModal()" style="color:var(--red);border-color:var(--red)" id="vt-btn-excluir">Excluir</button>
     </div>
+
+    <style>
+      @media (max-width: 768px) {
+        .vt-modal-2col { max-height: 100vh !important; height: 100vh !important; width: 100vw !important; max-width: 100vw !important; border-radius: 0 !important; }
+        .vt-modal-2col #vt-body { flex-direction: column !important; }
+        .vt-modal-2col #vt-right { width: 100% !important; border-left: none !important; border-top: 1px solid var(--border); padding-left: 0 !important; padding-top: 14px; min-height: 280px }
+        .vt-modal-2col #vt-left { padding-right: 0 !important }
+      }
+    </style>
   </div>
 </div>
 
@@ -11526,6 +11542,8 @@ function abrirLinkAlerta(ref, alertaId, dados) {
   }
   // Deep-link pra tarefa (abre o modal da tarefa específica)
   if (dados && dados.tarefa_id && viewId === 'tarefas') {
+    // Se tem comentario_id, sinaliza pro carregador destacar esse comentário
+    if (dados.comentario_id) window._scrollToComentarioId = dados.comentario_id;
     setTimeout(() => focarTarefa(dados.tarefa_id), 500);
   }
 }
@@ -12770,6 +12788,8 @@ async function carregarComentariosTarefa(tarefaId) {
   const count = document.getElementById('vt-com-count');
   if (!lista || !count) return;
   lista.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:12px">Carregando…</div>';
+  // Carrega users pra render de menções
+  await carregarUsuariosMention();
   const { data, error } = await sb.from('tarefa_comentarios')
     .select('*').eq('tarefa_id', tarefaId).order('created_at', { ascending: true });
   if (error) {
@@ -12778,6 +12798,26 @@ async function carregarComentariosTarefa(tarefaId) {
   }
   _comentariosCache[tarefaId] = data || [];
   renderComentarios(tarefaId);
+  // Se tiver um comentário pra destacar (deep-link), rola e pisca
+  if (window._scrollToComentarioId) {
+    setTimeout(() => destacarComentario(window._scrollToComentarioId), 300);
+    window._scrollToComentarioId = null;
+  }
+}
+
+function destacarComentario(commentId) {
+  const items = document.querySelectorAll('#vt-com-lista > div');
+  for (const el of items) {
+    // Cada item tem botões com o id no onclick. Match via innerHTML
+    if (el.innerHTML.includes(commentId)) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const originalBg = el.style.background;
+      el.style.transition = 'background .6s';
+      el.style.background = 'rgba(37,99,235,0.18)';
+      setTimeout(() => { el.style.background = originalBg || 'var(--surface2)'; }, 1800);
+      return;
+    }
+  }
 }
 
 function renderComentarios(tarefaId) {
@@ -12798,7 +12838,7 @@ function renderComentarios(tarefaId) {
     const podeEditar = meu;
     const cor = corAvatarDe(c.user_nome);
     const ini = iniciaisDe(c.user_nome);
-    const texto = esc(c.mensagem).replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color:var(--blue)">$1</a>');
+    const texto = renderMensagemComMentions(c.mensagem);
     const editado = c.updated_at ? ` <span style="font-size:10px;color:var(--text4);font-style:italic">(editado)</span>` : '';
     return `<div style="display:flex;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:10px;align-items:flex-start">
       <div style="width:28px;height:28px;border-radius:50%;background:${cor};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">${ini}</div>
@@ -12819,6 +12859,113 @@ function renderComentarios(tarefaId) {
   lista.scrollTop = lista.scrollHeight;
 }
 
+// ═════════ MENÇÕES (@) ═════════
+let _mentionsUsers = null; // cache de profiles
+let _mentionState = null;  // { startIdx, query, selected }
+
+async function carregarUsuariosMention() {
+  if (_mentionsUsers) return _mentionsUsers;
+  const { data } = await sb.from('profiles').select('id, nome, cargo').order('nome');
+  _mentionsUsers = data || [];
+  return _mentionsUsers;
+}
+
+function vtComentarioInput(ev) {
+  const inp = ev.target;
+  const caret = inp.selectionStart;
+  const textBefore = inp.value.substring(0, caret);
+  // Acha último "@" que não está precedido por letra/dígito (ou é início da string)
+  const m = textBefore.match(/(?:^|[\s\n])@(\w*)$/);
+  if (m) {
+    const query = m[1];
+    const startIdx = caret - query.length - 1; // posição do @
+    _mentionState = { startIdx, query, selected: 0 };
+    mostrarMentionPopover(query);
+  } else {
+    esconderMentionPopover();
+  }
+}
+
+async function mostrarMentionPopover(query) {
+  const pop = document.getElementById('vt-mention-pop');
+  if (!pop) return;
+  const users = await carregarUsuariosMention();
+  const q = (query || '').toLowerCase();
+  const filtrados = users.filter(u => (u.nome || '').toLowerCase().includes(q)).slice(0, 8);
+  if (filtrados.length === 0) { esconderMentionPopover(); return; }
+  _mentionState.filtrados = filtrados;
+  pop.innerHTML = filtrados.map((u, i) => {
+    const sel = i === (_mentionState?.selected || 0);
+    const cor = corAvatarDe(u.nome);
+    const ini = iniciaisDe(u.nome);
+    return `<div onmousedown="event.preventDefault();aplicarMention(${i})" onmouseover="_mentionState.selected=${i};atualizarSelecaoMention()" style="display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;background:${sel ? 'var(--surface2)' : 'transparent'};border-bottom:1px solid var(--border)">
+      <div style="width:26px;height:26px;border-radius:50%;background:${cor};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0">${ini}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:var(--text1)">${esc(u.nome || 'Usuário')}</div><div style="font-size:10.5px;color:var(--text3)">${esc(CARGO_LABELS[u.cargo] || u.cargo || '')}</div></div>
+    </div>`;
+  }).join('');
+  pop.style.display = 'block';
+}
+
+function atualizarSelecaoMention() {
+  const pop = document.getElementById('vt-mention-pop');
+  if (!pop) return;
+  const items = pop.querySelectorAll('[onmousedown]');
+  items.forEach((el, i) => {
+    el.style.background = i === (_mentionState?.selected || 0) ? 'var(--surface2)' : 'transparent';
+  });
+}
+
+function esconderMentionPopover() {
+  const pop = document.getElementById('vt-mention-pop');
+  if (pop) pop.style.display = 'none';
+  _mentionState = null;
+}
+
+function aplicarMention(idx) {
+  if (!_mentionState || !_mentionState.filtrados) return;
+  const user = _mentionState.filtrados[idx];
+  if (!user) return;
+  const inp = document.getElementById('vt-com-input');
+  const antes = inp.value.substring(0, _mentionState.startIdx);
+  const depois = inp.value.substring(inp.selectionStart);
+  const insercao = `@${user.nome} `;
+  inp.value = antes + insercao + depois;
+  const novoCaret = (antes + insercao).length;
+  inp.setSelectionRange(novoCaret, novoCaret);
+  inp.focus();
+  esconderMentionPopover();
+}
+
+function extrairMentions(texto) {
+  if (!_mentionsUsers) return [];
+  const ids = new Set();
+  // Tenta match de cada nome completo conhecido (mais longos primeiro pra evitar match parcial)
+  const users = [..._mentionsUsers].sort((a, b) => (b.nome?.length || 0) - (a.nome?.length || 0));
+  for (const u of users) {
+    if (!u.nome) continue;
+    const safe = u.nome.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp('@' + safe + '(?![\\w])', 'i');
+    if (re.test(texto)) ids.add(u.id);
+  }
+  return Array.from(ids);
+}
+
+function renderMensagemComMentions(texto) {
+  let html = esc(texto);
+  if (_mentionsUsers) {
+    // Sort por tamanho desc pra evitar substring colisão
+    const users = [..._mentionsUsers].sort((a, b) => (b.nome?.length || 0) - (a.nome?.length || 0));
+    for (const u of users) {
+      if (!u.nome) continue;
+      const safe = u.nome.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp('@' + safe + '(?![\\w])', 'g');
+      html = html.replace(re, `<span style="background:rgba(37,99,235,0.12);color:var(--blue);padding:1px 5px;border-radius:4px;font-weight:600">@${esc(u.nome)}</span>`);
+    }
+  }
+  html = html.replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color:var(--blue)">$1</a>');
+  return html;
+}
+
 async function enviarComentarioTarefa() {
   const inp = document.getElementById('vt-com-input');
   const tarefaId = _editingTaskId;
@@ -12826,6 +12973,10 @@ async function enviarComentarioTarefa() {
   const msg = inp.value.trim();
   if (!msg) return;
   if (msg.length > 5000) { showToast('Comentário longo demais (máx 5000 caracteres)'); return; }
+  esconderMentionPopover();
+  // Garante que temos a lista de users carregada pra extrair mentions
+  await carregarUsuariosMention();
+  const mentions = extrairMentions(msg);
   inp.value = '';
   inp.disabled = true;
   const { data: inserted, error } = await sb.from('tarefa_comentarios').insert({
@@ -12833,11 +12984,12 @@ async function enviarComentarioTarefa() {
     user_id: currentProfile?.id,
     user_nome: currentProfile?.nome,
     user_cargo: currentProfile?.cargo,
-    mensagem: msg
+    mensagem: msg,
+    mentions_ids: mentions
   }).select().single();
   inp.disabled = false;
   if (error) { showToast('Erro: ' + error.message); inp.value = msg; return; }
-  // Otimista: adiciona local; realtime também vai receber (dedup abaixo)
+  // Otimista
   if (inserted) {
     _comentariosCache[tarefaId] = _comentariosCache[tarefaId] || [];
     if (!_comentariosCache[tarefaId].some(c => c.id === inserted.id)) {
@@ -12845,15 +12997,38 @@ async function enviarComentarioTarefa() {
       renderComentarios(tarefaId);
     }
   }
-  // Notificar o responsável (se diferente de mim)
+  // Notificações: mentions + responsável (se não for eu e não estiver já nos mentions)
   try {
     const tarefa = _tarefasCache.find(t => t.id === tarefaId);
-    if (tarefa?.responsavel_id && tarefa.responsavel_id !== currentProfile?.id) {
-      await sb.from('alertas').insert({
+    const alertas = [];
+    const titulo = tarefa?.titulo || 'tarefa';
+    const meuNome = currentProfile?.nome || 'Alguém';
+    const destsNotificados = new Set();
+    // Mentions
+    for (const uid of mentions) {
+      if (uid === currentProfile?.id) continue; // não notifica eu mesmo
+      destsNotificados.add(uid);
+      const user = (_mentionsUsers || []).find(u => u.id === uid);
+      alertas.push({
+        tipo: 'mencao_comentario',
+        nivel: 'info',
+        titulo: '💬 Você foi mencionado',
+        mensagem: `${meuNome} te mencionou em um comentário em "${titulo}"`,
+        destinatario_id: uid,
+        destinatario_nome: user?.nome || null,
+        link_ref: 'tarefas-e-kanban',
+        link_label: 'Abrir tarefa',
+        audiencia: 'pessoal',
+        dados: { tarefa_id: tarefaId, comentario_id: inserted?.id }
+      });
+    }
+    // Responsável (se diferente de mim e não já mencionado)
+    if (tarefa?.responsavel_id && tarefa.responsavel_id !== currentProfile?.id && !destsNotificados.has(tarefa.responsavel_id)) {
+      alertas.push({
         tipo: 'comentario_tarefa',
         nivel: 'info',
         titulo: '💬 Novo comentário na tarefa',
-        mensagem: `${currentProfile?.nome || 'Alguém'} comentou em "${tarefa.titulo}"`,
+        mensagem: `${meuNome} comentou em "${titulo}"`,
         destinatario_id: tarefa.responsavel_id,
         destinatario_nome: tarefa.responsavel,
         link_ref: 'tarefas-e-kanban',
@@ -12862,11 +13037,23 @@ async function enviarComentarioTarefa() {
         dados: { tarefa_id: tarefaId, comentario_id: inserted?.id }
       });
     }
-  } catch (e) { console.warn('Falha ao notificar responsável:', e); }
+    if (alertas.length) await sb.from('alertas').insert(alertas);
+  } catch (e) { console.warn('Falha ao notificar:', e); }
   inp.focus();
 }
 
 function vtComentarioKeydown(ev) {
+  // Navegação do popover
+  if (_mentionState) {
+    const pop = document.getElementById('vt-mention-pop');
+    const visivel = pop && pop.style.display !== 'none';
+    if (visivel && _mentionState.filtrados) {
+      if (ev.key === 'ArrowDown') { ev.preventDefault(); _mentionState.selected = Math.min(_mentionState.selected + 1, _mentionState.filtrados.length - 1); atualizarSelecaoMention(); return; }
+      if (ev.key === 'ArrowUp')   { ev.preventDefault(); _mentionState.selected = Math.max(_mentionState.selected - 1, 0); atualizarSelecaoMention(); return; }
+      if (ev.key === 'Enter' || ev.key === 'Tab') { ev.preventDefault(); aplicarMention(_mentionState.selected); return; }
+      if (ev.key === 'Escape') { ev.preventDefault(); esconderMentionPopover(); return; }
+    }
+  }
   if (ev.key === 'Enter' && !ev.shiftKey) {
     ev.preventDefault();
     enviarComentarioTarefa();
