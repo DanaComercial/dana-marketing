@@ -8393,6 +8393,28 @@ updateDynamicField('foto');
       <div><label class="label">Data Início</label><input class="input" type="date" id="evt-inicio"></div>
     </div>
     <div class="form-row"><label class="label">Data Fim <span style="font-size:10px;color:var(--text4)">(opcional)</span></label><input class="input" type="date" id="evt-fim"></div>
+    <div class="form-row">
+      <label class="label">Cor <span style="font-size:10px;color:var(--text4)">(opcional · padrão = cor do tipo)</span></label>
+      <div id="evt-cores" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="evt-cor-btn active" data-cor="" onclick="selecionarCorEvento(this, '')" title="Padrão do tipo" style="width:28px;height:28px;border-radius:50%;border:2px solid var(--border);background:linear-gradient(135deg,#f3f4f6 50%,#0a0a0a 50%);cursor:pointer;position:relative"></button>
+        <button type="button" class="evt-cor-btn" data-cor="#0a0a0a" onclick="selecionarCorEvento(this, '#0a0a0a')" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;background:#0a0a0a;cursor:pointer"></button>
+        <button type="button" class="evt-cor-btn" data-cor="#dc2626" onclick="selecionarCorEvento(this, '#dc2626')" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;background:#dc2626;cursor:pointer"></button>
+        <button type="button" class="evt-cor-btn" data-cor="#ea580c" onclick="selecionarCorEvento(this, '#ea580c')" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;background:#ea580c;cursor:pointer"></button>
+        <button type="button" class="evt-cor-btn" data-cor="#ca8a04" onclick="selecionarCorEvento(this, '#ca8a04')" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;background:#ca8a04;cursor:pointer"></button>
+        <button type="button" class="evt-cor-btn" data-cor="#15803d" onclick="selecionarCorEvento(this, '#15803d')" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;background:#15803d;cursor:pointer"></button>
+        <button type="button" class="evt-cor-btn" data-cor="#0891b2" onclick="selecionarCorEvento(this, '#0891b2')" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;background:#0891b2;cursor:pointer"></button>
+        <button type="button" class="evt-cor-btn" data-cor="#1d4ed8" onclick="selecionarCorEvento(this, '#1d4ed8')" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;background:#1d4ed8;cursor:pointer"></button>
+        <button type="button" class="evt-cor-btn" data-cor="#7c3aed" onclick="selecionarCorEvento(this, '#7c3aed')" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;background:#7c3aed;cursor:pointer"></button>
+        <button type="button" class="evt-cor-btn" data-cor="#db2777" onclick="selecionarCorEvento(this, '#db2777')" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;background:#db2777;cursor:pointer"></button>
+        <button type="button" class="evt-cor-btn" data-cor="#6b7280" onclick="selecionarCorEvento(this, '#6b7280')" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;background:#6b7280;cursor:pointer"></button>
+        <label style="width:28px;height:28px;border-radius:50%;border:2px dashed var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text3);position:relative;overflow:hidden" title="Cor personalizada">
+          🎨
+          <input type="color" id="evt-cor-custom" onchange="selecionarCorCustom(this.value)" style="position:absolute;inset:0;opacity:0;cursor:pointer" value="#0a0a0a">
+        </label>
+      </div>
+      <input type="hidden" id="evt-cor" value="">
+      <style>.evt-cor-btn.active{border-color:var(--text2)!important;box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--text2)}</style>
+    </div>
     <div class="form-row"><label class="label">Descrição <span style="font-size:10px;color:var(--text4)">(opcional)</span></label><textarea class="input" id="evt-desc" rows="3" placeholder="Detalhes do evento..."></textarea></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-ghost" onclick="closeModal('novo-evento')" style="flex:1">Cancelar</button>
@@ -8818,6 +8840,7 @@ updateDynamicField('foto');
     </div>
     <div style="display:flex;gap:8px" id="ve-actions">
       <button class="btn btn-ghost" onclick="closeModal('ver-evento')" style="flex:1">Fechar</button>
+      <button class="btn btn-ghost" id="ve-cor-btn" onclick="mudarCorEvento()" style="display:none">🎨 Cor</button>
       <button class="btn btn-ghost" id="ve-delete-btn" onclick="excluirEventoAtual()" style="color:var(--red);border-color:var(--red);display:none">Excluir</button>
     </div>
   </div>
@@ -13130,9 +13153,9 @@ function renderCalendario() {
     const todayStyle = isToday ? 'font-weight:800;color:var(--green)' : '';
     const tiposCor = { campanha:'var(--black)', promocao:'var(--green)', lancamento:'var(--blue)', evento:'var(--amber)', deadline:'var(--red)', feriado:'#999' };
 
-    // Combinar eventos e tarefas para mostrar
+    // Combinar eventos e tarefas para mostrar (cor custom do evento > cor do tipo)
     const items = [
-      ...eventos.map(e => ({ tipo: 'evento', titulo: e.titulo, color: tiposCor[e.tipo] || '#ccc', onclick: `event.stopPropagation();editarEvento('${e.id}')` })),
+      ...eventos.map(e => ({ tipo: 'evento', titulo: e.titulo, color: (e.cor && e.cor.trim()) ? e.cor : (tiposCor[e.tipo] || '#ccc'), onclick: `event.stopPropagation();editarEvento('${e.id}')` })),
       ...tarefas.map(t => ({ tipo: 'tarefa', titulo: t.titulo, color: '#1a4fa0', onclick: `event.stopPropagation();openTarefa('${t.id}')`, icon: '✓' })),
     ];
 
@@ -13210,6 +13233,10 @@ function editarEvento(id) {
   const canDelete = userPermissoes['calendario_excluir'] !== false || currentProfile?.cargo === 'admin';
   document.getElementById('ve-delete-btn').style.display = canDelete ? '' : 'none';
 
+  // Botão mudar cor — mesma permissão de criar
+  const canEditCor = userPermissoes['calendario_criar'] !== false || currentProfile?.cargo === 'admin';
+  document.getElementById('ve-cor-btn').style.display = canEditCor ? '' : 'none';
+
   openModal('ver-evento');
 }
 
@@ -13261,21 +13288,62 @@ function calDiaClick(dateStr) {
   openModal('novo-evento');
 }
 
+function selecionarCorEvento(btn, cor) {
+  document.querySelectorAll('#evt-cores .evt-cor-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const hidden = document.getElementById('evt-cor');
+  if (hidden) hidden.value = cor || '';
+}
+function selecionarCorCustom(cor) {
+  document.querySelectorAll('#evt-cores .evt-cor-btn').forEach(b => b.classList.remove('active'));
+  const hidden = document.getElementById('evt-cor');
+  if (hidden) hidden.value = cor;
+}
+function resetarCoresModal() {
+  const cores = document.querySelectorAll('#evt-cores .evt-cor-btn');
+  cores.forEach(b => b.classList.remove('active'));
+  if (cores[0]) cores[0].classList.add('active'); // primeira = "padrão do tipo"
+  const hidden = document.getElementById('evt-cor');
+  if (hidden) hidden.value = '';
+}
+
 async function salvarEvento() {
   const titulo = document.getElementById('evt-titulo')?.value?.trim();
   const tipo = document.getElementById('evt-tipo')?.value || 'campanha';
   const inicio = document.getElementById('evt-inicio')?.value;
   const fim = document.getElementById('evt-fim')?.value || null;
   const desc = document.getElementById('evt-desc')?.value || '';
+  const cor = document.getElementById('evt-cor')?.value?.trim() || null;
   if(!titulo || !inicio) { showToast('Preencha título e data'); return; }
 
-  await sb.from('calendario').insert({ titulo, tipo, data_inicio: inicio, data_fim: fim, descricao: desc });
+  await sb.from('calendario').insert({ titulo, tipo, data_inicio: inicio, data_fim: fim, descricao: desc, cor });
   closeModal('novo-evento');
   document.getElementById('evt-titulo').value = '';
   document.getElementById('evt-desc').value = '';
+  resetarCoresModal();
   loadCalendario();
   showToast('Evento criado');
   logActivity('criou_evento', titulo + ' (' + tipo + ')', 'calendario');
+}
+
+async function mudarCorEvento() {
+  if (!_viewingEventoId) return;
+  const evt = _eventosCache.find(e => e.id === _viewingEventoId);
+  if (!evt) return;
+  const cores = ['', '#0a0a0a','#dc2626','#ea580c','#ca8a04','#15803d','#0891b2','#1d4ed8','#7c3aed','#db2777','#6b7280'];
+  const labels = ['Padrão do tipo','Preto','Vermelho','Laranja','Amarelo','Verde','Ciano','Azul','Roxo','Rosa','Cinza'];
+  let msg = 'Escolha a cor:\n\n';
+  cores.forEach((c,i) => msg += `${i} - ${labels[i]}${c ? ' ('+c+')' : ''}\n`);
+  const escolha = prompt(msg, '0');
+  if (escolha === null) return;
+  const idx = parseInt(escolha);
+  if (isNaN(idx) || idx < 0 || idx >= cores.length) { showToast('Opção inválida'); return; }
+  const novaCor = cores[idx] || null;
+  await sb.from('calendario').update({ cor: novaCor }).eq('id', _viewingEventoId);
+  closeModal('ver-evento');
+  _viewingEventoId = null;
+  loadCalendario();
+  showToast('Cor atualizada');
 }
 
 // ── KEYWORD DISCOVERY (estilo AnswerThePublic) ──
