@@ -4489,6 +4489,10 @@ async function criarAlertaParaId(destinatarioId, titulo, mensagem, nivel, linkRe
       .select('nome').eq('id', destinatarioId).maybeSingle();
     // Deriva o 'tipo' (NOT NULL na tabela) a partir do payload do dados
     const tipo = (dados && dados.tipo) || 'notificacao';
+    // Classifica audiência: workflow pra criativos/tarefas, pessoal no resto
+    const audiencia = (dados?.criativo_id || dados?.tarefa_id ||
+      String(tipo).startsWith('criativo_') || String(tipo).startsWith('tarefa_'))
+      ? 'workflow' : 'pessoal';
     const { error } = await sb.from('alertas').insert({
       tipo,
       titulo, mensagem, nivel: nivel || 'info', lido: false,
@@ -4496,6 +4500,7 @@ async function criarAlertaParaId(destinatarioId, titulo, mensagem, nivel, linkRe
       destinatario_nome: prof?.nome || null,
       link_ref: linkRef || null, link_label: linkLabel || null,
       dados: dados || null,
+      audiencia,
     });
     if (error) throw error;
     console.log('🔔 Alerta criado (por ID):', titulo);
@@ -11092,10 +11097,12 @@ function setupRealtimeSubscriptions() {
       const a = payload.new;
       // Só recarrega + mostra toast se for global ou pra este usuário
       const paraMim = !a?.destinatario_id || a.destinatario_id === currentUser?.id;
-      if (paraMim) {
-        loadAlertas();
-        if (a?.titulo) showToast('🔔 ' + a.titulo);
-      }
+      if (!paraMim) return;
+      // Se é alerta de dados_empresa e user não tem cargo autorizado, ignora
+      const aud = a?.audiencia || 'pessoal';
+      if (aud === 'dados_empresa' && !podeVerDadosEmpresa()) return;
+      loadAlertas();
+      if (a?.titulo) showToast('🔔 ' + a.titulo);
     })
     .subscribe();
 
@@ -11193,19 +11200,37 @@ function filterAlertas(filtro) {
   renderAlertasContainer();
 }
 
+// Cargos que veem alertas de 'dados_empresa' (estoque, financeiro, vendas)
+const CARGOS_DADOS_EMPRESA = ['admin','gerente_marketing','gerente_comercial','gerente_financeiro'];
+
+function podeVerDadosEmpresa() {
+  return CARGOS_DADOS_EMPRESA.includes(currentProfile?.cargo);
+}
+
 async function loadAlertas() {
   try {
-    // Filtra: alertas globais (destinatario_id IS NULL) OU do usuário logado
-    // Limit 500 (era 50) pra mostrar histórico completo — antes os alertas
-    // antigos marcados como lidos sumiam da lista quando novos eram criados
+    // Limit 500 pra mostrar histórico completo
     let query = sb.from('alertas').select('*').order('created_at', { ascending: false }).limit(500);
+
+    // Filtro 1: destinatario (global OU do user)
     if (currentUser?.id) {
       query = query.or(`destinatario_id.is.null,destinatario_id.eq.${currentUser.id}`);
     } else {
       query = query.is('destinatario_id', null);
     }
     const { data } = await query;
-    _alertasCache = data || [];
+
+    // Filtro 2 (client-side): por cargo/audiência
+    // Admin + gerentes: veem TUDO
+    // Outros cargos: só veem workflow + pessoal (NÃO veem dados_empresa)
+    const cargo = currentProfile?.cargo;
+    const verDadosEmpresa = podeVerDadosEmpresa();
+    _alertasCache = (data || []).filter(a => {
+      const aud = a.audiencia || 'pessoal'; // fallback pra alertas antigos sem audiencia
+      if (aud === 'dados_empresa') return verDadosEmpresa;
+      return true; // workflow e pessoal todo mundo vê (com filtro destinatario acima)
+    });
+
     renderAlertasContainer();
     updateNotifDot();
   } catch(e) { console.warn('Alertas error:', e.message); }
