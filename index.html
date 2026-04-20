@@ -11201,7 +11201,8 @@ function filterAlertas(filtro) {
 }
 
 // Cargos que veem alertas de 'dados_empresa' (estoque, financeiro, vendas)
-const CARGOS_DADOS_EMPRESA = ['admin','gerente_marketing','gerente_comercial','gerente_financeiro'];
+// Gerente de Marketing NÃO vê — só comercial + financeiro + admin
+const CARGOS_DADOS_EMPRESA = ['admin','gerente_comercial','gerente_financeiro'];
 
 function podeVerDadosEmpresa() {
   return CARGOS_DADOS_EMPRESA.includes(currentProfile?.cargo);
