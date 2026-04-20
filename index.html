@@ -2615,7 +2615,10 @@ select.input { cursor: pointer; }
     <div class="notif-panel" id="notif-panel">
       <div class="notif-head">
         <span>Alertas <span style="font-size:10px;color:var(--text3);font-weight:500" id="alertas-count-label">carregando...</span></span>
-        <a onclick="event.stopPropagation();marcarTodasAlertasLidas()" style="font-size:11px;font-weight:600;color:var(--blue);cursor:pointer;text-decoration:underline" id="mark-all-read-btn">Marcar todas lidas</a>
+        <span style="display:flex;gap:10px;align-items:center">
+          <a onclick="event.stopPropagation();marcarTodasAlertasLidas()" style="font-size:11px;font-weight:600;color:var(--blue);cursor:pointer;text-decoration:underline" id="mark-all-read-btn">Marcar todas lidas</a>
+          <a onclick="event.stopPropagation();apagarAlertasLidas()" style="font-size:11px;font-weight:600;color:var(--red);cursor:pointer;text-decoration:underline;display:none" id="delete-read-btn" title="Apagar permanentemente as notificações lidas">🗑 Apagar lidas</a>
+        </span>
       </div>
       <!-- Filtros -->
       <div style="display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface2)">
@@ -4525,6 +4528,22 @@ async function marcarTodasAlertasLidas() {
     renderAlertasContainer();
     updateNotifDot();
     showToast(`✓ ${ids.length} alerta(s) marcado(s) como lidos`);
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+async function apagarAlertasLidas() {
+  if (!currentUser?.id) return;
+  const lidos = _alertasCache.filter(a => a.lido);
+  if (!lidos.length) { showToast('Nenhum alerta lido pra apagar'); return; }
+  if (!confirm(`Apagar ${lidos.length} alerta(s) lido(s)? Esta ação não pode ser desfeita.`)) return;
+  try {
+    const ids = lidos.map(a => a.id);
+    const { error } = await sb.from('alertas').delete().in('id', ids);
+    if (error) throw error;
+    _alertasCache = _alertasCache.filter(a => !ids.includes(a.id));
+    renderAlertasContainer();
+    updateNotifDot();
+    showToast(`🗑 ${ids.length} alerta(s) lido(s) apagado(s)`);
   } catch (e) { showToast('Erro: ' + e.message); }
 }
 
@@ -11206,6 +11225,10 @@ function renderAlertasContainer() {
   const countLidas = document.querySelector('.notif-filter-count[data-count="lidas"]');
   if (countNaoLidas) countNaoLidas.textContent = `(${naoLidas})`;
   if (countLidas) countLidas.textContent = `(${lidas})`;
+
+  // Botão "Apagar lidas" só aparece se tem alerta lido
+  const delBtn = document.getElementById('delete-read-btn');
+  if (delBtn) delBtn.style.display = lidas > 0 ? '' : 'none';
 
   // Aplica filtro atual
   const lista = _alertasCache.filter(a => {
