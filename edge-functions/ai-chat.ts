@@ -95,19 +95,121 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'buscar_tarefas',
-      description: 'Lista tarefas do Kanban por status ou responsável. Use pra "minhas tarefas", "tarefas pendentes", "tarefas da Dana".',
+      description: 'Lista tarefas do Kanban. Use pra perguntas sobre tarefas: "minhas tarefas", "tarefas urgentes", "tarefas pendentes", "tarefas de abril", "o que tem no cronograma", "tarefas atrasadas", "tarefas da Dana". Retorna título, coluna (status), prioridade, responsável, prazo, tag. NÃO retorna concluídas por padrão.',
       parameters: {
         type: 'object',
         properties: {
-          coluna: { type: 'string', description: 'Opcional: "afazer", "em_andamento", "revisao", "concluido"' },
-          responsavel: { type: 'string', description: 'Opcional: nome do responsável' },
-          limite: { type: 'number', description: 'Padrão 10' }
+          coluna: { type: 'string', description: 'Opcional: filtra por coluna específica. Exemplos comuns: "afazer", "em_andamento", "revisao", "concluido", "produto", "criacao", "agencia"' },
+          responsavel: { type: 'string', description: 'Opcional: nome (parcial) do responsável' },
+          prioridade: { type: 'string', enum: ['alta', 'media', 'baixa'], description: 'Opcional: filtrar por prioridade. Use "alta" pra perguntas sobre tarefas urgentes' },
+          tag: { type: 'string', description: 'Opcional: filtrar por tag da tarefa (ex: "marketing", "comercial")' },
+          prazo_de: { type: 'string', description: 'Opcional: prazo >= esta data (YYYY-MM-DD). Pra "tarefas de abril" use prazo_de=2026-04-01' },
+          prazo_ate: { type: 'string', description: 'Opcional: prazo <= esta data (YYYY-MM-DD). Pra "tarefas de abril" use prazo_ate=2026-04-30' },
+          incluir_concluidas: { type: 'boolean', description: 'Default false. Só coloque true se o usuário pediu especificamente tarefas concluídas' },
+          atrasadas: { type: 'boolean', description: 'Se true, só retorna tarefas com prazo menor que hoje e não concluídas' },
+          limite: { type: 'number', description: 'Padrão 20, máx 100' }
         },
         required: []
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'resumo_kanban',
+      description: 'Dá um panorama geral das tarefas: quantas em cada coluna, quantas por prioridade, quantas atrasadas, quantas por responsável. Use pra "como tá o kanban?", "resumo das tarefas", "panorama geral".',
+      parameters: { type: 'object', properties: {}, required: [] }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'buscar_contato',
+      description: 'Busca cliente/contato por nome (ou parcial). Retorna telefone, tipo (PF/PJ), histórico resumido. Use pra "achar a Maria Silva", "quem é o cliente X", "telefone da clínica Y".',
+      parameters: {
+        type: 'object',
+        properties: {
+          nome: { type: 'string', description: 'Nome ou parte dele' },
+          limite: { type: 'number', description: 'Padrão 5' }
+        },
+        required: ['nome']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'info_produto',
+      description: 'Info de produto: estoque, preço, vendas recentes. Use pra "tem estoque do scrub Manuela?", "preço do jaleco X", "como tá girando o produto Y".',
+      parameters: {
+        type: 'object',
+        properties: {
+          busca: { type: 'string', description: 'Código ou nome (parcial)' }
+        },
+        required: ['busca']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'listar_schema',
+      description: 'Lista TODAS as tabelas disponíveis e suas colunas. Use ANTES de consultar_tabela quando não souber qual tabela/coluna usar. Também use quando perguntar algo fora do escopo das outras ferramentas ("quantos influenciadores", "criativos aprovados", "alertas não lidos", etc).',
+      parameters: { type: 'object', properties: {}, required: [] }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'consultar_tabela',
+      description: 'Consulta genérica (SELECT) em qualquer tabela do sistema. Use quando as ferramentas específicas não cobrem a pergunta. Sempre chame listar_schema primeiro se não souber a tabela/coluna certa. LIMITE: 100 linhas por query. Não aceita JOINs, agregações ou SQL cru — use os filtros do parâmetro. Se precisar agrupar/somar, busque os dados e faça o cálculo na sua cabeça (ou peça outra ferramenta).',
+      parameters: {
+        type: 'object',
+        properties: {
+          tabela: { type: 'string', description: 'Nome da tabela ou view. Ex: "criativos", "influenciadores", "canais_aquisicao", "alertas", "dashboard_resumo", "cliente_scoring"' },
+          colunas: { type: 'string', description: 'Colunas separadas por vírgula. "*" pra todas. Ex: "id,nome,status" ou "*"' },
+          filtros: {
+            type: 'array',
+            description: 'Lista de filtros. Cada filtro: {coluna, operador, valor}. Operadores: eq, neq, gt, gte, lt, lte, like, ilike, is, in. Para "is" use valor "null" ou "true"/"false". Pra "in" passe valor array.',
+            items: {
+              type: 'object',
+              properties: {
+                coluna: { type: 'string' },
+                operador: { type: 'string', enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'is', 'in'] },
+                valor: {}
+              },
+              required: ['coluna', 'operador', 'valor']
+            }
+          },
+          ordenar: { type: 'string', description: 'Coluna pra ordenar. Prefixo "-" pra DESC. Ex: "created_at" ou "-total"' },
+          limite: { type: 'number', description: 'Padrão 20, máx 100' }
+        },
+        required: ['tabela']
+      }
+    }
   }
 ]
+
+// Whitelist de tabelas/views que o agente pode consultar (read-only)
+const TABELAS_PERMITIDAS = new Set([
+  // Dados Bling
+  'pedidos', 'pedidos_itens', 'contatos', 'produtos', 'vendedores',
+  'contas_receber', 'contas_pagar',
+  // Sistema
+  'tarefas', 'kanban_colunas', 'alertas', 'sync_log',
+  // Features novas
+  'briefings_campanha', 'materiais_briefing', 'brandkit_itens',
+  'criativos', 'canais_aquisicao', 'concorrentes',
+  'influenciadores', 'referencias_conteudo', 'revendas_parceiros',
+  // Views
+  'dashboard_resumo', 'dashboard_mensal', 'dashboard_contas',
+  'cliente_scoring', 'funil_vendas', 'receita_historica',
+  'top_produtos', 'top_produtos_mes', 'top_produtos_marketplaces',
+  'top_produtos_marketplaces_mes',
+])
+
+// Tabelas BLOQUEADAS (segurança): profiles, bling_tokens, ai_chat_log, cargo_permissoes, activity_log
+// Essas têm dados sensíveis (tokens, UUIDs de auth, logs de outros usuários)
 
 // ═════════ IMPLEMENTAÇÃO DAS FERRAMENTAS ═════════
 function resolverPeriodo(periodo: string): { inicio: string, fim: string, label: string } {
@@ -257,12 +359,157 @@ async function executarFerramenta(nome: string, args: any): Promise<any> {
     }
 
     if (nome === 'buscar_tarefas') {
-      let q = supabaseAdmin.from('tarefas').select('titulo, coluna, prioridade, responsavel, prazo, concluido').limit(+args.limite || 10)
+      const hoje = new Date().toISOString().slice(0, 10)
+      let q = supabaseAdmin.from('tarefas').select('titulo, coluna, prioridade, responsavel, prazo, tag, concluido')
+        .limit(Math.min(+args.limite || 20, 100))
       if (args.coluna) q = q.eq('coluna', args.coluna)
       if (args.responsavel) q = q.ilike('responsavel', `%${args.responsavel}%`)
-      q = q.order('prazo', { ascending: true, nullsLast: true })
-      const { data } = await q
-      return { tarefas: data || [] }
+      if (args.prioridade) q = q.eq('prioridade', args.prioridade)
+      if (args.tag) q = q.ilike('tag', `%${args.tag}%`)
+      if (args.prazo_de) q = q.gte('prazo', args.prazo_de)
+      if (args.prazo_ate) q = q.lte('prazo', args.prazo_ate)
+      if (args.atrasadas) { q = q.lt('prazo', hoje).eq('concluido', false) }
+      if (!args.incluir_concluidas && !args.atrasadas) q = q.eq('concluido', false)
+      q = q.order('prazo', { ascending: true, nullsFirst: false })
+      const { data, error } = await q
+      if (error) return { erro: error.message }
+      return { total: data?.length || 0, tarefas: data || [] }
+    }
+
+    if (nome === 'resumo_kanban') {
+      const hoje = new Date().toISOString().slice(0, 10)
+      const { data } = await supabaseAdmin.from('tarefas')
+        .select('coluna, prioridade, responsavel, prazo, concluido').limit(5000)
+      const naoConc = (data || []).filter((t: any) => !t.concluido)
+      const porColuna: Record<string, number> = {}
+      const porPrioridade: Record<string, number> = {}
+      const porResp: Record<string, number> = {}
+      let atrasadas = 0
+      for (const t of naoConc) {
+        porColuna[t.coluna || 'sem'] = (porColuna[t.coluna || 'sem'] || 0) + 1
+        if (t.prioridade) porPrioridade[t.prioridade] = (porPrioridade[t.prioridade] || 0) + 1
+        if (t.responsavel) porResp[t.responsavel] = (porResp[t.responsavel] || 0) + 1
+        if (t.prazo && t.prazo < hoje) atrasadas++
+      }
+      return {
+        total_nao_concluidas: naoConc.length,
+        total_concluidas: (data?.length || 0) - naoConc.length,
+        atrasadas,
+        por_coluna: porColuna,
+        por_prioridade: porPrioridade,
+        top_responsaveis: Object.entries(porResp).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([nome, qtd]) => ({ nome, qtd }))
+      }
+    }
+
+    if (nome === 'buscar_contato') {
+      const { data } = await supabaseAdmin.from('contatos')
+        .select('id, nome, telefone, celular, tipo_pessoa')
+        .ilike('nome', `%${args.nome}%`)
+        .limit(Math.min(+args.limite || 5, 20))
+      if (!data || !data.length) return { total: 0, contatos: [] }
+      // Pra cada contato, puxa resumo de pedidos
+      const ids = data.map((c: any) => c.id)
+      const { data: peds } = await supabaseAdmin.from('pedidos')
+        .select('contato_nome, total, total_produtos, data')
+        .in('contato_nome', data.map((c: any) => c.nome))
+        .limit(1000)
+      const agg: Record<string, { pedidos: number, receita: number, ultima: string }> = {}
+      ;(peds || []).forEach((p: any) => {
+        const n = p.contato_nome
+        if (!agg[n]) agg[n] = { pedidos: 0, receita: 0, ultima: '' }
+        agg[n].pedidos++
+        agg[n].receita += (+p.total || +p.total_produtos || 0)
+        if (!agg[n].ultima || p.data > agg[n].ultima) agg[n].ultima = p.data
+      })
+      return {
+        total: data.length,
+        contatos: data.map((c: any) => ({
+          ...c,
+          historico: agg[c.nome] ? {
+            pedidos: agg[c.nome].pedidos,
+            receita_total: Math.round(agg[c.nome].receita),
+            ultima_compra: agg[c.nome].ultima
+          } : null
+        }))
+      }
+    }
+
+    if (nome === 'info_produto') {
+      const busca = String(args.busca || '')
+      const { data } = await supabaseAdmin.from('produtos')
+        .select('id, codigo, nome, preco, estoque_virtual, imagem_url')
+        .or(`codigo.ilike.%${busca}%,nome.ilike.%${busca}%`)
+        .limit(10)
+      return { total: data?.length || 0, produtos: data || [] }
+    }
+
+    if (nome === 'listar_schema') {
+      // Para cada tabela na whitelist, pega as colunas via information_schema
+      const tabelas = Array.from(TABELAS_PERMITIDAS)
+      const { data, error } = await supabaseAdmin.rpc('__bogus_fn_____', {})
+      // Fallback: retorna mapa estático que criamos manualmente (mais rápido que consultar information_schema)
+      return {
+        tabelas_disponiveis: tabelas,
+        tabelas_bloqueadas: ['profiles', 'bling_tokens', 'ai_chat_log', 'cargo_permissoes', 'activity_log'],
+        nota: 'Use consultar_tabela(tabela, colunas, filtros) pra SELECT em qualquer tabela acima. Não conhece as colunas? Faça uma query com colunas="*" e limite=1 pra inspecionar a estrutura.',
+        principais_schemas: {
+          pedidos: 'id, numero, data, total, total_produtos, contato_nome, contato_tipo, situacao_id, loja_id, vendedor_id, vendedor_nome',
+          contatos: 'id, nome, telefone, celular, tipo_pessoa',
+          produtos: 'id, codigo, nome, preco, estoque_virtual, imagem_url',
+          tarefas: 'id, titulo, descricao, coluna, prioridade, responsavel, tag, prazo, data_inicio, data_fim, concluido, concluido_em',
+          criativos: 'id, titulo, briefing_id, briefing_titulo, formato, designer_nome, status, observacoes, prazo_entrega, created_at',
+          influenciadores: 'id, nome, instagram, cidade, regiao, nicho, seguidores, status, codigo_cupom, usos_cupom, vendas_geradas, receita',
+          concorrentes: 'id, nome, link_instagram, link_tiktok, seguidores, plataforma_principal, eh_propria_marca',
+          canais_aquisicao: 'id, nome, tipo, investimento_mensal, status, responsavel',
+          alertas: 'id, tipo, nivel, titulo, mensagem, lido, audiencia, destinatario_id, created_at',
+          briefings_campanha: 'id, titulo, publico, problema, conceito, oferta, canais, orcamento, created_at',
+          referencias_conteudo: 'id, titulo, descricao, link, influenciador_nome, status, prioridade, prazo',
+          contas_receber: 'id, situacao, vencimento, valor, data_emissao, contato_nome, origem_tipo, conta_contabil',
+          contas_pagar: 'id, situacao, vencimento, valor, contato_id',
+        }
+      }
+    }
+
+    if (nome === 'consultar_tabela') {
+      const tabela = String(args.tabela || '').trim()
+      if (!TABELAS_PERMITIDAS.has(tabela)) {
+        return { erro: `Tabela "${tabela}" não permitida. Use listar_schema() pra ver disponíveis.` }
+      }
+      const colunas = String(args.colunas || '*')
+      const limite = Math.min(+args.limite || 20, 100)
+      let q = supabaseAdmin.from(tabela).select(colunas).limit(limite)
+      const filtros = Array.isArray(args.filtros) ? args.filtros : []
+      for (const f of filtros) {
+        if (!f.coluna || !f.operador) continue
+        const op = f.operador
+        const v = f.valor
+        try {
+          if (op === 'eq') q = q.eq(f.coluna, v)
+          else if (op === 'neq') q = q.neq(f.coluna, v)
+          else if (op === 'gt') q = q.gt(f.coluna, v)
+          else if (op === 'gte') q = q.gte(f.coluna, v)
+          else if (op === 'lt') q = q.lt(f.coluna, v)
+          else if (op === 'lte') q = q.lte(f.coluna, v)
+          else if (op === 'like') q = q.like(f.coluna, `%${v}%`)
+          else if (op === 'ilike') q = q.ilike(f.coluna, `%${v}%`)
+          else if (op === 'is') {
+            if (v === 'null' || v === null) q = q.is(f.coluna, null)
+            else if (v === true || v === 'true') q = q.is(f.coluna, true)
+            else if (v === false || v === 'false') q = q.is(f.coluna, false)
+          }
+          else if (op === 'in') q = q.in(f.coluna, Array.isArray(v) ? v : [v])
+        } catch (e: any) {
+          return { erro: `Filtro inválido: ${e.message}` }
+        }
+      }
+      if (args.ordenar) {
+        const col = String(args.ordenar)
+        if (col.startsWith('-')) q = q.order(col.slice(1), { ascending: false })
+        else q = q.order(col, { ascending: true })
+      }
+      const { data, error } = await q
+      if (error) return { erro: error.message }
+      return { total: data?.length || 0, linhas: data || [] }
     }
 
     return { erro: 'Ferramenta desconhecida: ' + nome }
@@ -281,19 +528,59 @@ SOBRE A EMPRESA:
 - Canais: site danajalecos.com.br (Magazord), Mercado Livre, Shopee, TikTok Shop, Magalu, loja física, WhatsApp comercial
 - ERP: Bling v3 (read-only). Sincronização Bling → Supabase rodando 24/7.
 
-SEU PAPEL:
-- Responder perguntas sobre vendas, financeiro, produtos, clientes, tarefas
-- SEMPRE usar as ferramentas disponíveis pra buscar dados reais. Nunca invente números.
-- Ser direto, conciso, em português BR informal (tom empresarial amigável)
-- Usar formatação markdown leve (bold, listas) quando ajudar clareza
-- Se a pergunta não for sobre dados da empresa, responda educadamente que é especializado em dados do DMS
+SEÇÕES DO SITE DMS (pra referenciar quando relevante):
+- Dashboard: visão geral de receita, pedidos, contas
+- E-commerce: placeholder, aguardando API Magazord
+- Loja Física + WhatsApp: vendas presenciais (Piçarras + BC + WhatsApp)
+- Marketplaces: ML, Shopee, TikTok, Magalu
+- Canais de Aquisição: pagos e orgânicos
+- Financeiro: contas a pagar e a receber
+- Projeções: previsões de fluxo de caixa
+- Performance: funil e analytics
+- Comunidade e CRM: scoring de clientes
+- Tarefas e Kanban: gestão de tarefas
+- Calendário: eventos e prazos
+- Construtor de Campanha: geração de briefings
+- Briefing Visual: galeria de briefings, materiais, Brand Kit
+- Criativos: workflow de aprovação (aguardando/aprovado/reprovado/to-do/publicado)
+- Influenciadores: cadastro, KPIs, referências de conteúdo
+- Públicos Ideais: 5 personas + Persona Real baseada em dados
+- Mercado e Tendências: notícias, buscas, concorrentes
+- Prova Social: UGC (em desenvolvimento)
+- Analytics: links pros dashboards externos (Meta, GA4, etc)
+- Administrador: usuários, permissões, log
+
+SUAS CAPACIDADES:
+Você tem ferramentas pra consultar dados reais do Supabase. NUNCA invente números.
+
+Ferramentas específicas (use primeiro pra perguntas comuns):
+- consultar_faturamento: receita, pedidos, ticket médio por período
+- consultar_contas_financeiras: status CP/CR
+- top_clientes, top_produtos: rankings
+- vendas_por_canal: split por loja/marketplace
+- buscar_tarefas: filtros de kanban (coluna, prioridade, prazo, etc)
+- resumo_kanban: panorama geral
+- buscar_contato: cliente por nome + histórico
+- info_produto: estoque, preço, busca por código/nome
+
+Ferramentas genéricas (fallback — use quando as específicas não cobrem):
+- listar_schema: mostra TODAS as tabelas/views disponíveis e suas colunas
+- consultar_tabela: SELECT genérico em qualquer tabela permitida, com filtros
+
+ESTRATÉGIA:
+1. Pergunta simples (vendas, clientes, tarefas, produtos) → use ferramentas específicas
+2. Pergunta que envolva criativos, influenciadores, concorrentes, canais, alertas, briefings, etc → use consultar_tabela (chame listar_schema primeiro se não souber a coluna exata)
+3. Pergunta completamente nova → chame listar_schema pra ver o que existe, depois consulte
 
 IMPORTANTE:
 - Dados monetários em Real brasileiro (R$)
-- Considere o ano atual 2026
+- Ano atual: 2026
 - Se o usuário não especificar período, assuma "mês atual"
-- E-commerce do site (danajalecos.com.br) está aguardando integração com Magazord — não afirme números "do site" isoladamente sem ressalvas
-- Se a ferramenta retornar erro, avise o usuário e sugira reformular`
+- E-commerce (site danajalecos.com.br) está aguardando API Magazord — não afirme números "do site" isoladamente sem ressalvas
+- Seja direto, conciso, em português BR informal (tom empresarial amigável)
+- Use markdown leve (bold, listas) quando ajudar
+- Se ferramenta retornar erro, explique pro usuário e sugira reformular
+- Se a pergunta não for sobre dados da empresa, responda que é especializado no DMS`
 
 // ═════════ CHAMADA PRO GROQ ═════════
 async function chamarGroq(messages: any[]): Promise<any> {
