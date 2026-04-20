@@ -2622,6 +2622,35 @@ select.input { cursor: pointer; }
     <div class="topbar-sub" id="topbar-sub">Visão geral · Dana Jalecos Exclusivos</div>
   </div>
   <div class="topbar-right" style="position:relative">
+    <!-- Seletor de empresa (global) -->
+    <div id="empresa-selector" style="position:relative;margin-right:8px">
+      <button onclick="toggleEmpresaMenu()" id="empresa-btn" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:var(--white);cursor:pointer;font-size:12px;font-weight:600;color:var(--text1);transition:all .15s">
+        <span id="empresa-btn-icon" style="width:8px;height:8px;border-radius:50%;background:var(--text3);display:inline-block"></span>
+        <span>Empresa: <strong id="empresa-btn-label">Todas</strong></span>
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5l3 3 3-3"/></svg>
+      </button>
+      <div id="empresa-menu" style="display:none;position:absolute;top:calc(100% + 4px);right:0;background:var(--white);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.1);min-width:200px;z-index:1000;overflow:hidden">
+        <div class="empresa-opt" data-value="todas" onclick="escolherEmpresa('todas')" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:12.5px;border-bottom:1px solid var(--border)">
+          <span style="width:8px;height:8px;border-radius:50%;background:linear-gradient(90deg,#2563eb,#15803d)"></span>
+          <div><div style="font-weight:700">Todas</div><div style="font-size:10.5px;color:var(--text3)">Matriz + BC somados</div></div>
+        </div>
+        <div class="empresa-opt" data-value="matriz" onclick="escolherEmpresa('matriz')" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:12.5px;border-bottom:1px solid var(--border)">
+          <span style="width:8px;height:8px;border-radius:50%;background:#2563eb"></span>
+          <div><div style="font-weight:700">Matriz</div><div style="font-size:10.5px;color:var(--text3)">Piçarras SC + marketplaces</div></div>
+        </div>
+        <div class="empresa-opt" data-value="bc" onclick="escolherEmpresa('bc')" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:12.5px">
+          <span style="width:8px;height:8px;border-radius:50%;background:#15803d"></span>
+          <div><div style="font-weight:700">BC</div><div style="font-size:10.5px;color:var(--text3)">Balneário Camboriú</div></div>
+        </div>
+      </div>
+    </div>
+    <style>
+      .empresa-opt:hover { background: var(--surface2) }
+      .empresa-opt.active { background: var(--surface2) !important; position:relative }
+      .empresa-opt.active::after { content:"✓"; position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--green); font-weight:700 }
+      #empresa-btn:hover { border-color: var(--text3); background: var(--surface2) }
+      @media (max-width: 768px) { #empresa-selector > button span:nth-child(2) { display:none } }
+    </style>
     <div class="notif-btn" id="notif-btn" onclick="toggleNotif()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.5A4.5 4.5 0 003.5 6v3L2 11h12l-1.5-2V6A4.5 4.5 0 008 1.5z"/><path d="M6.5 11a1.5 1.5 0 003 0"/></svg>
       <div class="notif-dot" id="notif-dot"></div>
@@ -15112,7 +15141,8 @@ function fmtRbr(v) {
 
 // Query base pra pedidos filtrados por canal
 async function queryPedidosPorCanal(filtroLojaId, inicio, fim) {
-  let q = sb.from('pedidos').select('id, total, total_produtos, data, contato_nome, loja_id, situacao_id, vendedor_id').gte('data', inicio).lt('data', fim).limit(10000);
+  let q = sb.from('pedidos').select('id, total, total_produtos, data, contato_nome, loja_id, situacao_id, vendedor_id, empresa').gte('data', inicio).lt('data', fim).limit(10000);
+  q = aplicarEmpresa(q); // ← filtro global empresa (matriz/bc/todas)
   if (filtroLojaId === 'site') {
     // Site real = vendedor "Site" (id 4283606619) no Bling.
     // Exclui vendas manuais B2B que caem com loja_id=0 sem vendedor.
@@ -15172,7 +15202,7 @@ async function carregarCanal(prefix, canal, filtro) {
 
   // Share do total: precisa saber o faturamento TOTAL do período
   try {
-    const { data: tudo } = await sb.from('pedidos').select('total').gte('data', periodo.inicio).lt('data', periodo.fim).limit(10000);
+    const { data: tudo } = await aplicarEmpresa(sb.from('pedidos').select('total').gte('data', periodo.inicio).lt('data', periodo.fim).limit(10000));
     const totalGeral = (tudo || []).reduce((s, p) => s + (+p.total || 0), 0);
     const share = totalGeral > 0 ? (faturamento / totalGeral * 100) : 0;
     if (el(prefix + '-kpi-share')) el(prefix + '-kpi-share').textContent = share.toFixed(1) + '%';
@@ -15588,7 +15618,7 @@ async function loadTopProdutos(container, mesLabel) {
     // Fallback: top clientes (se itens ainda não foram sincronizados)
     const inicio = anoRef + '-' + String(mesRef).padStart(2,'0') + '-01';
     const fim = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-01';
-    const { data } = await sb.from('pedidos').select('contato_nome').gte('data', inicio).lt('data', fim).not('contato_nome', 'is', null).limit(2000);
+    const { data } = await aplicarEmpresa(sb.from('pedidos').select('contato_nome').gte('data', inicio).lt('data', fim).not('contato_nome', 'is', null).limit(2000));
 
     if (!data || data.length === 0) {
       container.innerHTML = '<div class="card-title" style="margin-bottom:10px">Top Produtos — ' + (mesLabel||'') + '</div><div style="color:var(--text3);font-size:12px;padding:10px">Sync de itens pendente</div>';
@@ -17543,6 +17573,86 @@ function aiChatKeydown(e) {
 }
 
 // Inject UI após login (só aparece pra usuário autenticado)
+// ═════════════════════════════════════════════════════
+// SELETOR DE EMPRESA (matriz / bc / todas) — filtro global
+// ═════════════════════════════════════════════════════
+const EMPRESA_STORAGE_KEY = 'dms_empresa_atual';
+const EMPRESA_LABELS = { todas: 'Todas', matriz: 'Matriz', bc: 'BC' };
+const EMPRESA_COLORS = { todas: 'linear-gradient(90deg,#2563eb,#15803d)', matriz: '#2563eb', bc: '#15803d' };
+
+function empresaAtual() {
+  try { return localStorage.getItem(EMPRESA_STORAGE_KEY) || 'todas'; } catch { return 'todas'; }
+}
+
+/** Retorna o valor pra filtro: 'matriz'|'bc' ou null (quando "Todas", não filtra) */
+function empresaFiltro() {
+  const e = empresaAtual();
+  return (e === 'matriz' || e === 'bc') ? e : null;
+}
+
+/** Aplica .eq('empresa', x) num query builder do Supabase se houver filtro ativo. */
+function aplicarEmpresa(q) {
+  const f = empresaFiltro();
+  return f ? q.eq('empresa', f) : q;
+}
+
+function toggleEmpresaMenu() {
+  const m = document.getElementById('empresa-menu');
+  if (!m) return;
+  m.style.display = m.style.display === 'block' ? 'none' : 'block';
+  // Highlight da opção atual
+  document.querySelectorAll('.empresa-opt').forEach(o => o.classList.toggle('active', o.getAttribute('data-value') === empresaAtual()));
+}
+
+function escolherEmpresa(valor) {
+  if (!['todas','matriz','bc'].includes(valor)) return;
+  try { localStorage.setItem(EMPRESA_STORAGE_KEY, valor); } catch {}
+  document.getElementById('empresa-menu').style.display = 'none';
+  atualizarBotaoEmpresa();
+  recarregarTudoPorEmpresa();
+}
+
+function atualizarBotaoEmpresa() {
+  const e = empresaAtual();
+  const lbl = document.getElementById('empresa-btn-label');
+  const ico = document.getElementById('empresa-btn-icon');
+  if (lbl) lbl.textContent = EMPRESA_LABELS[e] || 'Todas';
+  if (ico) ico.style.background = EMPRESA_COLORS[e] || EMPRESA_COLORS.todas;
+}
+
+function recarregarTudoPorEmpresa() {
+  // Invalida caches e dispara reload da view ativa
+  try {
+    if (typeof loadSupabaseData === 'function') loadSupabaseData();
+    // Recarrega view atual baseado no id ativo
+    const active = document.querySelector('.view.active');
+    if (!active) return;
+    const viewId = active.id.replace('view-', '');
+    const callbacks = {
+      home: 'loadDashboard', financeiro: 'loadFinanceiro', projecoes: 'loadProjecoes',
+      comunidade: 'loadComunidade', marketplaces: 'loadMarketplaces',
+      canaisvendas: 'loadCanaisVendas', ecommerce: 'loadEcommerce', lojafisica: 'loadLojaFisica',
+      performance: 'loadPerformance', relatorio: 'renderRelatorioExecutivo',
+      personas: 'loadPersonaReal', roi: 'calcROI'
+    };
+    const fn = callbacks[viewId];
+    if (fn && typeof window[fn] === 'function') window[fn]();
+  } catch (e) { console.warn('reload by empresa:', e); }
+  showToast(`🏢 Filtro: ${EMPRESA_LABELS[empresaAtual()]}`);
+}
+
+// Fecha menu ao clicar fora
+document.addEventListener('click', (e) => {
+  const sel = document.getElementById('empresa-selector');
+  if (sel && !sel.contains(e.target)) {
+    const m = document.getElementById('empresa-menu');
+    if (m) m.style.display = 'none';
+  }
+});
+
+// Inicializa botão ao carregar
+setTimeout(atualizarBotaoEmpresa, 200);
+
 function aiChatMount() {
   if (document.getElementById('ai-chat-bubble')) return;
   const wrap = document.createElement('div');
