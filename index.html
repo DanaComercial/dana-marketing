@@ -8977,6 +8977,20 @@ updateDynamicField('foto');
     </div>
 
     <div id="vt-checklist" style="margin-bottom:12px"></div>
+
+    <!-- Comentários -->
+    <div id="vt-comentarios-wrap" style="margin:18px 0 12px;border-top:1px solid var(--border);padding-top:14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:13px">💬 Comentários</span>
+        <span id="vt-com-count" style="font-size:10.5px;color:var(--text3);background:var(--surface2);padding:2px 8px;border-radius:10px;font-weight:600">0</span>
+      </div>
+      <div id="vt-com-lista" style="max-height:300px;overflow-y:auto;margin-bottom:10px;display:flex;flex-direction:column;gap:8px"></div>
+      <div style="display:flex;gap:6px;align-items:flex-end">
+        <textarea id="vt-com-input" class="input" rows="2" placeholder="Escreva um comentário… (Enter envia, Shift+Enter quebra linha)" style="flex:1;resize:none;font-size:13px" onkeydown="vtComentarioKeydown(event)"></textarea>
+        <button class="btn btn-primary btn-sm" onclick="enviarComentarioTarefa()" style="padding:8px 14px">Enviar</button>
+      </div>
+    </div>
+
     <div style="display:flex;gap:8px" id="vt-botoes">
       <button class="btn btn-primary" onclick="salvarTarefaEdit()" style="flex:1" id="vt-btn-salvar">Salvar</button>
       <button class="btn btn-ghost" onclick="closeModal('ver-tarefa')" id="vt-btn-fechar" style="display:none;flex:1">Fechar</button>
@@ -12530,6 +12544,9 @@ function openTarefa(id) {
     descView.onclick = canEdit ? vtEditDesc : null;
   }
 
+  // Carregar comentários dessa tarefa
+  carregarComentariosTarefa(id);
+
   openModal('ver-tarefa');
 }
 
@@ -12721,6 +12738,217 @@ async function deleteTarefaFromModal() {
   // Delega para deleteTarefa que já faz o cleanup do Storage
   await deleteTarefa(id);
 }
+
+// ═════════ COMENTÁRIOS DA TAREFA ═════════
+let _comentariosCache = {}; // { tarefa_id: [comentarios] }
+
+function fmtComentarioTempo(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const agora = new Date();
+  const diff = (agora - d) / 1000;
+  if (diff < 60) return 'agora';
+  if (diff < 3600) return Math.floor(diff/60) + 'min atrás';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h atrás';
+  if (diff < 604800) return Math.floor(diff/86400) + 'd atrás';
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function iniciaisDe(nome) {
+  return (nome || '?').trim().split(/\s+/).slice(0,2).map(s => s[0]?.toUpperCase() || '').join('') || '?';
+}
+
+function corAvatarDe(nome) {
+  const cores = ['#ea580c','#2563eb','#059669','#c026d3','#d97706','#0891b2','#e11d48','#7c3aed','#0d9488'];
+  let h = 0;
+  for (let i = 0; i < (nome || '').length; i++) h = (h * 31 + (nome.charCodeAt(i) || 0)) >>> 0;
+  return cores[h % cores.length];
+}
+
+async function carregarComentariosTarefa(tarefaId) {
+  const lista = document.getElementById('vt-com-lista');
+  const count = document.getElementById('vt-com-count');
+  if (!lista || !count) return;
+  lista.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:11px;padding:12px">Carregando…</div>';
+  const { data, error } = await sb.from('tarefa_comentarios')
+    .select('*').eq('tarefa_id', tarefaId).order('created_at', { ascending: true });
+  if (error) {
+    lista.innerHTML = '<div style="color:var(--red);font-size:11px;padding:8px">Erro: ' + esc(error.message) + '</div>';
+    return;
+  }
+  _comentariosCache[tarefaId] = data || [];
+  renderComentarios(tarefaId);
+}
+
+function renderComentarios(tarefaId) {
+  const lista = document.getElementById('vt-com-lista');
+  const count = document.getElementById('vt-com-count');
+  if (!lista || !count) return;
+  const itens = _comentariosCache[tarefaId] || [];
+  count.textContent = itens.length;
+  if (itens.length === 0) {
+    lista.innerHTML = '<div style="text-align:center;color:var(--text4);font-size:11.5px;padding:14px;font-style:italic">Nenhum comentário ainda. Seja o primeiro!</div>';
+    return;
+  }
+  const meuId = currentProfile?.id;
+  const ehAdmin = currentProfile?.cargo === 'admin';
+  lista.innerHTML = itens.map(c => {
+    const meu = c.user_id === meuId;
+    const podeApagar = meu || ehAdmin;
+    const podeEditar = meu;
+    const cor = corAvatarDe(c.user_nome);
+    const ini = iniciaisDe(c.user_nome);
+    const texto = esc(c.mensagem).replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" style="color:var(--blue)">$1</a>');
+    const editado = c.updated_at ? ` <span style="font-size:10px;color:var(--text4);font-style:italic">(editado)</span>` : '';
+    return `<div style="display:flex;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:10px;align-items:flex-start">
+      <div style="width:28px;height:28px;border-radius:50%;background:${cor};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">${ini}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:2px">
+          <div style="font-size:11.5px;font-weight:700;color:var(--text1)">${esc(c.user_nome || 'Usuário')}</div>
+          <div style="font-size:10px;color:var(--text3)">${fmtComentarioTempo(c.created_at)}${editado}</div>
+        </div>
+        <div id="com-text-${c.id}" style="font-size:12.5px;color:var(--text2);line-height:1.5;white-space:pre-wrap;word-wrap:break-word">${texto}</div>
+        ${podeApagar || podeEditar ? `<div style="display:flex;gap:6px;margin-top:4px">
+          ${podeEditar ? `<button onclick="iniciarEditarComentario('${c.id}')" style="background:none;border:none;color:var(--text3);font-size:10.5px;cursor:pointer;padding:0;font-weight:600">Editar</button>` : ''}
+          ${podeApagar ? `<button onclick="excluirComentario('${c.id}')" style="background:none;border:none;color:var(--red);font-size:10.5px;cursor:pointer;padding:0;font-weight:600">Excluir</button>` : ''}
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  // Auto-scroll pro final
+  lista.scrollTop = lista.scrollHeight;
+}
+
+async function enviarComentarioTarefa() {
+  const inp = document.getElementById('vt-com-input');
+  const tarefaId = _editingTaskId;
+  if (!tarefaId || !inp) return;
+  const msg = inp.value.trim();
+  if (!msg) return;
+  if (msg.length > 5000) { showToast('Comentário longo demais (máx 5000 caracteres)'); return; }
+  inp.value = '';
+  inp.disabled = true;
+  const { data: inserted, error } = await sb.from('tarefa_comentarios').insert({
+    tarefa_id: tarefaId,
+    user_id: currentProfile?.id,
+    user_nome: currentProfile?.nome,
+    user_cargo: currentProfile?.cargo,
+    mensagem: msg
+  }).select().single();
+  inp.disabled = false;
+  if (error) { showToast('Erro: ' + error.message); inp.value = msg; return; }
+  // Otimista: adiciona local; realtime também vai receber (dedup abaixo)
+  if (inserted) {
+    _comentariosCache[tarefaId] = _comentariosCache[tarefaId] || [];
+    if (!_comentariosCache[tarefaId].some(c => c.id === inserted.id)) {
+      _comentariosCache[tarefaId].push(inserted);
+      renderComentarios(tarefaId);
+    }
+  }
+  // Notificar o responsável (se diferente de mim)
+  try {
+    const tarefa = _tarefasCache.find(t => t.id === tarefaId);
+    if (tarefa?.responsavel_id && tarefa.responsavel_id !== currentProfile?.id) {
+      await sb.from('alertas').insert({
+        tipo: 'comentario_tarefa',
+        nivel: 'info',
+        titulo: '💬 Novo comentário na tarefa',
+        mensagem: `${currentProfile?.nome || 'Alguém'} comentou em "${tarefa.titulo}"`,
+        destinatario_id: tarefa.responsavel_id,
+        destinatario_nome: tarefa.responsavel,
+        link_ref: 'tarefas-e-kanban',
+        link_label: 'Ver tarefa',
+        audiencia: 'pessoal',
+        dados: { tarefa_id: tarefaId, comentario_id: inserted?.id }
+      });
+    }
+  } catch (e) { console.warn('Falha ao notificar responsável:', e); }
+  inp.focus();
+}
+
+function vtComentarioKeydown(ev) {
+  if (ev.key === 'Enter' && !ev.shiftKey) {
+    ev.preventDefault();
+    enviarComentarioTarefa();
+  }
+}
+
+async function iniciarEditarComentario(id) {
+  const tarefaId = _editingTaskId;
+  const c = (_comentariosCache[tarefaId] || []).find(x => x.id === id);
+  if (!c) return;
+  const textoEl = document.getElementById('com-text-' + id);
+  if (!textoEl) return;
+  const atual = c.mensagem;
+  textoEl.innerHTML = `<textarea id="com-edit-${id}" class="input" rows="3" style="width:100%;font-size:12.5px">${esc(atual)}</textarea>
+    <div style="display:flex;gap:6px;margin-top:4px">
+      <button class="btn btn-primary btn-sm" style="padding:4px 10px;font-size:11px" onclick="salvarEdicaoComentario('${id}')">Salvar</button>
+      <button class="btn btn-ghost btn-sm" style="padding:4px 10px;font-size:11px" onclick="renderComentarios('${tarefaId}')">Cancelar</button>
+    </div>`;
+  const area = document.getElementById('com-edit-' + id);
+  if (area) { area.focus(); area.setSelectionRange(area.value.length, area.value.length); }
+}
+
+async function salvarEdicaoComentario(id) {
+  const area = document.getElementById('com-edit-' + id);
+  if (!area) return;
+  const novo = area.value.trim();
+  if (!novo) { showToast('Mensagem vazia'); return; }
+  const { error } = await sb.from('tarefa_comentarios').update({ mensagem: novo, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  // Atualiza cache local
+  const tarefaId = _editingTaskId;
+  const lista = _comentariosCache[tarefaId] || [];
+  const item = lista.find(c => c.id === id);
+  if (item) { item.mensagem = novo; item.updated_at = new Date().toISOString(); }
+  renderComentarios(tarefaId);
+}
+
+async function excluirComentario(id) {
+  if (!confirm('Apagar este comentário?')) return;
+  const { error } = await sb.from('tarefa_comentarios').delete().eq('id', id);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  const tarefaId = _editingTaskId;
+  if (tarefaId && _comentariosCache[tarefaId]) {
+    _comentariosCache[tarefaId] = _comentariosCache[tarefaId].filter(c => c.id !== id);
+    renderComentarios(tarefaId);
+  }
+}
+
+// Realtime: novos comentários aparecem em tempo real enquanto a tarefa está aberta
+function subscribeComentariosTarefa() {
+  if (window._channelComentarios) return; // só uma subscrição global
+  window._channelComentarios = sb.channel('realtime-tarefa-comentarios')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tarefa_comentarios' }, (p) => {
+      const c = p.new;
+      if (!c || !c.tarefa_id) return;
+      if (!_comentariosCache[c.tarefa_id]) _comentariosCache[c.tarefa_id] = [];
+      // Dedup
+      if (!_comentariosCache[c.tarefa_id].some(x => x.id === c.id)) {
+        _comentariosCache[c.tarefa_id].push(c);
+        if (_editingTaskId === c.tarefa_id) renderComentarios(c.tarefa_id);
+      }
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tarefa_comentarios' }, (p) => {
+      const c = p.new;
+      const tid = c.tarefa_id;
+      const lista = _comentariosCache[tid];
+      if (!lista) return;
+      const idx = lista.findIndex(x => x.id === c.id);
+      if (idx >= 0) { lista[idx] = c; if (_editingTaskId === tid) renderComentarios(tid); }
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tarefa_comentarios' }, (p) => {
+      const id = p.old?.id;
+      if (!id) return;
+      for (const tid of Object.keys(_comentariosCache)) {
+        _comentariosCache[tid] = _comentariosCache[tid].filter(c => c.id !== id);
+        if (_editingTaskId === tid) renderComentarios(tid);
+      }
+    })
+    .subscribe();
+}
+// Ativa assim que a página carrega
+setTimeout(subscribeComentariosTarefa, 1500);
 
 // Popular select de colunas no modal nova tarefa
 function populateColSelect() {
