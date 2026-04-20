@@ -14547,6 +14547,11 @@ function loadProjecoes() {
 // 205337834 → Mercado Livre · 205430008 → TikTok · 205522474 → Shopee · default → Magalu
 const LOJA_ID_SITE = [0, null];
 const LOJA_ID_LOJA_WHATS = '203536978';
+// Vendedor "Site" no Bling (código 156, id 4283606619) — marca pedidos
+// reais do checkout do danajalecos.com.br. Usado pra separar vendas
+// B2C do site das vendas B2B/manuais lançadas no Bling (que caem em
+// loja_id=0 por padrão sem vendedor).
+const VENDEDOR_ID_SITE = 4283606619;
 
 function periodoFromFiltro(filtro) {
   const now = new Date();
@@ -14572,11 +14577,11 @@ function fmtRbr(v) {
 
 // Query base pra pedidos filtrados por canal
 async function queryPedidosPorCanal(filtroLojaId, inicio, fim) {
-  let q = sb.from('pedidos').select('id, total, data, contato_nome, loja_id, situacao_id, vendedor_nome').gte('data', inicio).lt('data', fim).limit(10000);
+  let q = sb.from('pedidos').select('id, total, data, contato_nome, loja_id, situacao_id, vendedor_id').gte('data', inicio).lt('data', fim).limit(10000);
   if (filtroLojaId === 'site') {
-    // Site real = loja_id 0/NULL E vendedor "SITE" no Bling (exclui vendas
-    // manuais B2B lançadas no Bling que caem com loja_id 0 por padrão)
-    q = q.or('loja_id.is.null,loja_id.eq.0').ilike('vendedor_nome', '%site%');
+    // Site real = vendedor "Site" (id 4283606619) no Bling.
+    // Exclui vendas manuais B2B que caem com loja_id=0 sem vendedor.
+    q = q.eq('vendedor_id', VENDEDOR_ID_SITE);
   } else if (filtroLojaId === 'lojafisica') {
     q = q.eq('loja_id', LOJA_ID_LOJA_WHATS);
   }
