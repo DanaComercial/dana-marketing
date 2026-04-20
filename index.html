@@ -9031,10 +9031,28 @@ function toggleMobileSidebar(forceState) {
   if (btn) btn.textContent = open ? '✕' : '☰';
 }
 
+// Seções restritas a cargo admin. URL direta ou qualquer outro
+// caminho tem que passar por aqui — não depende de cargo_permissoes.
+const ADMIN_ONLY_VIEWS = ['admin'];
+
 function go(el, viewId) {
-  // Verificar permissao (perfil sempre acessivel)
+  // 1. Bloqueio hard-coded: seções admin-only
+  if (ADMIN_ONLY_VIEWS.includes(viewId) && currentProfile?.cargo !== 'admin') {
+    if (typeof showToast === 'function') showToast('🚫 Acesso negado — apenas administradores');
+    // Redireciona pra home pra não ficar em tela em branco
+    if (viewId !== 'home') {
+      const home = document.querySelector('[onclick*="\'home\'"]');
+      if (home) return go(home, 'home');
+    }
+    return;
+  }
+  // 2. Bloqueio via cargo_permissoes (perfil sempre acessivel)
   if (viewId !== 'perfil' && userPermissoes[viewId] === false) {
     if (typeof showToast === 'function') showToast('Voce nao tem acesso a esta secao');
+    if (viewId !== 'home') {
+      const home = document.querySelector('[onclick*="\'home\'"]');
+      if (home) return go(home, 'home');
+    }
     return;
   }
   // Fecha sidebar em mobile ao navegar
