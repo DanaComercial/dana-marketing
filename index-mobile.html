@@ -1897,29 +1897,21 @@ select.input { cursor: pointer; }
   table { font-size: 11px; min-width: 0 !important; width: 100% !important; table-layout: fixed; }
   th, td { padding: 6px 8px !important; white-space: normal !important; word-break: break-word; }
 
-  /* Modal: padding interno pra respirar + scroll interno */
+  /* Modal: padding interno pra respirar + scroll interno + espaço pro footer
+     Sem sticky pra não cobrir conteúdo — user rola normal até o fim e
+     os botões aparecem no final do DOM */
   .modal-overlay .modal, .modal-overlay > div:not(.modal-overlay) {
     padding: 16px !important;
-    padding-bottom: 80px !important;  /* espaço extra pra não cortar o footer de botões */
+    padding-bottom: 24px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
-
-  /* Footer de botões (Salvar/Cancelar/Excluir) STICKY no fundo do modal
-     pra ficar sempre visível mesmo com conteúdo longo */
+  /* Garantir que o ultimo bloco de botoes fique com espaço respirando acima */
   .modal-overlay #vt-botoes,
-  .modal-overlay [id$="-botoes"],
-  .modal-overlay [class*="modal-footer"],
-  .modal-overlay > .modal > div:last-child:has(.btn),
-  .modal-overlay .modal > div:last-child[style*="display:flex"][style*="gap"],
-  .modal-overlay .modal > div:last-child[style*="display: flex"][style*="gap"] {
-    position: sticky !important;
-    bottom: 0 !important;
-    background: var(--white) !important;
-    padding: 12px 0 !important;
-    margin: 12px -16px -16px !important;
-    padding-left: 16px !important;
-    padding-right: 16px !important;
+  .modal-overlay [id$="-botoes"] {
+    margin-top: 16px !important;
+    padding-top: 12px !important;
     border-top: 1px solid var(--border) !important;
-    z-index: 10 !important;
   }
 
   /* Canvas/gráficos de outras seções */
