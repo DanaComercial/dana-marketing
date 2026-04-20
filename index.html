@@ -9125,6 +9125,59 @@ function topbarAction() {
   const id = active.id.replace('view-','');
   if(views[id]) openModal(views[id]);
   else if(id==='construtor') document.querySelector('[onclick*=construtor]')?.click();
+  else if(id==='relatorio') exportarRelatorioPDF();
+}
+
+function exportarRelatorioPDF() {
+  const area = document.querySelector('#view-relatorio > div');
+  if (!area) { showToast('Nada pra exportar'); return; }
+  const win = window.open('', '_blank', 'width=900,height=1200');
+  if (!win) { showToast('Permita popups pra exportar'); return; }
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>Relatório Executivo · Dana Jalecos · ${hoje}</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; color: #0a0a0a; max-width: 820px; margin: 0 auto; padding: 30px 36px; line-height: 1.55; font-size: 13px; background: white; }
+  .rel-hero { background: #0a0a0a; color: white; border-radius: 14px; padding: 28px 32px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+  .rel-period { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 6px; }
+  .rel-headline { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; line-height: 1.25; }
+  .rel-kpis { display: flex; gap: 14px; flex-wrap: wrap; }
+  .rel-kpi { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 12px 16px; min-width: 120px; }
+  .rel-kpi-label { font-size: 9.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+  .rel-kpi-val { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; }
+  .rel-kpi-chg { font-size: 10.5px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+  .rel-sec { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: #0a0a0a; margin: 24px 0 12px; padding-bottom: 6px; border-bottom: 2px solid #0a0a0a; }
+  .card { background: #fafafa; border: 1px solid #e6e6e6; border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; }
+  .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .rank-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #eee; }
+  .rank-row:last-child { border-bottom: none; }
+  .rank-num { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 11px; min-width: 30px; padding: 3px 6px; background: #f0f0f0; border-radius: 4px; text-align: center; }
+  .good { color: #1a7a3a; font-weight: 700; }
+  .rel-footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e6e6e6; text-align: center; font-size: 11px; color: #999; }
+  @media print {
+    body { padding: 20px; }
+    .rel-hero { background: #0a0a0a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    button, .no-print { display: none !important; }
+    .g2 { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 600px) {
+    .g2 { grid-template-columns: 1fr; }
+  }
+</style></head><body>
+${area.innerHTML}
+<div class="rel-footer">
+  Dana Jalecos Exclusivos · Marketing System · Gerado em ${hoje}<br>
+  danajalecos.com.br · @danajalecos
+</div>
+<script>
+  setTimeout(() => { window.print(); }, 300);
+<\/script>
+</body></html>`);
+  win.document.close();
+  logActivity('exportou_relatorio', 'Relatório Executivo ' + hoje, 'relatorio');
+  showToast('📄 Abrindo janela de impressão');
 }
 
 // ── MODALS ──
