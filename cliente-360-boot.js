@@ -746,12 +746,29 @@
   function formatTextoInsight(t) {
     if (!t) return '';
     let h = escapeHtml(t);
-    h = h.replace(/\*\*([^*]+)\*\*/g, '<strong style="color:#fbbf24">$1</strong>');
-    // Remove headers markdown vazios que o modelo possa ter deixado
+    // Negrito **texto** → realce em cor champanhe
+    h = h.replace(/\*\*([^*]+)\*\*/g, '<strong style="color:oklch(88% 0.018 80)">$1</strong>');
+    // Remove headers markdown (# / ## / ###)
     h = h.replace(/^#{1,6}\s*/gm, '');
+    // Topicos com emoji no inicio de linha (ex: "📋 Perfil", "📊 Padrão de Compra", "⚠️ Riscos")
+    // Viram sub-headers destacados
+    h = h.replace(/^([\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}][\uFE0F]?\s+[A-ZÁÉÍÓÚÂÊÎÔÛÀÃÕÇ][\wÀ-ÿ\s]{2,60})\s*$/gmu,
+      '<div style="margin:12px 0 4px;font-size:13px;font-weight:700;color:oklch(88% 0.018 80)">$1</div>');
+    // Linhas que sao so um rotulo tipo "Perfil:" ou "Risco:" viram sub-headers
+    h = h.replace(/^([A-ZÁÉÍÓÚÂÊÎÔÛÀÃÕÇ][\wÀ-ÿ\s]{2,40}):\s*$/gm,
+      '<div style="margin:12px 0 4px;font-size:13px;font-weight:700;color:oklch(88% 0.018 80)">$1:</div>');
+    // Listas com hifen → bullets estilizados
+    h = h.replace(/(?:^|\n)((?:- [^\n]+\n?)+)/g, (m) => {
+      const items = m.trim().split(/\n/).map(l => l.replace(/^-\s+/, '').trim()).filter(Boolean);
+      return '\n<ul style="margin:6px 0 10px 18px;padding:0;list-style:disc;color:#cbd5e1;font-size:13.5px">' + items.map(i => `<li style="margin-bottom:4px;line-height:1.55">${i}</li>`).join('') + '</ul>\n';
+    });
     // Quebras duplas viram paragrafos
-    const pars = h.split(/\n{2,}/).map(p => p.replace(/\n/g,' ').trim()).filter(Boolean);
-    return pars.map(p => `<p style="margin:0 0 8px;line-height:1.65;color:#cbd5e1;font-size:13.5px">${p}</p>`).join('');
+    const blocks = h.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+    return blocks.map(p => {
+      // Se ja é bloco HTML (div/ul), nao embrulha em <p>
+      if (p.startsWith('<div') || p.startsWith('<ul') || p.startsWith('<p')) return p;
+      return `<p style="margin:0 0 8px;line-height:1.65;color:#cbd5e1;font-size:13.5px">${p.replace(/\n/g,' ')}</p>`;
+    }).join('');
   }
 
   async function c360GenerateInsight(contatoNome) {
@@ -794,15 +811,15 @@
       </div>` : '';
     return `
       <div style="background:rgba(255,255,255,0.02);border:1px solid oklch(88% 0.018 80 / 0.3);border-radius:12px;padding:20px;margin-bottom:14px;position:relative">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:4px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <div style="width:32px;height:32px;border-radius:8px;background:oklch(88% 0.018 80 / 0.15);display:flex;align-items:center;justify-content:center;color:oklch(88% 0.018 80);font-size:16px">◉</div>
-            <div>
-              <div style="font-size:15px;font-weight:700;color:oklch(88% 0.018 80)">Análise de Comportamento</div>
-              <div style="font-size:11px;color:#64748b;margin-top:2px">${ins.modelo || 'IA'} · por ${escapeHtml(ins.user_nome || '—')}${isNewest ? ' · <span style="color:#22c55e;font-weight:600">◉ mais recente</span>' : ''}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+            <div style="width:32px;height:32px;border-radius:8px;background:oklch(88% 0.018 80 / 0.15);display:flex;align-items:center;justify-content:center;color:oklch(88% 0.018 80);font-size:16px;flex-shrink:0">◉</div>
+            <div style="min-width:0">
+              <div style="font-size:15px;font-weight:700;color:oklch(88% 0.018 80);text-align:left">Análise de Comportamento</div>
+              <div style="font-size:11px;color:#64748b;margin-top:2px;text-align:left">${ins.modelo || 'IA'} · por ${escapeHtml(ins.user_nome || '—')}${isNewest ? ' · <span style="color:#22c55e;font-weight:600">◉ mais recente</span>' : ''}</div>
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             <span style="font-size:11px;color:#64748b" title="${dataFull}">${dataStr}</span>
             <button onclick="c360DeleteInsight(${ins.id}, this)" title="Apagar insight" style="width:28px;height:28px;border-radius:6px;border:1px solid rgba(239,68,68,0.25);background:transparent;color:#ef4444;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center" onmouseover="this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.background='transparent'">🗑</button>
           </div>
