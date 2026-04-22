@@ -16142,6 +16142,25 @@ async function updateUserCargo(userId, novoCargo) {
 
 // ── ADMIN: grid de permissoes ──
 let _permData = [];
+// Grupos de seções (header → lista de secoes)
+const PERM_GROUPS = [
+  ['📊 Visão Geral', ['home','analytics','relatorio']],
+  ['💰 Vendas',      ['ecommerce','lojafisica','marketplaces','canaisvendas','comunidade','cliente360']],
+  ['🏦 Financeiro',  ['financeiro','projecoes','roi']],
+  ['📣 Marketing',   ['canaisaquisicao','campanhas','construtor','criativos','briefingvisual','influenciadores','provasocial']],
+  ['🎯 Inteligência',['personas','keywords','mercado','referencias','performance']],
+  ['✅ Produtividade',['tarefas','calendario']],
+  ['⚙️ Sistema',      ['apis']],
+  ['⚡ Ações Específicas', [
+    'calendario_criar','calendario_excluir',
+    'tarefas_criar','tarefas_excluir',
+    'briefing_criar','briefing_editar','briefing_excluir',
+    'brandkit_criar','brandkit_excluir',
+    'canal_aquisicao_criar','canal_aquisicao_editar','canal_aquisicao_excluir',
+    'criativo_criar','criativo_aprovar','criativo_publicar','criativo_excluir',
+  ]],
+];
+
 async function loadAdminPermissoes() {
   const container = document.getElementById('admin-perm-grid');
   if (!container) return;
@@ -16149,123 +16168,193 @@ async function loadAdminPermissoes() {
   _permData = data || [];
   if (!_permData.length) { container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3)">Nenhuma permissao configurada</div>'; return; }
 
-  const cargos = [...new Set(_permData.map(p => p.cargo))].filter(c => c !== 'admin');
-  let secoes = [...new Set(_permData.map(p => p.secao))].filter(s => s !== 'admin');
-  // Garantir que permissoes de ações existem
-  ['calendario_criar','calendario_excluir','tarefas_criar','tarefas_excluir','briefing_criar','briefing_editar','briefing_excluir','brandkit_criar','brandkit_excluir','canal_aquisicao_criar','canal_aquisicao_editar','canal_aquisicao_excluir','criativo_criar','criativo_aprovar','criativo_excluir','criativo_publicar'].forEach(s => { if (!secoes.includes(s)) secoes.push(s); });
-  const secaoLabels = {...VIEW_META,
-    calendario_criar: { title: '✏️ Criar Eventos (Calendário)' },
-    calendario_excluir: { title: '🗑 Excluir Eventos (Calendário)' },
-    tarefas_criar: { title: '✏️ Criar Tarefas (Kanban)' },
-    tarefas_excluir: { title: '🗑 Excluir Tarefas (Kanban)' },
-    briefing_criar: { title: '✏️ Criar Briefing (Briefing Visual)' },
-    briefing_editar: { title: '✏️ Editar Briefing (Briefing Visual)' },
-    briefing_excluir: { title: '🗑 Excluir Briefing (Briefing Visual)' },
-    brandkit_criar: { title: '✏️ Adicionar ao Brand Kit' },
-    brandkit_excluir: { title: '🗑 Remover do Brand Kit' },
-    canal_aquisicao_criar: { title: '✏️ Criar Canal (Canais de Aquisição)' },
-    canal_aquisicao_editar: { title: '✏️ Editar Canal (Canais de Aquisição)' },
-    canal_aquisicao_excluir: { title: '🗑 Excluir Canal (Canais de Aquisição)' },
-    criativo_criar: { title: '✏️ Enviar Arte / Criar Demanda (Criativos)' },
-    criativo_aprovar: { title: '✅ Aprovar/Reprovar Arte (Criativos)' },
-    criativo_publicar: { title: '🚀 Marcar como Publicado (Criativos)' },
-    criativo_excluir: { title: '🗑 Excluir Criativo (Criativos)' },
+  const cargos = [...new Set(_permData.map(p => p.cargo))].filter(c => c !== 'admin').sort();
+  // Todas seções conhecidas (dos grupos) + qualquer extra no banco
+  const secoesKnown = new Set(PERM_GROUPS.flatMap(g => g[1]));
+  const secoesExtra = [...new Set(_permData.map(p => p.secao))].filter(s => s !== 'admin' && !secoesKnown.has(s));
+  const secaoLabels = {
+    ...Object.fromEntries(Object.entries(VIEW_META).map(([k,v]) => [k, v.title])),
+    home: 'Dashboard',
+    calendario_criar: '✏️ Criar Eventos',
+    calendario_excluir: '🗑 Excluir Eventos',
+    tarefas_criar: '✏️ Criar Tarefas',
+    tarefas_excluir: '🗑 Excluir Tarefas',
+    briefing_criar: '✏️ Criar Briefing',
+    briefing_editar: '✏️ Editar Briefing',
+    briefing_excluir: '🗑 Excluir Briefing',
+    brandkit_criar: '✏️ Adicionar ao Brand Kit',
+    brandkit_excluir: '🗑 Remover do Brand Kit',
+    canal_aquisicao_criar: '✏️ Criar Canal',
+    canal_aquisicao_editar: '✏️ Editar Canal',
+    canal_aquisicao_excluir: '🗑 Excluir Canal',
+    criativo_criar: '✏️ Enviar Arte / Criar Demanda',
+    criativo_aprovar: '✅ Aprovar/Reprovar Arte',
+    criativo_publicar: '🚀 Marcar como Publicado',
+    criativo_excluir: '🗑 Excluir Criativo',
   };
-  const map = {};
-  _permData.forEach(p => { map[p.cargo+'_'+p.secao] = p; });
 
-  const isMobile = window.innerWidth <= 768;
-  if (isMobile) {
-    // ── MOBILE: dropdown de cargo + lista de seções ──
-    // State em memória pra não perder checks ao trocar de cargo
-    // Usa '||' como separador pra não confundir com underscores nos nomes
-    window._permState = {};
-    cargos.forEach(c => secoes.forEach(s => {
-      const p = map[c+'_'+s];
-      window._permState[c+'||'+s] = p ? !!p.permitido : true;
-    }));
-    const cargoOptions = cargos.map(c => `<option value="${c}">${CARGO_LABELS[c] || c}</option>`).join('');
-    container.innerHTML = `
-      <div style="margin-bottom:14px">
+  // State em memoria por cargo (pra nao perder ao trocar no dropdown)
+  // Por padrao tudo checado se nao tiver linha no banco
+  window._permState = {};
+  const allSecoes = [...PERM_GROUPS.flatMap(g => g[1]), ...secoesExtra];
+  const map = {};
+  _permData.forEach(p => { map[p.cargo+'||'+p.secao] = p; });
+  cargos.forEach(c => allSecoes.forEach(s => {
+    const p = map[c+'||'+s];
+    window._permState[c+'||'+s] = p ? !!p.permitido : true;
+  }));
+
+  const cargoOptions = cargos.map(c => `<option value="${c}">${CARGO_LABELS[c] || c}</option>`).join('');
+  container.innerHTML = `
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <div style="flex:1;min-width:220px">
         <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Cargo a editar</label>
         <select id="perm-cargo-selector" class="input" style="width:100%;margin-top:6px;font-size:13px" onchange="renderPermsForCargo(this.value)">${cargoOptions}</select>
       </div>
-      <div id="perm-cargo-list" style="display:flex;flex-direction:column;gap:4px"></div>
-      <!-- Inputs ocultos com TODO o estado (savePermissoes lê daqui) -->
-      <div id="perm-hidden-state" style="display:none"></div>
-    `;
-    window.renderPermsForCargo = function(cargo) {
-      // Antes de trocar, captura checks visíveis de volta pro state
-      document.querySelectorAll('#perm-cargo-list input[type="checkbox"]').forEach(ch => {
-        window._permState[ch.dataset.cargo+'||'+ch.dataset.secao] = ch.checked;
-      });
-      const list = document.getElementById('perm-cargo-list');
-      if (!list) return;
-      list.innerHTML = secoes.map(s => {
-        const checked = window._permState[cargo+'||'+s] !== false;
-        const label = secaoLabels[s]?.title || s;
-        return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--white);cursor:pointer;font-size:12.5px;line-height:1.3">
-          <input type="checkbox" ${checked?'checked':''} data-cargo="${cargo}" data-secao="${s}" style="cursor:pointer;flex-shrink:0;width:18px;height:18px" onchange="window._permState['${cargo}||${s}']=this.checked">
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <button class="btn btn-ghost btn-sm" type="button" onclick="togglePermAll(true)">✓ Marcar tudo</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="togglePermAll(false)">✕ Desmarcar tudo</button>
+      </div>
+    </div>
+    <div id="perm-cargo-groups" style="display:flex;flex-direction:column;gap:14px"></div>
+  `;
+
+  // Helpers globais (disponíveis nos onclick do HTML gerado)
+  window._permGroups = PERM_GROUPS;
+  window._permAllSecoes = allSecoes;
+  window._permSecoesExtra = secoesExtra;
+  window._permSecaoLabels = secaoLabels;
+
+  window.renderPermsForCargo = function(cargo) {
+    // Guarda mudanças do cargo visível anterior antes de trocar
+    document.querySelectorAll('#perm-cargo-groups input[type="checkbox"][data-cargo]').forEach(ch => {
+      window._permState[ch.dataset.cargo+'||'+ch.dataset.secao] = ch.checked;
+    });
+    const host = document.getElementById('perm-cargo-groups');
+    if (!host) return;
+    const toggleRow = (s) => {
+      const checked = window._permState[cargo+'||'+s] !== false;
+      const label = window._permSecaoLabels[s] || s;
+      return `
+        <label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--white);cursor:pointer;font-size:13px;line-height:1.3">
           <span>${label}</span>
+          <input type="checkbox" ${checked?'checked':''} data-cargo="${cargo}" data-secao="${s}"
+            style="cursor:pointer;width:42px;height:22px;appearance:none;-webkit-appearance:none;background:${checked?'var(--black)':'var(--surface3)'};border-radius:22px;position:relative;transition:background .18s ease;outline:none;flex-shrink:0;border:1px solid var(--border)"
+            class="perm-switch"
+            onchange="window._permState['${cargo}||${s}']=this.checked;this.style.background=this.checked?'var(--black)':'var(--surface3)';updatePermDirtyBadge()">
         </label>`;
-      }).join('');
-      // Regenera inputs ocultos com TODO o estado (savePermissoes pega esses)
-      const hidden = document.getElementById('perm-hidden-state');
-      if (hidden) {
-        hidden.innerHTML = Object.entries(window._permState)
-          .filter(([k,v]) => !k.startsWith(cargo+'||')) // outros cargos
-          .map(([k,v]) => {
-            const [c, s] = k.split('||');
-            return `<input type="checkbox" ${v?'checked':''} data-cargo="${c}" data-secao="${s}">`;
-          }).join('');
-      }
     };
-    renderPermsForCargo(cargos[0]);
-  } else {
-    // ── DESKTOP: tabela original ──
-    container.innerHTML = `<table style="width:100%;font-size:11px"><thead><tr><th style="text-align:left;min-width:120px">Secao</th>
-      ${cargos.map(c => `<th style="text-align:center;padding:8px 6px;font-size:10px;white-space:nowrap">${CARGO_LABELS[c]||c}</th>`).join('')}
-    </tr></thead><tbody>
-      ${secoes.map(s => `<tr>
-        <td class="em">${secaoLabels[s]?.title || s}</td>
-        ${cargos.map(c => {
-          const p = map[c+'_'+s];
-          const checked = p ? p.permitido : true;
-          return `<td style="text-align:center"><input type="checkbox" ${checked?'checked':''} data-cargo="${c}" data-secao="${s}" style="cursor:pointer"></td>`;
-        }).join('')}
-      </tr>`).join('')}
-    </tbody></table>`;
-  }
+    let html = '';
+    for (const [titulo, lista] of window._permGroups) {
+      const rowsHtml = lista.map(toggleRow).join('');
+      html += `
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 4px">
+            <div style="font-weight:700;font-size:13px">${titulo}</div>
+            <div style="display:flex;gap:6px">
+              <button type="button" class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 8px" onclick="toggleGroupPerms('${titulo.replace(/'/g,"\\'")}',true)">✓</button>
+              <button type="button" class="btn btn-ghost btn-sm" style="font-size:10.5px;padding:3px 8px" onclick="toggleGroupPerms('${titulo.replace(/'/g,"\\'")}',false)">✕</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px">${rowsHtml}</div>
+        </div>`;
+    }
+    // Seções extras (não mapeadas em PERM_GROUPS)
+    if (window._permSecoesExtra.length) {
+      const rowsHtml = window._permSecoesExtra.map(toggleRow).join('');
+      html += `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:10px;padding:0 4px">📌 Outros</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px">${rowsHtml}</div>
+      </div>`;
+    }
+    host.innerHTML = html;
+    updatePermDirtyBadge();
+  };
+
+  // Marcar/desmarcar TODAS as seções do cargo atual
+  window.togglePermAll = function(val) {
+    const cargo = document.getElementById('perm-cargo-selector')?.value;
+    if (!cargo) return;
+    document.querySelectorAll('#perm-cargo-groups input[type="checkbox"][data-cargo="'+cargo+'"]').forEach(ch => {
+      ch.checked = val;
+      ch.style.background = val ? 'var(--black)' : 'var(--surface3)';
+      window._permState[ch.dataset.cargo+'||'+ch.dataset.secao] = val;
+    });
+    updatePermDirtyBadge();
+  };
+  // Marcar/desmarcar por grupo
+  window.toggleGroupPerms = function(titulo, val) {
+    const group = window._permGroups.find(g => g[0] === titulo);
+    if (!group) return;
+    const cargo = document.getElementById('perm-cargo-selector')?.value;
+    for (const s of group[1]) {
+      window._permState[cargo+'||'+s] = val;
+    }
+    renderPermsForCargo(cargo);
+  };
+
+  // Badge "alterações pendentes"
+  window.updatePermDirtyBadge = function() {
+    const btn = document.querySelector('#admin-permissoes .btn-primary');
+    if (!btn) return;
+    // Compara state atual contra banco (_permData)
+    let dirty = 0;
+    for (const key in window._permState) {
+      const [c, s] = key.split('||');
+      const row = _permData.find(r => r.cargo === c && r.secao === s);
+      const salvo = row ? !!row.permitido : true;
+      if (salvo !== window._permState[key]) dirty++;
+    }
+    btn.textContent = dirty > 0 ? `Salvar (${dirty} alteração${dirty>1?'ões':''})` : 'Salvar Alterações';
+    btn.style.opacity = dirty > 0 ? '1' : '0.7';
+  };
+
+  renderPermsForCargo(cargos[0]);
 }
 
 async function savePermissoes() {
   const btn = document.querySelector('#admin-permissoes .btn-primary');
   if (btn) { btn.textContent = 'Salvando...'; btn.disabled = true; }
 
-  const checks = document.querySelectorAll('#admin-perm-grid input[type="checkbox"]');
-  const updates = [];
-  checks.forEach(ch => {
-    updates.push({ cargo: ch.dataset.cargo, secao: ch.dataset.secao, permitido: ch.checked });
+  // Antes de salvar, captura mudanças do cargo visível atual de volta pro state
+  document.querySelectorAll('#perm-cargo-groups input[type="checkbox"][data-cargo]').forEach(ch => {
+    window._permState[ch.dataset.cargo+'||'+ch.dataset.secao] = ch.checked;
   });
 
-  // Salvar tudo de uma vez em batch
+  // Monta upsert APENAS do que mudou vs banco (reduz trafego)
+  const updates = [];
+  for (const key in window._permState) {
+    const [cargo, secao] = key.split('||');
+    const valor = window._permState[key];
+    const row = _permData.find(r => r.cargo === cargo && r.secao === secao);
+    const salvo = row ? !!row.permitido : true;
+    if (!row || salvo !== valor) {
+      updates.push({ cargo, secao, permitido: valor });
+    }
+  }
+
+  if (updates.length === 0) {
+    if (btn) { btn.textContent = 'Salvar Alterações'; btn.disabled = false; }
+    if (typeof showToast === 'function') showToast('Nada pra salvar — sem alterações');
+    return;
+  }
+
   let erros = 0;
+  let erroDetalhe = '';
   for (let i = 0; i < updates.length; i += 50) {
     const batch = updates.slice(i, i + 50);
     const { error } = await sb.from('cargo_permissoes').upsert(batch, { onConflict: 'cargo,secao' });
-    if (error) { console.error('Perm save error:', error.message); erros++; }
+    if (error) { console.error('[perm save] erro batch', i, error); erros++; erroDetalhe = error.message; }
   }
 
-  if (btn) { btn.textContent = 'Salvar Alteracoes'; btn.disabled = false; }
+  if (btn) { btn.textContent = 'Salvar Alterações'; btn.disabled = false; }
 
   if (erros === 0) {
     logActivity('alterou_permissoes', updates.length + ' permissoes atualizadas', 'admin');
-    if (typeof showToast === 'function') showToast('Permissoes salvas com sucesso!');
+    if (typeof showToast === 'function') showToast(`✓ ${updates.length} permissão${updates.length>1?'ões':''} salva${updates.length>1?'s':''}`);
   } else {
-    if (typeof showToast === 'function') showToast('Erro ao salvar algumas permissoes');
+    if (typeof showToast === 'function') showToast('⚠ Erro: ' + (erroDetalhe || 'alguns lotes falharam'));
   }
-
-  // Recarregar para confirmar
   setTimeout(() => loadAdminPermissoes(), 500);
 }
 
