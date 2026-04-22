@@ -1147,6 +1147,34 @@
     await openClienteFromSpec(e.data.spec);
   });
 
+  // ─── Realtime: sincroniza notas entre usuarios ───
+  function subscribeRealtimeNotas() {
+    if (state.notasChannel) return; // ja subscribed
+    state.notasChannel = state.sb
+      .channel('realtime-cliente-notas')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cliente_notas' }, async (payload) => {
+        console.log('[c360] realtime notas:', payload.eventType, payload);
+        // Se o cliente atual está aberto e a mudanca eh dele, refresca a aba
+        const page = document.getElementById('page-cliente-1');
+        const nomeEl = page?.querySelector('h2');
+        const nomeAtual = nomeEl?.textContent?.trim();
+        if (!nomeAtual) return;
+        const row = payload.new || payload.old;
+        if (!row) return;
+        if (row.empresa !== state.empresa || row.contato_nome !== nomeAtual) return;
+        // Reset data-loaded-for pra forcar re-render
+        const panel = document.getElementById('c360-tabpanel-notas');
+        if (panel) panel.removeAttribute('data-loaded-for');
+        // Se a aba Notas esta visivel, re-renderiza na hora
+        const tabBtn = document.getElementById('c360-tab-notas');
+        const ativa = tabBtn?.style.borderBottomColor && tabBtn.style.borderBottomColor !== 'transparent';
+        if (ativa || (panel && panel.style.display !== 'none')) {
+          await renderNotasTab(nomeAtual);
+        }
+      })
+      .subscribe();
+  }
+
   // Apagar insight
   window.c360DeleteInsight = async function(id, btn) {
     if (!confirm('Apagar esta análise?')) return;
@@ -1357,6 +1385,8 @@
     wireSearchAndFilters();
     // Paralelo: lista + dashboard + mencionaveis (preload)
     await Promise.all([loadClientes(), loadDashboardResumo(), loadMencionaveis()]);
+    // Subscribe realtime pra notas
+    subscribeRealtimeNotas();
     // Se veio deep-link via sessionStorage, abre o cliente/aba certa
     await checkDeepLink();
   }
