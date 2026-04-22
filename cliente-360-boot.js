@@ -769,14 +769,17 @@
       </button>`;
 
     // 5 métricas principais
-    const metricCard = (icon, label, valor, sub, iconColor) => `
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px">
+    const metricCard = (icon, label, valor, sub, iconColor, fontSize) => {
+      const fs = fontSize || 22;
+      return `
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;min-width:0">
         <div style="font-size:13px;color:#94a3b8;display:flex;align-items:center;gap:6px;margin-bottom:10px">
           <span style="color:${iconColor}">${icon}</span> ${label}
         </div>
-        <div style="font-size:24px;font-weight:700;color:#f1f5f9">${valor}</div>
+        <div style="font-size:${fs}px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums" title="${escapeHtml(String(valor))}">${valor}</div>
         ${sub ? `<div style="font-size:11px;color:#64748b;margin-top:4px">${sub}</div>` : ''}
       </div>`;
+    };
 
     page.innerHTML = `
 <div style="padding:24px;max-width:1400px;margin:0 auto">
@@ -814,11 +817,11 @@
   <!-- MÉTRICAS SECUNDÁRIAS -->
   <div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
-      ${metricCard('$', 'Faturamento Total', fmtBRL(r.faturamento_total), 'Soma geral da base', '#22c55e')}
-      ${metricCard('↗', 'Ticket Médio', fmtBRL(r.ticket_medio_global), 'Média por pedido', '#60a5fa')}
-      ${metricCard('⏰', 'Ciclo Médio', Math.round(Number(r.ciclo_medio_aprox)) + ' dias', 'Entre compras (recorrentes)', '#a78bfa')}
-      ${metricCard('↻', 'Taxa de Recompra', Number(r.taxa_recompra).toFixed(1) + '%', 'Clientes com 2+ pedidos', '#fbbf24')}
-      ${metricCard('★', 'Clientes Fiéis', fmtNum(r.fieis), '5+ pedidos', '#f472b6')}
+      ${metricCard('$', 'Faturamento Total', fmtBRL(r.faturamento_total), 'Soma geral da base', '#22c55e', 16)}
+      ${metricCard('↗', 'Ticket Médio', fmtBRL(r.ticket_medio_global), 'Média por pedido', '#60a5fa', 18)}
+      ${metricCard('⏰', 'Ciclo Médio', Math.round(Number(r.ciclo_medio_aprox)) + ' dias', 'Entre compras (recorrentes)', '#a78bfa', 20)}
+      ${metricCard('↻', 'Taxa de Recompra', Number(r.taxa_recompra).toFixed(1) + '%', 'Clientes com 2+ pedidos', '#fbbf24', 20)}
+      ${metricCard('★', 'Clientes Fiéis', fmtNum(r.fieis), '5+ pedidos', '#f472b6', 22)}
     </div>
   </div>
 </div>`;
