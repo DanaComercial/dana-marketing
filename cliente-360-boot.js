@@ -88,9 +88,8 @@
     state.empresa = emp;
     localStorage.setItem('c360_empresa', emp);
     updateEmpresaToggleUI();
-    await loadClientes();
     state.page = 0;
-    // Commit 3 vai atualizar o dashboard também
+    await Promise.all([loadClientes(), loadDashboardResumo()]);
   };
 
   // Segmento -> badge style
@@ -727,6 +726,138 @@
     if (typeof showToast === 'function') showToast('Insight IA será implementado na Fase 3', 'info');
   };
 
+  // ─── Dashboard principal (Commit 3) ───
+  const dashCache = { matriz: null, bc: null };
+
+  async function loadDashboardResumo() {
+    try {
+      // Cache 5min
+      const cached = dashCache[state.empresa];
+      if (cached && Date.now() - cached.ts < CACHE_TTL) {
+        renderDashboard(cached.data);
+        return;
+      }
+      const { data, error } = await state.sb
+        .from('cliente_scoring_resumo')
+        .select('*')
+        .eq('empresa', state.empresa)
+        .maybeSingle();
+      if (error || !data) {
+        console.warn('[c360] dash resumo erro:', error);
+        return;
+      }
+      dashCache[state.empresa] = { data, ts: Date.now() };
+      renderDashboard(data);
+    } catch (e) { console.error('[c360] dash exception:', e); }
+  }
+
+  function renderDashboard(r) {
+    const page = document.getElementById('page-dashboard');
+    if (!page) return;
+
+    // 4 alertas inteligentes
+    const alertCard = (icon, label, sub, n, color, filterFn) => `
+      <button type="button" onclick="${filterFn}" style="background:rgba(255,255,255,0.03);border:1px solid ${color};border-radius:12px;padding:16px;text-align:left;cursor:pointer;transition:transform 0.15s;font-family:inherit" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div style="color:${color.replace('0.4','1').replace('rgba','rgb').replace(/,\d\.?\d*\)/,')')};font-size:16px">${icon}</div>
+          <div>
+            <div style="font-size:22px;font-weight:700;color:#f1f5f9">${fmtNum(n)}</div>
+            <div style="font-size:13px;color:#f1f5f9;font-weight:500">${label}</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:#64748b">${sub}</div>
+      </button>`;
+
+    // 5 métricas principais
+    const metricCard = (icon, label, valor, sub, iconColor) => `
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px">
+        <div style="font-size:13px;color:#94a3b8;display:flex;align-items:center;gap:6px;margin-bottom:10px">
+          <span style="color:${iconColor}">${icon}</span> ${label}
+        </div>
+        <div style="font-size:24px;font-weight:700;color:#f1f5f9">${valor}</div>
+        ${sub ? `<div style="font-size:11px;color:#64748b;margin-top:4px">${sub}</div>` : ''}
+      </div>`;
+
+    page.innerHTML = `
+<div style="padding:24px;max-width:1400px;margin:0 auto">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px">
+    <div>
+      <h1 style="margin:0 0 6px;font-size:28px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">Dashboard</h1>
+      <div style="font-size:13px;color:#94a3b8">Visão executiva do relacionamento com clientes — ${EMPRESA_LABELS[state.empresa] || state.empresa}</div>
+    </div>
+    <button onclick="window.c360ReloadDashboard()" class="c360-reload-btn" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:#e2e8f0;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px">🔄 Atualizar</button>
+  </div>
+
+  <!-- ALERTAS INTELIGENTES -->
+  <div style="margin-bottom:24px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.5);margin-bottom:12px">◉ Alertas Inteligentes</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+      ${alertCard('↗', 'prontos para recompra', 'Score acima de 80 e sem comprar há 30+ dias', r.prontos_recompra, 'rgba(251,191,36,0.4)', "window.c360FilterAndGo('prontos_recompra')")}
+      ${alertCard('◆', 'VIPs sem comprar', 'Clientes VIP há mais de 120 dias', r.vips_sem_comprar, 'rgba(167,139,250,0.4)', "window.c360FilterAndGo('vips_sem_comprar')")}
+      ${alertCard('👥', 'novos sem 2ª compra', 'Primeira compra há mais de 30 dias', r.novos_sem_2a, 'rgba(96,165,250,0.4)', "window.c360FilterAndGo('novos_sem_2a')")}
+      ${alertCard('🎯', 'com alto potencial', '2+ compras e score acima de 70', r.alto_potencial, 'rgba(34,197,94,0.4)', "window.c360FilterAndGo('alto_potencial')")}
+    </div>
+  </div>
+
+  <!-- MÉTRICAS PRINCIPAIS -->
+  <div style="margin-bottom:24px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.5);margin-bottom:12px">📈 Métricas Principais</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+      ${metricCard('👥', 'Total de Clientes', fmtNum(r.total_clientes), '', '#94a3b8')}
+      ${metricCard('✓', 'Clientes Ativos', fmtNum(r.clientes_ativos), 'Excluindo perdidos', '#22c55e')}
+      ${metricCard('♔', 'Clientes VIP', fmtNum(r.vip_count), 'Alto valor e recorrência', '#fbbf24')}
+      ${metricCard('⚠', 'Em Risco', fmtNum(r.em_risco), 'Passaram do ciclo médio', '#f97316')}
+      ${metricCard('✕', 'Perdidos', fmtNum(r.perdidos), 'Sem comprar há muito tempo', '#ef4444')}
+    </div>
+  </div>
+
+  <!-- MÉTRICAS SECUNDÁRIAS -->
+  <div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+      ${metricCard('$', 'Faturamento Total', fmtBRL(r.faturamento_total), 'Soma geral da base', '#22c55e')}
+      ${metricCard('↗', 'Ticket Médio', fmtBRL(r.ticket_medio_global), 'Média por pedido', '#60a5fa')}
+      ${metricCard('⏰', 'Ciclo Médio', Math.round(Number(r.ciclo_medio_aprox)) + ' dias', 'Entre compras (recorrentes)', '#a78bfa')}
+      ${metricCard('↻', 'Taxa de Recompra', Number(r.taxa_recompra).toFixed(1) + '%', 'Clientes com 2+ pedidos', '#fbbf24')}
+      ${metricCard('★', 'Clientes Fiéis', fmtNum(r.fieis), '5+ pedidos', '#f472b6')}
+    </div>
+  </div>
+</div>`;
+  }
+
+  // Clicar num alerta → filtra lista e muda de aba
+  window.c360FilterAndGo = function(tipo) {
+    // Reset filtros
+    state.segmentFilter = 'todos';
+    state.ufFilter = 'todos';
+    state.searchQuery = '';
+    const selSeg = document.getElementById('c360-seg-select');
+    const selUf = document.getElementById('c360-uf-select');
+    if (selSeg) selSeg.value = 'todos';
+    if (selUf) selUf.value = 'todos';
+    const searchInp = document.querySelector('#page-clientes input[placeholder*="Buscar"]');
+    if (searchInp) searchInp.value = '';
+
+    // Filtra client-side baseado no tipo do alerta
+    const filters = {
+      prontos_recompra: c => (c.score||0) >= 80 && (c.dias_sem_compra||0) >= 30,
+      vips_sem_comprar: c => c.segmento === 'VIP' && (c.dias_sem_compra||0) > 120,
+      novos_sem_2a: c => (c.total_pedidos||0) === 1 && (c.dias_sem_compra||0) > 30,
+      alto_potencial: c => (c.total_pedidos||0) >= 2 && (c.score||0) >= 70 && (c.dias_sem_compra||0) < 90,
+    };
+    const filtro = filters[tipo];
+    if (!filtro) return;
+    state.filtered = state.clientes.filter(filtro);
+    state.page = 0;
+    if (typeof showPage === 'function') showPage('clientes');
+    renderList();
+  };
+
+  window.c360ReloadDashboard = async function() {
+    dashCache[state.empresa] = null;
+    await loadDashboardResumo();
+    if (typeof showToast === 'function') showToast('Métricas atualizadas', 'success');
+  };
+
   // ─── Boot ───
   async function boot() {
     console.log('[c360] Boot iniciado · empresa=' + state.empresa);
@@ -734,7 +865,8 @@
     const authOK = await initSupabase();
     if (!authOK) return;
     wireSearchAndFilters();
-    await loadClientes();
+    // Paralelo: lista + dashboard
+    await Promise.all([loadClientes(), loadDashboardResumo()]);
   }
 
   if (document.readyState === 'loading') {
