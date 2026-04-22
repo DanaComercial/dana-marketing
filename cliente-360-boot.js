@@ -1716,11 +1716,23 @@
                   <option value="F" ${f.tipo_pessoa==='F'?'selected':''}>Pessoa Física</option>
                 </select>
               </div>
-              <div>
-                <label style="font-size:11px;color:#94a3b8">UFs (múltiplo)</label>
-                <select id="f-ufs" multiple style="width:100%;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgb(20,20,25);color:#e2e8f0;font-size:12.5px;margin-top:2px;color-scheme:dark;min-height:38px;max-height:80px;box-sizing:border-box">
-                  ${ufs.map(u => `<option value="${u}" ${(f.ufs||[]).includes(u)?'selected':''}>${u}</option>`).join('')}
-                </select>
+              <div style="grid-column:1/-1">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                  <label style="font-size:11px;color:#94a3b8">Estados (UF)</label>
+                  <div style="display:flex;gap:6px">
+                    <button type="button" onclick="c360UfToggleAll(true)" style="padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:#94a3b8;cursor:pointer;font-size:10.5px">Todos</button>
+                    <button type="button" onclick="c360UfToggleAll(false)" style="padding:2px 8px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:#94a3b8;cursor:pointer;font-size:10.5px">Limpar</button>
+                  </div>
+                </div>
+                <div id="f-ufs-chips" style="display:flex;flex-wrap:wrap;gap:5px;max-height:120px;overflow-y:auto;padding:6px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;background:rgba(255,255,255,0.02)">
+                  ${ufs.map(u => {
+                    const count = state.clientes.filter(c => c.uf === u).length;
+                    const sel = (f.ufs||[]).includes(u);
+                    return `<button type="button" data-uf="${u}" data-sel="${sel?'1':'0'}" onclick="c360UfToggle('${u}', this)" style="padding:4px 9px;border-radius:6px;border:1px solid ${sel?'oklch(88% 0.018 80 / 0.6)':'rgba(255,255,255,0.1)'};background:${sel?'oklch(88% 0.018 80 / 0.15)':'rgba(255,255,255,0.03)'};color:${sel?'oklch(88% 0.018 80)':'#cbd5e1'};cursor:pointer;font-size:11.5px;font-weight:${sel?'600':'500'};transition:all 0.15s">${u} <span style="opacity:0.6;font-size:10px">${count}</span></button>`;
+                  }).join('')}
+                  ${ufs.length === 0 ? '<div style="padding:10px;color:#64748b;font-size:11.5px">Nenhum UF detectado nesta empresa.</div>' : ''}
+                </div>
+                <div id="f-ufs-count" style="font-size:10.5px;color:#64748b;margin-top:4px">${(f.ufs||[]).length > 0 ? (f.ufs||[]).length + ' UF(s) selecionado(s)' : 'Todos os estados'}</div>
               </div>
               <div style="grid-column:1/-1">
                 <label style="font-size:11px;color:#94a3b8">Segmentos RFM (múltiplo)</label>
@@ -1794,10 +1806,50 @@
     setTimeout(updatePreview, 30);
   }
 
+  // Toggle individual de UF via chip
+  window.c360UfToggle = function(uf, btn) {
+    const selecionado = btn.getAttribute('data-sel') === '1';
+    const novoEstado = !selecionado;
+    btn.setAttribute('data-sel', novoEstado ? '1' : '0');
+    btn.style.border = '1px solid ' + (novoEstado ? 'oklch(88% 0.018 80 / 0.6)' : 'rgba(255,255,255,0.1)');
+    btn.style.background = novoEstado ? 'oklch(88% 0.018 80 / 0.15)' : 'rgba(255,255,255,0.03)';
+    btn.style.color = novoEstado ? 'oklch(88% 0.018 80)' : '#cbd5e1';
+    btn.style.fontWeight = novoEstado ? '600' : '500';
+    c360UpdateUfPreview();
+  };
+
+  // Toggle todos os UFs
+  window.c360UfToggleAll = function(valor) {
+    document.querySelectorAll('#f-ufs-chips button[data-uf]').forEach(btn => {
+      btn.setAttribute('data-sel', valor ? '1' : '0');
+      btn.style.border = '1px solid ' + (valor ? 'oklch(88% 0.018 80 / 0.6)' : 'rgba(255,255,255,0.1)');
+      btn.style.background = valor ? 'oklch(88% 0.018 80 / 0.15)' : 'rgba(255,255,255,0.03)';
+      btn.style.color = valor ? 'oklch(88% 0.018 80)' : '#cbd5e1';
+      btn.style.fontWeight = valor ? '600' : '500';
+    });
+    c360UpdateUfPreview();
+  };
+
+  function c360UpdateUfPreview() {
+    const sel = [...document.querySelectorAll('#f-ufs-chips button[data-sel="1"]')].length;
+    const total = [...document.querySelectorAll('#f-ufs-chips button[data-uf]')].length;
+    const el = document.getElementById('f-ufs-count');
+    if (el) el.textContent = sel === 0 ? 'Todos os estados' : `${sel} de ${total} UF(s) selecionado(s)`;
+    // Dispara preview de count do segmento
+    const modal = document.getElementById('c360-seg-modal');
+    if (modal) {
+      const filtros = coletarFiltrosModal();
+      const n = aplicarFiltrosSegmento(state.clientes, filtros).length;
+      const prev = document.getElementById('seg-preview-count');
+      if (prev) prev.textContent = fmtNum(n);
+    }
+  }
+
   function coletarFiltrosModal() {
     const tp = document.getElementById('f-tipo')?.value;
-    const ufsEl = document.getElementById('f-ufs');
-    const ufs = ufsEl ? [...ufsEl.selectedOptions].map(o => o.value) : [];
+    // UFs: coleta dos chips selecionados (data-sel="1")
+    const ufs = [...document.querySelectorAll('#f-ufs-chips button[data-sel="1"]')]
+      .map(b => b.getAttribute('data-uf'));
     const segs = [...document.querySelectorAll('#f-segs input:checked')].map(i => i.value);
     const num = (id) => {
       const v = document.getElementById(id)?.value;
