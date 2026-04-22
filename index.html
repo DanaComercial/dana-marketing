@@ -2810,37 +2810,8 @@ select.input { cursor: pointer; }
   <!-- Canais e Top produtos -->
   <div class="g3">
     <div class="card" id="card-depositos-matriz">
-      <div class="card-header"><div><div class="card-title">Depósitos Bling · Matriz</div><div class="card-sub">6 depósitos ativos da conta matriz</div></div></div>
-      <div class="sparkline-row">
-        <div class="sparkline-label"><div class="sparkline-name">Geral - Fábrica Dhom</div><div class="sparkline-sub">Depósito padrão principal</div></div>
-        <div style="flex:1"><div class="prog-bar" style="width:100%"><div class="prog-fill" style="width:100%"></div></div></div>
-        <div class="sparkline-val">Padrão</div>
-        <div class="sparkline-change up">Ativo</div>
-      </div>
-      <div class="sparkline-row">
-        <div class="sparkline-label"><div class="sparkline-name">Donare Home Ltda</div><div class="sparkline-sub">Depósito Donare</div></div>
-        <div style="flex:1"><div class="prog-bar" style="width:100%"><div class="prog-fill" style="width:50%"></div></div></div>
-        <div class="sparkline-val">Ativo</div>
-        <div class="sparkline-change up">Ativo</div>
-      </div>
-      <div class="sparkline-row">
-        <div class="sparkline-label"><div class="sparkline-name">Ducato</div><div class="sparkline-sub">Depósito Ducato</div></div>
-        <div style="flex:1"><div class="prog-bar" style="width:100%"><div class="prog-fill" style="width:40%"></div></div></div>
-        <div class="sparkline-val">Ativo</div>
-        <div class="sparkline-change up">Ativo</div>
-      </div>
-      <div class="sparkline-row">
-        <div class="sparkline-label"><div class="sparkline-name">Magalu Fulfillment</div><div class="sparkline-sub">2 depósitos fulfillment Magalu</div></div>
-        <div style="flex:1"><div class="prog-bar" style="width:100%"><div class="prog-fill" style="width:25%"></div></div></div>
-        <div class="sparkline-val">2 deps</div>
-        <div class="sparkline-change up">Ativo</div>
-      </div>
-      <div class="sparkline-row">
-        <div class="sparkline-label"><div class="sparkline-name">Marcia - Vend. Externa</div><div class="sparkline-sub">Vendedora externa</div></div>
-        <div style="flex:1"><div class="prog-bar" style="width:100%"><div class="prog-fill" style="width:15%"></div></div></div>
-        <div class="sparkline-val">Externo</div>
-        <div class="sparkline-change up">Ativo</div>
-      </div>
+      <div class="card-header"><div><div class="card-title" id="depositos-titulo">Depósitos Bling</div><div class="card-sub" id="depositos-sub">Depósitos ativos</div></div></div>
+      <div id="depositos-lista"></div>
     </div>
 
     <div class="card">
@@ -17633,12 +17604,60 @@ function atualizarBotaoEmpresa() {
   if (ico) ico.style.background = EMPRESA_COLORS[e] || EMPRESA_COLORS.todas;
 }
 
+// Depósitos Bling por empresa (hardcoded, são informativos)
+const DEPOSITOS_POR_EMPRESA = {
+  matriz: [
+    { nome: 'Geral - Fábrica Dhom', sub: 'Depósito padrão principal', val: 'Padrão', bar: 100 },
+    { nome: 'Donare Home Ltda',      sub: 'Depósito Donare',           val: 'Ativo',  bar: 50 },
+    { nome: 'Ducato',                sub: 'Depósito Ducato',           val: 'Ativo',  bar: 40 },
+    { nome: 'Magalu Fulfillment',    sub: '2 depósitos fulfillment Magalu', val: '2 deps', bar: 25 },
+    { nome: 'Marcia - Vend. Externa', sub: 'Vendedora externa',        val: 'Externo', bar: 15 },
+  ],
+  bc: [
+    { nome: 'Geral',                 sub: 'Depósito único da loja BC', val: 'Padrão', bar: 100 },
+  ],
+};
+
 function atualizarVisibilidadePorEmpresa() {
-  // Elementos que só fazem sentido pra matriz (esconder quando filtro = bc)
   const e = empresaAtual();
-  const ehBC = e === 'bc';
-  const cardDep = document.getElementById('card-depositos-matriz');
-  if (cardDep) cardDep.style.display = ehBC ? 'none' : '';
+  const card = document.getElementById('card-depositos-matriz');
+  const titulo = document.getElementById('depositos-titulo');
+  const sub = document.getElementById('depositos-sub');
+  const lista = document.getElementById('depositos-lista');
+  if (!lista) return;
+
+  if (e === 'todas') {
+    // Todas: mostra todos os depósitos da matriz + BC agrupados
+    const todos = [
+      ...DEPOSITOS_POR_EMPRESA.matriz.map(d => ({ ...d, emp: 'Matriz' })),
+      ...DEPOSITOS_POR_EMPRESA.bc.map(d => ({ ...d, emp: 'BC' })),
+    ];
+    if (card) card.style.display = '';
+    if (titulo) titulo.textContent = 'Depósitos Bling · Todas';
+    if (sub) sub.textContent = `${todos.length} depósitos ativos (matriz + BC)`;
+    lista.innerHTML = todos.map(d => `
+      <div class="sparkline-row">
+        <div class="sparkline-label"><div class="sparkline-name">${d.nome} <span style="font-size:10px;color:var(--text3);font-weight:600">· ${d.emp}</span></div><div class="sparkline-sub">${d.sub}</div></div>
+        <div style="flex:1"><div class="prog-bar" style="width:100%"><div class="prog-fill" style="width:${d.bar}%"></div></div></div>
+        <div class="sparkline-val">${d.val}</div>
+        <div class="sparkline-change up">Ativo</div>
+      </div>
+    `).join('');
+    return;
+  }
+
+  const deps = DEPOSITOS_POR_EMPRESA[e] || [];
+  if (card) card.style.display = '';
+  if (titulo) titulo.textContent = 'Depósitos Bling · ' + (e === 'matriz' ? 'Matriz' : 'BC');
+  if (sub) sub.textContent = deps.length + ' depósito' + (deps.length !== 1 ? 's' : '') + ' ativo' + (deps.length !== 1 ? 's' : '');
+  lista.innerHTML = deps.map(d => `
+    <div class="sparkline-row">
+      <div class="sparkline-label"><div class="sparkline-name">${d.nome}</div><div class="sparkline-sub">${d.sub}</div></div>
+      <div style="flex:1"><div class="prog-bar" style="width:100%"><div class="prog-fill" style="width:${d.bar}%"></div></div></div>
+      <div class="sparkline-val">${d.val}</div>
+      <div class="sparkline-change up">Ativo</div>
+    </div>
+  `).join('');
 }
 
 function recarregarTudoPorEmpresa() {
