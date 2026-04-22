@@ -9194,11 +9194,13 @@ function go(el, viewId) {
 }
 
 // ── CLIENTE 360 · lazy-load do iframe com contexto da empresa ──
+// Cache-busting: cada sessao do DMS pega uma versao nova do cliente-360.html
+const CLIENTE360_VERSION = Date.now();
 function loadCliente360() {
   const iframe = document.getElementById('cliente360-iframe');
   if (!iframe) return;
   const empresa = (typeof empresaAtual === 'function' ? empresaAtual() : 'todas') || 'todas';
-  const targetSrc = './cliente-360.html?empresa=' + encodeURIComponent(empresa);
+  const targetSrc = `./cliente-360.html?empresa=${encodeURIComponent(empresa)}&v=${CLIENTE360_VERSION}`;
   // Só recarrega se mudou (evita reload desnecessário)
   if (iframe.getAttribute('data-loaded-empresa') !== empresa) {
     iframe.src = targetSrc;
