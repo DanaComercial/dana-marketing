@@ -17681,13 +17681,16 @@ async function carregarTopProdutosDash() {
   }
 }
 
-function recarregarTudoPorEmpresa() {
+async function recarregarTudoPorEmpresa() {
   atualizarVisibilidadePorEmpresa();
   atualizarFinanceiroResumoCard();
   carregarTopProdutosDash();
-  // Invalida caches e dispara reload da view ativa
+  // ESPERA loadSupabaseData terminar antes de recarregar a view ativa,
+  // senão a view usa liveData antigo e mostra dados da empresa anterior.
   try {
-    if (typeof loadSupabaseData === 'function') loadSupabaseData();
+    if (typeof loadSupabaseData === 'function') {
+      await loadSupabaseData();
+    }
     // Recarrega view atual baseado no id ativo
     const active = document.querySelector('.view.active');
     if (!active) return;
@@ -17700,7 +17703,9 @@ function recarregarTudoPorEmpresa() {
       personas: 'loadPersonaReal', roi: 'calcROI'
     };
     const fn = callbacks[viewId];
-    if (fn && typeof window[fn] === 'function') window[fn]();
+    if (fn && typeof window[fn] === 'function') {
+      try { await window[fn](); } catch { window[fn](); }
+    }
   } catch (e) { console.warn('reload by empresa:', e); }
   showToast(`🏢 Filtro: ${EMPRESA_LABELS[empresaAtual()]}`);
 }
