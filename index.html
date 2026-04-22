@@ -17698,16 +17698,21 @@ async function recarregarTudoPorEmpresa() {
     const active = document.querySelector('.view.active');
     if (!active) return;
     const viewId = active.id.replace('view-', '');
+    // Callbacks: pode ser string (1 função) ou array (múltiplas funções)
     const callbacks = {
       home: 'loadDashboard', financeiro: 'loadFinanceiro', projecoes: 'loadProjecoes',
       comunidade: 'loadComunidade', marketplaces: 'loadMarketplaces',
-      canaisvendas: 'loadCanaisVenda', ecommerce: 'loadEcommerce', lojafisica: 'loadLojaFisica',
+      canaisvendas: ['loadCanaisVenda', 'loadMarketplacesExtras'], // Top Clientes usa mp-* do marketplacesExtras
+      ecommerce: 'loadEcommerce', lojafisica: 'loadLojaFisica',
       performance: 'loadPerformance', relatorio: 'renderRelatorioExecutivo',
       personas: 'loadPersonaReal', roi: 'calcROI'
     };
-    const fn = callbacks[viewId];
-    if (fn && typeof window[fn] === 'function') {
-      try { await window[fn](); } catch { window[fn](); }
+    const fns = callbacks[viewId];
+    const lista = Array.isArray(fns) ? fns : (fns ? [fns] : []);
+    for (const fn of lista) {
+      if (typeof window[fn] === 'function') {
+        try { await window[fn](); } catch { try { window[fn](); } catch {} }
+      }
     }
   } catch (e) { console.warn('reload by empresa:', e); }
   showToast(`🏢 Filtro: ${EMPRESA_LABELS[empresaAtual()]}`);
