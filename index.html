@@ -2809,8 +2809,8 @@ select.input { cursor: pointer; }
 
   <!-- Canais e Top produtos -->
   <div class="g3">
-    <div class="card">
-      <div class="card-header"><div><div class="card-title">Depósitos Bling</div><div class="card-sub">6 depósitos ativos — dados reais</div></div></div>
+    <div class="card" id="card-depositos-matriz">
+      <div class="card-header"><div><div class="card-title">Depósitos Bling · Matriz</div><div class="card-sub">6 depósitos ativos da conta matriz</div></div></div>
       <div class="sparkline-row">
         <div class="sparkline-label"><div class="sparkline-name">Geral - Fábrica Dhom</div><div class="sparkline-sub">Depósito padrão principal</div></div>
         <div style="flex:1"><div class="prog-bar" style="width:100%"><div class="prog-fill" style="width:100%"></div></div></div>
@@ -15618,8 +15618,8 @@ async function loadTopProdutos(container, mesLabel) {
     const anoRef = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
 
     // Tentar buscar da view top_produtos_mes (itens reais do Bling)
-    const { data: prodData } = await sb.from('top_produtos_mes')
-      .select('*').eq('ano', anoRef).eq('mes', mesRef).limit(6);
+    const { data: prodData } = await aplicarEmpresa(sb.from('top_produtos_mes')
+      .select('*').eq('ano', anoRef).eq('mes', mesRef).limit(6));
 
     if (prodData && prodData.length > 0) {
       const maxVal = prodData[0]?.total_quantidade || 1;
@@ -17633,7 +17633,16 @@ function atualizarBotaoEmpresa() {
   if (ico) ico.style.background = EMPRESA_COLORS[e] || EMPRESA_COLORS.todas;
 }
 
+function atualizarVisibilidadePorEmpresa() {
+  // Elementos que só fazem sentido pra matriz (esconder quando filtro = bc)
+  const e = empresaAtual();
+  const ehBC = e === 'bc';
+  const cardDep = document.getElementById('card-depositos-matriz');
+  if (cardDep) cardDep.style.display = ehBC ? 'none' : '';
+}
+
 function recarregarTudoPorEmpresa() {
+  atualizarVisibilidadePorEmpresa();
   // Invalida caches e dispara reload da view ativa
   try {
     if (typeof loadSupabaseData === 'function') loadSupabaseData();
@@ -17664,7 +17673,7 @@ document.addEventListener('click', (e) => {
 });
 
 // Inicializa botão ao carregar
-setTimeout(atualizarBotaoEmpresa, 200);
+setTimeout(() => { atualizarBotaoEmpresa(); atualizarVisibilidadePorEmpresa(); }, 200);
 
 function aiChatMount() {
   if (document.getElementById('ai-chat-bubble')) return;
