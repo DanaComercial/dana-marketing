@@ -1105,36 +1105,47 @@
     if (typeof showToast === 'function') showToast('Nota apagada', 'success');
   };
 
-  // Deep-link vindo do DMS: session storage define quem abrir
+  // Abre cliente especifico + aba baseado num spec {empresa, contato_nome, tab, nota_id}
+  async function openClienteFromSpec(spec) {
+    try {
+      if (!spec || !spec.contato_nome) return;
+      if (spec.empresa && spec.empresa !== state.empresa && (spec.empresa === 'matriz' || spec.empresa === 'bc')) {
+        await window.c360SetEmpresa(spec.empresa);
+      }
+      await window.showClientDetail(encodeURIComponent(spec.contato_nome));
+      if (spec.tab) {
+        setTimeout(() => window.c360SwitchTab(spec.tab), 300);
+        if (spec.nota_id) {
+          setTimeout(() => {
+            const el = document.getElementById('nota-' + spec.nota_id);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              el.style.transition = 'background .3s';
+              el.style.background = 'oklch(88% 0.018 80 / 0.12)';
+              setTimeout(() => { el.style.background = ''; }, 2000);
+            }
+          }, 900);
+        }
+      }
+    } catch(e) { console.warn('[c360] openClienteFromSpec:', e); }
+  }
+
+  // Deep-link vindo do DMS: sessionStorage (fallback) + postMessage (online)
   async function checkDeepLink() {
     try {
       const raw = sessionStorage.getItem('c360_open_cliente');
       if (!raw) return;
       sessionStorage.removeItem('c360_open_cliente');
-      const spec = JSON.parse(raw);
-      if (spec.empresa && spec.empresa !== state.empresa && (spec.empresa === 'matriz' || spec.empresa === 'bc')) {
-        await window.c360SetEmpresa(spec.empresa);
-      }
-      if (spec.contato_nome) {
-        await window.showClientDetail(encodeURIComponent(spec.contato_nome));
-        if (spec.tab) {
-          setTimeout(() => window.c360SwitchTab(spec.tab), 300);
-          // Destaca a nota se especificada
-          if (spec.nota_id) {
-            setTimeout(() => {
-              const el = document.getElementById('nota-' + spec.nota_id);
-              if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                el.style.transition = 'background .3s';
-                el.style.background = 'oklch(88% 0.018 80 / 0.12)';
-                setTimeout(() => { el.style.background = ''; }, 2000);
-              }
-            }, 800);
-          }
-        }
-      }
-    } catch(e) { console.warn('[c360] deep-link:', e); }
+      await openClienteFromSpec(JSON.parse(raw));
+    } catch(e) { console.warn('[c360] deep-link session:', e); }
   }
+
+  // postMessage do DMS pai - funciona mesmo com iframe ja montado
+  window.addEventListener('message', async (e) => {
+    if (!e || !e.data || e.data.type !== 'c360_open_cliente') return;
+    console.log('[c360] postMessage deep-link:', e.data.spec);
+    await openClienteFromSpec(e.data.spec);
+  });
 
   // Apagar insight
   window.c360DeleteInsight = async function(id, btn) {
