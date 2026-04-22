@@ -15343,9 +15343,11 @@ function mapLojaIdCanal(lojaId) {
   if (lojaId === null || lojaId === undefined || lojaId === 0 || lojaId === '0') return 'Site / E-commerce';
   const id = String(lojaId);
   if (id === '203536978') return 'Lojas Físicas + WhatsApp';
+  if (id === '203550865') return 'Loja Física BC';
   if (id === '205337834') return 'Mercado Livre';
   if (id === '205430008') return 'TikTok Shop';
   if (id === '205522474') return 'Shopee';
+  if (id === '0' || id === 'null' || !id) return 'Site / E-commerce';
   return 'Magalu';
 }
 
@@ -15394,9 +15396,10 @@ async function loadCanaisVenda(periodo) {
     });
 
     // Garantir todos os canais (mesmo com 0 pedidos) pra mostrar como "Inativo"
-    ['Site / E-commerce', 'Lojas Físicas + WhatsApp', 'Mercado Livre', 'Shopee', 'TikTok Shop', 'Magalu'].forEach(c => {
-      if (!agg[c]) agg[c] = { pedidos: 0, faturamento: 0, ultima: null };
-    });
+    // Inclui BC quando empresa != matriz
+    const canaisVisiveis = ['Site / E-commerce', 'Lojas Físicas + WhatsApp', 'Mercado Livre', 'Shopee', 'TikTok Shop', 'Magalu'];
+    if (empresaAtual() !== 'matriz') canaisVisiveis.push('Loja Física BC');
+    canaisVisiveis.forEach(c => { if (!agg[c]) agg[c] = { pedidos: 0, faturamento: 0, ultima: null }; });
 
     // Ordenar por faturamento desc
     const lista = Object.entries(agg).sort((a, b) => b[1].faturamento - a[1].faturamento);
@@ -17698,7 +17701,7 @@ async function recarregarTudoPorEmpresa() {
     const callbacks = {
       home: 'loadDashboard', financeiro: 'loadFinanceiro', projecoes: 'loadProjecoes',
       comunidade: 'loadComunidade', marketplaces: 'loadMarketplaces',
-      canaisvendas: 'loadCanaisVendas', ecommerce: 'loadEcommerce', lojafisica: 'loadLojaFisica',
+      canaisvendas: 'loadCanaisVenda', ecommerce: 'loadEcommerce', lojafisica: 'loadLojaFisica',
       performance: 'loadPerformance', relatorio: 'renderRelatorioExecutivo',
       personas: 'loadPersonaReal', roi: 'calcROI'
     };
