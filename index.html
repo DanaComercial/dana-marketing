@@ -298,12 +298,12 @@ async function loadGraficoDiario(filtro) {
   const dataInicio = ano + '-' + String(mes).padStart(2,'0') + '-01';
   const dataFim = ano + '-' + String(mes).padStart(2,'0') + '-' + String(diaMax).padStart(2,'0');
 
-  const { data: pedidosDia } = await sb.from('pedidos')
+  const { data: pedidosDia } = await aplicarEmpresa(sb.from('pedidos')
     .select('data, total')
     .gte('data', dataInicio)
     .lte('data', dataFim)
     .neq('situacao_id', 12) // excluir cancelados
-    .order('data');
+    .order('data'));
 
   if (pedidosDia && pedidosDia.length > 0) {
     const porDia = {};
@@ -11068,11 +11068,11 @@ async function loadPersonasStats() {
     const pedidosAll = [];
     let from = 0, pageSize = 1000;
     while (from < 20000) {
-      const { data, error } = await sb.from('pedidos')
+      const { data, error } = await aplicarEmpresa(sb.from('pedidos')
         .select('total, contato_nome, loja_id, data')
         .gte('data', dataCorte)
         .not('contato_nome', 'is', null)
-        .range(from, from + pageSize - 1);
+        .range(from, from + pageSize - 1));
       if (error) { console.warn('loadPersonasStats pedidos:', error); break; }
       if (!data || !data.length) break;
       pedidosAll.push(...data);
@@ -11084,9 +11084,9 @@ async function loadPersonasStats() {
     const contatosByName = {};
     from = 0;
     while (from < 40000) {
-      const { data, error } = await sb.from('contatos')
+      const { data, error } = await aplicarEmpresa(sb.from('contatos')
         .select('nome, tipo_pessoa')
-        .range(from, from + pageSize - 1);
+        .range(from, from + pageSize - 1));
       if (error) { console.warn('loadPersonasStats contatos:', error); break; }
       if (!data || !data.length) break;
       data.forEach(c => { if (c.nome) contatosByName[c.nome.toUpperCase().trim()] = c.tipo_pessoa; });
@@ -13272,7 +13272,7 @@ function addCard(col) {
 let _scoringCache = [];
 async function loadClienteScoring() {
   try {
-    const { data } = await sb.from('cliente_scoring').select('*').order('score', { ascending: false }).limit(200);
+    const { data } = await aplicarEmpresa(sb.from('cliente_scoring').select('*').order('score', { ascending: false }).limit(200));
     _scoringCache = data || [];
     renderScoringKPIs(_scoringCache);
     renderScoringTable(_scoringCache, '');
@@ -13357,7 +13357,7 @@ function filterScoring(tab, segmento) {
 // ── FUNIL DE VENDAS ──
 async function loadFunilVendas() {
   try {
-    const { data } = await sb.from('funil_vendas').select('*');
+    const { data } = await aplicarEmpresa(sb.from('funil_vendas').select('*'));
     if(!data) return;
 
     const mesSelect = document.getElementById('funil-mes');
@@ -13515,9 +13515,9 @@ async function loadPerfTopProdutos() {
   try {
     const now = new Date();
     const mesAtual = now.getMonth()+1, anoAtual = now.getFullYear();
-    const { data } = await sb.from('pedidos')
+    const { data } = await aplicarEmpresa(sb.from('pedidos')
       .select('contato_nome, total, situacao_id')
-      .gte('data', anoAtual+'-'+String(mesAtual).padStart(2,'0')+'-01');
+      .gte('data', anoAtual+'-'+String(mesAtual).padStart(2,'0')+'-01'));
     if(!data) return;
 
     // Por status
@@ -13549,7 +13549,7 @@ async function loadPerfTopProdutos() {
 // ── PREVISÃO DE RECEITA ──
 async function loadPrevisaoReceita() {
   try {
-    const { data } = await sb.from('receita_historica').select('*');
+    const { data } = await aplicarEmpresa(sb.from('receita_historica').select('*'));
     if(!data || data.length < 3) return;
 
     const sorted = data.sort((a,b) => (a.ano*100+a.mes) - (b.ano*100+b.mes));
@@ -15182,7 +15182,7 @@ async function queryItensPorCanal(filtroLojaId, inicio, fim) {
   const all = [];
   for (let i = 0; i < ids.length; i += 200) {
     const batch = ids.slice(i, i + 200);
-    const { data } = await sb.from('pedidos_itens').select('descricao, quantidade, valor_total').in('pedido_id', batch);
+    const { data } = await aplicarEmpresa(sb.from('pedidos_itens').select('descricao, quantidade, valor_total').in('pedido_id', batch));
     if (data) all.push(...data);
   }
   return all;
@@ -15449,11 +15449,11 @@ async function loadCanaisVenda(periodo) {
   if (subEl) subEl.textContent = 'Performance por canal · ' + label;
 
   try {
-    const { data, error } = await sb.from('pedidos')
+    const { data, error } = await aplicarEmpresa(sb.from('pedidos')
       .select('loja_id, data, total')
       .gte('data', iso(inicio))
       .lt('data', iso(fim))
-      .limit(10000);
+      .limit(10000));
     if (error) throw error;
 
     const rows = data || [];
@@ -15779,12 +15779,12 @@ async function loadMarketplacesExtras() {
 
   // ── TOP CLIENTES ──
   try {
-    const { data } = await sb.from('pedidos')
+    const { data } = await aplicarEmpresa(sb.from('pedidos')
       .select('contato_nome, total')
       .gte('data', inicio)
       .lt('data', fim)
       .not('contato_nome', 'is', null)
-      .limit(3000);
+      .limit(3000));
 
     const clienteEl = document.getElementById('mp-top-clientes');
     const clienteSubEl = document.getElementById('mp-clientes-sub');
