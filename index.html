@@ -2814,56 +2814,9 @@ select.input { cursor: pointer; }
       <div id="depositos-lista"></div>
     </div>
 
-    <div class="card">
-      <div class="card-header"><div><div class="card-title">Top Produtos</div><div class="card-sub">Por unidades vendidas — Abril 2026</div></div></div>
-      <div class="rank-row">
-        <div class="rank-num top">#1</div>
-        <div class="rank-bar-wrap">
-          <div class="rank-bar-label">Scrub Feminino Lilás</div>
-          <div class="rank-bar-track"><div class="rank-bar-fill" style="width:100%"></div></div>
-        </div>
-        <div class="rank-val">61 vendas</div>
-      </div>
-      <div class="rank-row">
-        <div class="rank-num top">#2</div>
-        <div class="rank-bar-wrap">
-          <div class="rank-bar-label">Scrub Feminino Azul Bebê</div>
-          <div class="rank-bar-track"><div class="rank-bar-fill" style="width:44%"></div></div>
-        </div>
-        <div class="rank-val">27 vendas</div>
-      </div>
-      <div class="rank-row">
-        <div class="rank-num top">#3</div>
-        <div class="rank-bar-wrap">
-          <div class="rank-bar-label">Scrub Feminino Preto</div>
-          <div class="rank-bar-track"><div class="rank-bar-fill" style="width:39%"></div></div>
-        </div>
-        <div class="rank-val">24 vendas</div>
-      </div>
-      <div class="rank-row">
-        <div class="rank-num">#4</div>
-        <div class="rank-bar-wrap">
-          <div class="rank-bar-label">Scrub Feminino Azul Marinho</div>
-          <div class="rank-bar-track"><div class="rank-bar-fill" style="width:36%"></div></div>
-        </div>
-        <div class="rank-val">22 vendas</div>
-      </div>
-      <div class="rank-row">
-        <div class="rank-num">#5</div>
-        <div class="rank-bar-wrap">
-          <div class="rank-bar-label">Jaleco Manuela Azul Marinho</div>
-          <div class="rank-bar-track"><div class="rank-bar-fill" style="width:23%"></div></div>
-        </div>
-        <div class="rank-val">14 vendas</div>
-      </div>
-      <div class="rank-row">
-        <div class="rank-num">#6</div>
-        <div class="rank-bar-wrap">
-          <div class="rank-bar-label">Jaleco Chloe Preto</div>
-          <div class="rank-bar-track"><div class="rank-bar-fill" style="width:21%"></div></div>
-        </div>
-        <div class="rank-val">13 vendas</div>
-      </div>
+    <div class="card" id="card-top-produtos-dash">
+      <div class="card-header"><div><div class="card-title">Top Produtos</div><div class="card-sub" id="top-prod-dash-sub">Carregando...</div></div></div>
+      <div id="top-prod-dash-lista"><div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando top produtos...</div></div>
     </div>
 
     <div class="card">
@@ -17660,8 +17613,50 @@ function atualizarVisibilidadePorEmpresa() {
   `).join('');
 }
 
+async function carregarTopProdutosDash() {
+  const lista = document.getElementById('top-prod-dash-lista');
+  const sub = document.getElementById('top-prod-dash-sub');
+  if (!lista) return;
+  const now = new Date();
+  const mes = now.getMonth() + 1;
+  const ano = now.getFullYear();
+  const mesNome = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][mes-1];
+  if (sub) sub.textContent = `Por unidades vendidas — ${mesNome} ${ano}`;
+  try {
+    let q = sb.from('top_produtos_mes').select('*').eq('ano', ano).eq('mes', mes).order('total_quantidade', { ascending: false }).limit(6);
+    q = aplicarEmpresa(q);
+    const { data } = await q;
+    if (!data || !data.length) {
+      lista.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Sem vendas no período</div>';
+      return;
+    }
+    // Agrupar por produto (pode ter duplicata em Todas)
+    const agg = {};
+    data.forEach(p => {
+      const k = p.produto || p.descricao;
+      if (!agg[k]) agg[k] = 0;
+      agg[k] += +p.total_quantidade || 0;
+    });
+    const ordenado = Object.entries(agg).sort((a,b) => b[1] - a[1]).slice(0, 6);
+    const maxVal = ordenado[0]?.[1] || 1;
+    lista.innerHTML = ordenado.map(([nome, qtd], i) => `
+      <div class="rank-row">
+        <div class="rank-num${i < 3 ? ' top' : ''}">#${i+1}</div>
+        <div class="rank-bar-wrap">
+          <div class="rank-bar-label">${esc(nome)}</div>
+          <div class="rank-bar-track"><div class="rank-bar-fill" style="width:${Math.round(qtd/maxVal*100)}%"></div></div>
+        </div>
+        <div class="rank-val">${Math.round(qtd)} vendas</div>
+      </div>
+    `).join('');
+  } catch (e) {
+    lista.innerHTML = '<div style="color:var(--red);font-size:12px;padding:10px">Erro: ' + e.message + '</div>';
+  }
+}
+
 function recarregarTudoPorEmpresa() {
   atualizarVisibilidadePorEmpresa();
+  carregarTopProdutosDash();
   // Invalida caches e dispara reload da view ativa
   try {
     if (typeof loadSupabaseData === 'function') loadSupabaseData();
@@ -17692,7 +17687,7 @@ document.addEventListener('click', (e) => {
 });
 
 // Inicializa botão ao carregar
-setTimeout(() => { atualizarBotaoEmpresa(); atualizarVisibilidadePorEmpresa(); }, 200);
+setTimeout(() => { atualizarBotaoEmpresa(); atualizarVisibilidadePorEmpresa(); carregarTopProdutosDash(); }, 500);
 
 function aiChatMount() {
   if (document.getElementById('ai-chat-bubble')) return;
