@@ -42,8 +42,14 @@ const TOOLS = [
     type: 'function',
     function: {
       name: 'consultar_contas_financeiras',
-      description: 'Retorna status de contas a pagar/receber: abertas, atrasadas, valores totais. Use pra "quanto tenho a receber?", "contas atrasadas", "fluxo de caixa".',
-      parameters: { type: 'object', properties: {}, required: [] }
+      description: 'Retorna status de contas a pagar/receber: abertas, atrasadas, valores totais. Use pra "quanto tenho a receber?", "contas atrasadas", "fluxo de caixa". Aceita filtro por empresa (Matriz/Piçarras, BC/Balneário Camboriú, ou ambas).',
+      parameters: {
+        type: 'object',
+        properties: {
+          empresa: { type: 'string', enum: ['matriz', 'bc', 'todas'], description: 'Empresa: "matriz" (Piçarras), "bc" (Balneário Camboriú), ou "todas" (default, ambas agregadas)' }
+        },
+        required: []
+      }
     }
   },
   {
@@ -303,8 +309,9 @@ async function executarFerramenta(nome: string, args: any, contextoUsuario: { ca
     }
 
     if (nome === 'consultar_contas_financeiras') {
-      const { data: r } = await supabaseAdmin.from('dashboard_contas').select('*').single()
-      return r || {}
+      const empresa = args.empresa || 'todas'
+      const { data: r } = await supabaseAdmin.from('dashboard_contas').select('*').eq('empresa', empresa).maybeSingle()
+      return r || { empresa, aviso: 'Nenhum dado encontrado pra empresa solicitada' }
     }
 
     if (nome === 'top_clientes') {
