@@ -8454,6 +8454,10 @@ updateDynamicField('foto');
     <div style="position:relative;z-index:1">
       <div class="rel-period" id="rel-period">Carregando...</div>
       <div class="rel-headline">Relatório Executivo<br>Dana Jalecos Exclusivos</div>
+      <div id="rel-empresa-badge" style="margin-top:12px;display:inline-flex;align-items:center;gap:8px;padding:6px 14px;background:rgba(255,255,255,0.15);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.3);border-radius:20px;font-size:12px;font-weight:600;color:white">
+        <span id="rel-empresa-dot" style="width:8px;height:8px;border-radius:50%;background:#fff"></span>
+        <span id="rel-empresa-label">Carregando...</span>
+      </div>
     </div>
     <div class="rel-kpis">
       <div class="rel-kpi"><div class="rel-kpi-label">Faturamento</div><div class="rel-kpi-val" id="rel-fat">--</div><div class="rel-kpi-chg" id="rel-fat-sub">carregando</div></div>
@@ -9254,13 +9258,42 @@ function exportarViewPDF(viewId, tituloFriendly) {
   .bar-value, .bar-val { font-size: 10px; font-weight: 700; color: #0a0a0a; }
   .pdf-footer { margin-top: 30px; padding-top: 14px; border-top: 1px solid #e6e6e6; text-align: center; font-size: 11px; color: #999; }
   button, select, input, .btn, .mkt-refresh, .live-badge { display: none !important; }
+  /* Estilos extras para Relatório Executivo */
+  .rel-hero > div:first-child { flex: 1; min-width: 200px; }
+  #rel-empresa-badge { display: inline-flex !important; align-items: center; gap: 8px; padding: 6px 14px; background: rgba(255,255,255,0.15) !important; border: 1px solid rgba(255,255,255,0.3); border-radius: 20px; font-size: 11px; font-weight: 600; color: white !important; margin-top: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #rel-empresa-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: #fff; }
+  .rank-bar-wrap { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+  .rank-bar-label { font-size: 11.5px; font-weight: 600; }
+  .rank-bar-track { height: 6px; background: #e6e6e6 !important; border-radius: 3px; overflow: hidden; -webkit-print-color-adjust: exact; }
+  .rank-bar-fill { height: 100%; background: #0a0a0a !important; border-radius: 3px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rank-val { font-size: 11px; font-weight: 700; color: #0a0a0a; min-width: 60px; text-align: right; }
+  .rank-num.top { background: #0a0a0a !important; color: #fff !important; -webkit-print-color-adjust: exact; }
+  .prog-bar { height: 6px; background: #e6e6e6 !important; border-radius: 3px; overflow: hidden; -webkit-print-color-adjust: exact; }
+  .prog-fill { height: 100%; background: #0a0a0a !important; border-radius: 3px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sparkline-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #eee; font-size: 11px; }
+  .sparkline-label { flex: 1; min-width: 100px; }
+  .sparkline-name { font-weight: 600; font-size: 11.5px; }
+  .sparkline-sub { font-size: 10px; color: #666; }
+  .sparkline-val { font-weight: 700; min-width: 50px; }
+  .sparkline-change { font-size: 10.5px; font-weight: 600; }
+  .tl-item { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px dashed #eee; }
+  .tl-content { flex: 1; }
+  .tl-title { font-weight: 700; font-size: 12px; }
+  .tl-meta { font-size: 11px; color: #555; }
   @media print {
     body { padding: 20px; }
-    .pdf-header, .rel-hero, .kpi-card.dark { background: #0a0a0a !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .bar { background: #0a0a0a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .good { color: #1a7a3a !important; -webkit-print-color-adjust: exact; }
-    .bad { color: #c0392b !important; -webkit-print-color-adjust: exact; }
+    .pdf-header, .rel-hero, .kpi-card.dark { background: #0a0a0a !important; color: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .rel-hero *, .kpi-card.dark * { color: white !important; }
+    .rel-kpi { background: rgba(255,255,255,0.10) !important; -webkit-print-color-adjust: exact !important; }
+    .bar, .rank-bar-fill, .prog-fill { background: #0a0a0a !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .rank-bar-track, .prog-bar { background: #e6e6e6 !important; -webkit-print-color-adjust: exact !important; }
+    .good { color: #1a7a3a !important; }
+    .bad { color: #c0392b !important; }
+    .rel-kpi-chg { color: rgba(255,255,255,0.7) !important; }
+    .rel-kpi-label { color: rgba(255,255,255,0.55) !important; }
     .no-print { display: none !important; }
+    /* Força cores de fundo dos .rank-num.top etc */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
   }
   @media (max-width: 600px) {
     .kpi-grid, .g4 { grid-template-columns: 1fr 1fr; }
@@ -15457,8 +15490,16 @@ function loadRelatorio() {
   const dRef = pm[keyRef] || {};
   const dAtual = pm[keyAtual] || {};
 
-  // Header
+  // Header + badge de empresa
   if (el('rel-period')) el('rel-period').textContent = getMesNome(mesRef) + ' ' + anoAtual + ' — Dados Bling (ao vivo)';
+  const empAtual = (typeof empresaAtual === 'function') ? empresaAtual() : 'todas';
+  const empInfo = {
+    todas:  { label: '📊 Consolidado · Matriz + BC (dados combinados)', cor: 'linear-gradient(90deg,#3b82f6,#10b981)' },
+    matriz: { label: '🏭 Matriz · Piçarras SC + marketplaces',          cor: '#3b82f6' },
+    bc:     { label: '🏪 Balneário Camboriú · Loja BC',                 cor: '#10b981' },
+  }[empAtual] || { label: 'Empresa', cor: '#fff' };
+  if (el('rel-empresa-label')) el('rel-empresa-label').textContent = empInfo.label;
+  if (el('rel-empresa-dot')) el('rel-empresa-dot').style.background = empInfo.cor;
 
   // KPIs
   if (el('rel-fat')) el('rel-fat').textContent = fmtK(dRef.receita || 0);
