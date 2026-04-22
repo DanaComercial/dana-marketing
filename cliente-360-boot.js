@@ -90,6 +90,10 @@
     updateEmpresaToggleUI();
     state.page = 0;
     await Promise.all([loadClientes(), loadDashboardResumo()]);
+    // Re-renderiza segmentos se for a aba ativa (a funcao é definida adiante)
+    if (typeof window.c360ReRenderSegmentosIfActive === 'function') {
+      await window.c360ReRenderSegmentosIfActive();
+    }
   };
 
   // Segmento -> badge style
@@ -919,11 +923,66 @@
               <div style="font-size:11px;color:#64748b">${quandoStr}${n.updated_at ? ' · editada' : ''}</div>
             </div>
           </div>
-          ${canDelete ? `<button onclick="c360DeleteNota(${n.id})" title="Apagar" style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(239,68,68,0.25);background:transparent;color:#ef4444;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">🗑</button>` : ''}
+          ${(isOwn || isAdmin) ? `
+          <div style="display:flex;gap:4px">
+            ${isOwn ? `<button onclick="c360EditNota(${n.id})" title="Editar" style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:#94a3b8;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">✏</button>` : ''}
+            <button onclick="c360DeleteNota(${n.id})" title="Apagar" style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(239,68,68,0.25);background:transparent;color:#ef4444;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">🗑</button>
+          </div>` : ''}
         </div>
-        <div style="font-size:13.5px;line-height:1.6;color:#cbd5e1;white-space:pre-wrap;word-break:break-word">${renderTextoNota(n.texto, n.mentions_ids)}</div>
+        <div id="nota-texto-${n.id}" style="font-size:13.5px;line-height:1.6;color:#cbd5e1;white-space:pre-wrap;word-break:break-word">${renderTextoNota(n.texto, n.mentions_ids)}</div>
       </div>`;
   }
+
+  // Editar nota
+  window.c360EditNota = function(id) {
+    const card = document.getElementById('nota-' + id);
+    if (!card) return;
+    const textoEl = document.getElementById('nota-texto-' + id);
+    if (!textoEl) return;
+    // Busca o texto original na lista em memória (armazenamos via data-attr)
+    // Como não temos cache local, buscamos do DB
+    state.sb.from('cliente_notas').select('texto').eq('id', id).single().then(({ data }) => {
+      if (!data) return;
+      const textoOrig = data.texto || '';
+      textoEl.innerHTML = `
+        <textarea id="nota-edit-${id}" rows="3" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);color:#e2e8f0;font-size:13.5px;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box">${escapeHtml(textoOrig)}</textarea>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button onclick="c360SaveEditNota(${id})" style="padding:6px 14px;border-radius:6px;border:1px solid oklch(88% 0.018 80 / 0.5);background:oklch(88% 0.018 80 / 0.12);color:oklch(88% 0.018 80);cursor:pointer;font-size:12.5px;font-weight:600">Salvar</button>
+          <button onclick="c360CancelEditNota(${id})" style="padding:6px 14px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:#94a3b8;cursor:pointer;font-size:12.5px">Cancelar</button>
+        </div>`;
+      const ta = document.getElementById('nota-edit-' + id);
+      if (ta) ta.focus();
+    });
+  };
+
+  window.c360CancelEditNota = async function(id) {
+    // Re-renderiza a aba toda — simples e seguro
+    const page = document.getElementById('page-cliente-1');
+    const nome = page?.querySelector('h2')?.textContent?.trim();
+    if (nome) await renderNotasTab(nome);
+  };
+
+  window.c360SaveEditNota = async function(id) {
+    const ta = document.getElementById('nota-edit-' + id);
+    if (!ta) return;
+    const novoTexto = (ta.value || '').trim();
+    if (!novoTexto) return;
+    const mentions = extractMentions(novoTexto);
+    const { error } = await state.sb.from('cliente_notas').update({
+      texto: novoTexto,
+      mentions_ids: mentions,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) {
+      if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error');
+      return;
+    }
+    if (typeof showToast === 'function') showToast('Nota atualizada', 'success');
+    // Realtime vai atualizar, mas forçamos aqui também (sem delay)
+    const page = document.getElementById('page-cliente-1');
+    const nome = page?.querySelector('h2')?.textContent?.trim();
+    if (nome) await renderNotasTab(nome);
+  };
 
   async function renderNotasTab(contatoNome) {
     const panel = document.getElementById('c360-tabpanel-notas');
@@ -1376,6 +1435,459 @@
     if (typeof showToast === 'function') showToast('Métricas atualizadas', 'success');
   };
 
+  // ═══════════════════════════════════════════════════════════
+  // FASE 5 — SEGMENTAÇÃO (predefinidos + customizados)
+  // ═══════════════════════════════════════════════════════════
+
+  // Filtros suportados: tipo_pessoa, ufs[], segmentos[], score_min/max,
+  // min/max_pedidos, min/max_gasto, dias_sem_compra_min/max
+  function aplicarFiltrosSegmento(clientes, filtros) {
+    return clientes.filter(c => {
+      if (filtros.tipo_pessoa && filtros.tipo_pessoa !== 'todos' && c.tipo_pessoa !== filtros.tipo_pessoa) return false;
+      if (filtros.ufs && filtros.ufs.length > 0) {
+        if (!c.uf || !filtros.ufs.includes(c.uf)) return false;
+      }
+      if (filtros.segmentos && filtros.segmentos.length > 0) {
+        if (!filtros.segmentos.includes(c.segmento)) return false;
+      }
+      const p = Number(c.total_pedidos) || 0;
+      const g = Number(c.total_gasto) || 0;
+      const d = Number(c.dias_sem_compra) || 0;
+      const s = Number(c.score) || 0;
+      if (filtros.min_pedidos != null && p < filtros.min_pedidos) return false;
+      if (filtros.max_pedidos != null && p > filtros.max_pedidos) return false;
+      if (filtros.min_gasto != null && g < filtros.min_gasto) return false;
+      if (filtros.max_gasto != null && g > filtros.max_gasto) return false;
+      if (filtros.dias_sem_compra_min != null && d < filtros.dias_sem_compra_min) return false;
+      if (filtros.dias_sem_compra_max != null && d > filtros.dias_sem_compra_max) return false;
+      if (filtros.score_min != null && s < filtros.score_min) return false;
+      if (filtros.score_max != null && s > filtros.score_max) return false;
+      return true;
+    });
+  }
+
+  function resumoFiltros(filtros) {
+    const partes = [];
+    if (filtros.tipo_pessoa === 'J') partes.push('PJ');
+    if (filtros.tipo_pessoa === 'F') partes.push('PF');
+    if (filtros.ufs && filtros.ufs.length) partes.push('UF: ' + filtros.ufs.join(','));
+    if (filtros.segmentos && filtros.segmentos.length) partes.push(filtros.segmentos.join('/'));
+    if (filtros.min_pedidos != null) partes.push(filtros.min_pedidos + '+ pedidos');
+    if (filtros.max_pedidos != null) partes.push('até ' + filtros.max_pedidos + ' pedidos');
+    if (filtros.min_gasto != null) partes.push('gasto ≥ ' + fmtBRL(filtros.min_gasto));
+    if (filtros.max_gasto != null) partes.push('gasto ≤ ' + fmtBRL(filtros.max_gasto));
+    if (filtros.dias_sem_compra_min != null || filtros.dias_sem_compra_max != null) {
+      const lo = filtros.dias_sem_compra_min ?? 0;
+      const hi = filtros.dias_sem_compra_max ?? '∞';
+      partes.push(lo + '-' + hi + 'd sem comprar');
+    }
+    if (filtros.score_min != null || filtros.score_max != null) {
+      const lo = filtros.score_min ?? 0;
+      const hi = filtros.score_max ?? 100;
+      partes.push('score ' + lo + '-' + hi);
+    }
+    return partes.join(' · ') || 'Sem filtros';
+  }
+
+  async function loadSegmentosCustom() {
+    const { data, error } = await state.sb
+      .from('cliente_segmentos_custom')
+      .select('*')
+      .in('empresa', [state.empresa, 'ambas'])
+      .order('created_at', { ascending: false });
+    if (error) { console.warn('[c360] segmentos:', error); return []; }
+    return data || [];
+  }
+
+  async function renderSegmentosPage() {
+    const page = document.getElementById('page-segmentos');
+    if (!page) return;
+    page.innerHTML = '<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.5)">⏳ Carregando segmentos...</div>';
+
+    const segmentosBase = [
+      { key: 'VIP', label: 'VIP', cor: '#fbbf24', desc: 'Alto valor e recorrência' },
+      { key: 'Frequente', label: 'Frequente', cor: '#a78bfa', desc: 'Compra com regularidade' },
+      { key: 'Ocasional', label: 'Ocasional', cor: '#60a5fa', desc: 'Compra esporádica' },
+      { key: 'Em Risco', label: 'Em Risco', cor: '#f97316', desc: 'Passou do ciclo médio' },
+      { key: 'Inativo', label: 'Inativo', cor: '#ef4444', desc: 'Sem comprar há muito tempo' },
+    ];
+    // Conta por segmento na empresa atual
+    const contagens = {};
+    for (const c of state.clientes) {
+      contagens[c.segmento] = (contagens[c.segmento] || 0) + 1;
+    }
+    const customs = await loadSegmentosCustom();
+
+    const cardBase = (s) => `
+      <button type="button" onclick="c360FilterAndGo('segmento:${s.key}')" style="background:rgba(255,255,255,0.03);border:1px solid ${s.cor}44;border-radius:12px;padding:18px;text-align:left;cursor:pointer;transition:transform 0.15s;font-family:inherit" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:${s.cor}22;color:${s.cor}">${s.label}</span>
+          <span style="font-size:24px;font-weight:700;color:#f1f5f9">${fmtNum(contagens[s.key] || 0)}</span>
+        </div>
+        <div style="font-size:12px;color:#94a3b8">${s.desc}</div>
+      </button>`;
+
+    const cardCustom = (s) => {
+      const matches = aplicarFiltrosSegmento(state.clientes, s.filtros || {});
+      return `
+      <div style="background:rgba(255,255,255,0.03);border:1px solid ${s.cor}44;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+          <div style="min-width:0;flex:1">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.cor}"></span>
+              <span style="font-size:14px;font-weight:700;color:#f1f5f9">${escapeHtml(s.nome)}</span>
+            </div>
+            ${s.descricao ? `<div style="font-size:11.5px;color:#94a3b8;margin-top:4px">${escapeHtml(s.descricao)}</div>` : ''}
+            <div style="font-size:10.5px;color:#64748b;margin-top:4px">${escapeHtml(resumoFiltros(s.filtros || {}))}</div>
+          </div>
+          <div style="font-size:22px;font-weight:700;color:#f1f5f9;text-align:right">${fmtNum(matches.length)}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button onclick="c360ApplySegmentoCustom(${s.id})" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:#e2e8f0;cursor:pointer;font-size:12px">Ver clientes</button>
+          <button onclick="c360ExportCsv(${s.id})" title="Exportar CSV" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:#e2e8f0;cursor:pointer;font-size:12px">⬇ CSV</button>
+          <button onclick="c360EditSegmento(${s.id})" title="Editar" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:#e2e8f0;cursor:pointer;font-size:12px">✏</button>
+          <button onclick="c360DeleteSegmento(${s.id})" title="Apagar" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(239,68,68,0.25);background:transparent;color:#ef4444;cursor:pointer;font-size:12px">🗑</button>
+        </div>
+      </div>`;
+    };
+
+    page.innerHTML = `
+<div style="padding:24px;max-width:1400px;margin:0 auto">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+    <div>
+      <h1 style="margin:0 0 6px;font-size:28px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">Segmentação</h1>
+      <div style="font-size:13px;color:#94a3b8">Segmentos automáticos + filtros customizados — ${EMPRESA_LABELS[state.empresa] || state.empresa}</div>
+    </div>
+    <button onclick="c360NewSegmento()" style="padding:10px 18px;border-radius:8px;border:1px solid oklch(88% 0.018 80 / 0.5);background:oklch(88% 0.018 80 / 0.12);color:oklch(88% 0.018 80);cursor:pointer;font-size:13px;font-weight:600">+ Novo Segmento</button>
+  </div>
+
+  <div style="margin-bottom:32px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.5);margin-bottom:12px">Segmentos Automáticos (RFM)</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+      ${segmentosBase.map(cardBase).join('')}
+    </div>
+  </div>
+
+  <div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.5)">Meus Segmentos Customizados (${customs.length})</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px">
+      ${customs.length === 0
+        ? '<div style="grid-column:1/-1;padding:40px;text-align:center;color:#64748b;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.1);border-radius:12px"><div style="font-size:24px;margin-bottom:8px">🎯</div><div style="font-size:13px;color:#e2e8f0">Nenhum segmento customizado</div><div style="font-size:11.5px;margin-top:4px">Clique em "+ Novo Segmento" pra criar filtros personalizados.</div></div>'
+        : customs.map(cardCustom).join('')}
+    </div>
+  </div>
+</div>`;
+
+    // Armazena no state pra acesso por c360ApplySegmentoCustom/Export
+    state.segmentosCustom = customs;
+  }
+
+  // Filtra a lista por segmento (predefinido ou customizado)
+  window.c360ApplySegmentoCustom = function(id) {
+    const s = (state.segmentosCustom || []).find(x => x.id === id);
+    if (!s) return;
+    // Reset filtros da lista
+    state.segmentFilter = 'todos';
+    state.ufFilter = 'todos';
+    state.searchQuery = '';
+    const selSeg = document.getElementById('c360-seg-select');
+    const selUf = document.getElementById('c360-uf-select');
+    if (selSeg) selSeg.value = 'todos';
+    if (selUf) selUf.value = 'todos';
+    const searchInp = document.querySelector('#page-clientes input[placeholder*="Buscar"]');
+    if (searchInp) searchInp.value = '';
+    // Aplica filtro manual
+    state.filtered = aplicarFiltrosSegmento(state.clientes, s.filtros || {});
+    state.page = 0;
+    if (typeof showPage === 'function') showPage('clientes');
+    renderList();
+    if (typeof showToast === 'function') showToast(`Filtro '${s.nome}' aplicado: ${state.filtered.length} cliente(s)`, 'info');
+  };
+
+  // Estende o c360FilterAndGo pra aceitar 'segmento:VIP' etc
+  const origFilterAndGo = window.c360FilterAndGo;
+  window.c360FilterAndGo = function(tipo) {
+    if (typeof tipo === 'string' && tipo.startsWith('segmento:')) {
+      const seg = tipo.split(':')[1];
+      state.segmentFilter = seg;
+      state.ufFilter = 'todos';
+      state.searchQuery = '';
+      const selSeg = document.getElementById('c360-seg-select');
+      if (selSeg) selSeg.value = seg;
+      const selUf = document.getElementById('c360-uf-select');
+      if (selUf) selUf.value = 'todos';
+      const searchInp = document.querySelector('#page-clientes input[placeholder*="Buscar"]');
+      if (searchInp) searchInp.value = '';
+      applyFilters();
+      if (typeof showPage === 'function') showPage('clientes');
+      return;
+    }
+    return origFilterAndGo(tipo);
+  };
+
+  // Exportar CSV
+  window.c360ExportCsv = function(id) {
+    let clientes, nomeArq;
+    if (id === '_all') { clientes = state.filtered; nomeArq = 'clientes_filtrados.csv'; }
+    else {
+      const s = (state.segmentosCustom || []).find(x => x.id === id);
+      if (!s) return;
+      clientes = aplicarFiltrosSegmento(state.clientes, s.filtros || {});
+      nomeArq = 'segmento_' + s.nome.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '.csv';
+    }
+    const header = ['Nome','Empresa','Tipo','Documento','Telefone','Celular','UF','Segmento','Score','Pedidos','Total Gasto','Ticket Medio','Ultima Compra','Dias Sem Compra'];
+    const esc = (s) => `"${String(s == null ? '' : s).replace(/"/g, '""')}"`;
+    const linhas = [header.join(';')];
+    for (const c of clientes) {
+      linhas.push([
+        esc(c.contato_nome), esc(c.empresa), esc(c.tipo_pessoa), esc(c.numero_documento),
+        esc(c.telefone), esc(c.celular), esc(c.uf), esc(c.segmento), esc(c.score),
+        esc(c.total_pedidos), esc(Number(c.total_gasto).toFixed(2).replace('.',',')),
+        esc(Number(c.ticket_medio).toFixed(2).replace('.',',')),
+        esc(c.ultima_compra), esc(c.dias_sem_compra)
+      ].join(';'));
+    }
+    // BOM pra Excel reconhecer UTF-8
+    const blob = new Blob(['\uFEFF' + linhas.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nomeArq; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    if (typeof showToast === 'function') showToast(`CSV com ${clientes.length} cliente(s) baixado`, 'success');
+  };
+
+  // ─── Modal: criar/editar segmento ───
+  window.c360NewSegmento = function() { abrirModalSegmento(null); };
+  window.c360EditSegmento = function(id) {
+    const s = (state.segmentosCustom || []).find(x => x.id === id);
+    if (s) abrirModalSegmento(s);
+  };
+
+  function abrirModalSegmento(segExistente) {
+    // Remove modal anterior se houver
+    const old = document.getElementById('c360-seg-modal'); if (old) old.remove();
+    const f = (segExistente?.filtros) || {};
+    const ufs = [...new Set(state.clientes.map(c => c.uf).filter(Boolean))].sort();
+    const wrap = document.createElement('div');
+    wrap.id = 'c360-seg-modal';
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;overflow-y:auto';
+    wrap.innerHTML = `
+      <div style="background:rgb(18,18,23);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:24px;max-width:600px;width:100%;max-height:90vh;overflow-y:auto;color:#e2e8f0;font-family:Inter,sans-serif">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <h2 style="margin:0;font-size:18px;font-weight:700">${segExistente ? 'Editar' : 'Novo'} Segmento</h2>
+          <button onclick="document.getElementById('c360-seg-modal').remove()" style="width:30px;height:30px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;font-size:16px">×</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div>
+            <label style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px">Nome *</label>
+            <input id="seg-nome" value="${escapeHtml(segExistente?.nome || '')}" placeholder="Ex: PJ de SC com 3+ pedidos"
+              style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);color:#e2e8f0;font-size:13px;margin-top:4px;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px">Descrição (opcional)</label>
+            <input id="seg-desc" value="${escapeHtml(segExistente?.descricao || '')}" placeholder="Ex: Clinicas fieis"
+              style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);color:#e2e8f0;font-size:13px;margin-top:4px;box-sizing:border-box">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px">Empresa</label>
+              <select id="seg-empresa" style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgb(20,20,25);color:#e2e8f0;font-size:13px;margin-top:4px;color-scheme:dark;box-sizing:border-box">
+                <option value="ambas" ${(segExistente?.empresa||'ambas')==='ambas'?'selected':''}>Matriz + BC</option>
+                <option value="matriz" ${segExistente?.empresa==='matriz'?'selected':''}>Apenas Matriz</option>
+                <option value="bc" ${segExistente?.empresa==='bc'?'selected':''}>Apenas BC</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px">Cor</label>
+              <input type="color" id="seg-cor" value="${segExistente?.cor || '#60a5fa'}" style="width:100%;height:38px;padding:2px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);margin-top:4px;box-sizing:border-box;cursor:pointer">
+            </div>
+          </div>
+
+          <div style="padding:14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:8px">
+            <div style="font-size:11px;font-weight:700;color:oklch(88% 0.018 80);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Filtros</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div>
+                <label style="font-size:11px;color:#94a3b8">Tipo de Pessoa</label>
+                <select id="f-tipo" style="width:100%;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgb(20,20,25);color:#e2e8f0;font-size:12.5px;margin-top:2px;color-scheme:dark;box-sizing:border-box">
+                  <option value="todos" ${!f.tipo_pessoa||f.tipo_pessoa==='todos'?'selected':''}>Todos</option>
+                  <option value="J" ${f.tipo_pessoa==='J'?'selected':''}>Pessoa Jurídica</option>
+                  <option value="F" ${f.tipo_pessoa==='F'?'selected':''}>Pessoa Física</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;color:#94a3b8">UFs (múltiplo)</label>
+                <select id="f-ufs" multiple style="width:100%;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgb(20,20,25);color:#e2e8f0;font-size:12.5px;margin-top:2px;color-scheme:dark;min-height:38px;max-height:80px;box-sizing:border-box">
+                  ${ufs.map(u => `<option value="${u}" ${(f.ufs||[]).includes(u)?'selected':''}>${u}</option>`).join('')}
+                </select>
+              </div>
+              <div style="grid-column:1/-1">
+                <label style="font-size:11px;color:#94a3b8">Segmentos RFM (múltiplo)</label>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px" id="f-segs">
+                  ${['VIP','Frequente','Ocasional','Em Risco','Inativo','Novo'].map(s => `
+                    <label style="padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px">
+                      <input type="checkbox" value="${s}" ${(f.segmentos||[]).includes(s)?'checked':''} style="margin:0;cursor:pointer">${s}
+                    </label>`).join('')}
+                </div>
+              </div>
+              <div>
+                <label style="font-size:11px;color:#94a3b8">Pedidos mínimo</label>
+                <input type="number" id="f-min-ped" value="${f.min_pedidos ?? ''}" placeholder="ex: 3" style="width:100%;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);color:#e2e8f0;font-size:12.5px;margin-top:2px;box-sizing:border-box">
+              </div>
+              <div>
+                <label style="font-size:11px;color:#94a3b8">Pedidos máximo</label>
+                <input type="number" id="f-max-ped" value="${f.max_pedidos ?? ''}" placeholder="sem limite" style="width:100%;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);color:#e2e8f0;font-size:12.5px;margin-top:2px;box-sizing:border-box">
+              </div>
+              <div>
+                <label style="font-size:11px;color:#94a3b8">Gasto mínimo (R$)</label>
+                <input type="number" id="f-min-gasto" value="${f.min_gasto ?? ''}" placeholder="ex: 1000" style="width:100%;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);color:#e2e8f0;font-size:12.5px;margin-top:2px;box-sizing:border-box">
+              </div>
+              <div>
+                <label style="font-size:11px;color:#94a3b8">Gasto máximo (R$)</label>
+                <input type="number" id="f-max-gasto" value="${f.max_gasto ?? ''}" placeholder="sem limite" style="width:100%;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);color:#e2e8f0;font-size:12.5px;margin-top:2px;box-sizing:border-box">
+              </div>
+              <div>
+                <label style="font-size:11px;color:#94a3b8">Dias sem comprar — mín</label>
+                <input type="number" id="f-d-min" value="${f.dias_sem_compra_min ?? ''}" placeholder="ex: 60" style="width:100%;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);color:#e2e8f0;font-size:12.5px;margin-top:2px;box-sizing:border-box">
+              </div>
+              <div>
+                <label style="font-size:11px;color:#94a3b8">Dias sem comprar — máx</label>
+                <input type="number" id="f-d-max" value="${f.dias_sem_compra_max ?? ''}" placeholder="ex: 120" style="width:100%;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);color:#e2e8f0;font-size:12.5px;margin-top:2px;box-sizing:border-box">
+              </div>
+              <div>
+                <label style="font-size:11px;color:#94a3b8">Score mínimo (0-100)</label>
+                <input type="number" id="f-score-min" min="0" max="100" value="${f.score_min ?? ''}" style="width:100%;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);color:#e2e8f0;font-size:12.5px;margin-top:2px;box-sizing:border-box">
+              </div>
+              <div>
+                <label style="font-size:11px;color:#94a3b8">Score máximo (0-100)</label>
+                <input type="number" id="f-score-max" min="0" max="100" value="${f.score_max ?? ''}" style="width:100%;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);color:#e2e8f0;font-size:12.5px;margin-top:2px;box-sizing:border-box">
+              </div>
+            </div>
+            <div style="margin-top:12px;padding:10px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.18);border-radius:6px;font-size:12px;color:#cbd5e1">
+              <strong style="color:oklch(88% 0.018 80)">Preview:</strong> <span id="seg-preview-count">-</span> cliente(s) correspondem a esses filtros
+            </div>
+          </div>
+
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:6px">
+            <button onclick="document.getElementById('c360-seg-modal').remove()" style="padding:9px 18px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:#94a3b8;cursor:pointer;font-size:13px">Cancelar</button>
+            <button onclick="c360SaveSegmento(${segExistente?.id || 'null'})" style="padding:9px 18px;border-radius:8px;border:1px solid oklch(88% 0.018 80 / 0.5);background:oklch(88% 0.018 80 / 0.12);color:oklch(88% 0.018 80);cursor:pointer;font-size:13px;font-weight:600">${segExistente?'Salvar alterações':'Criar segmento'}</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+
+    // Preview de contagem (atualiza ao alterar qualquer campo)
+    const fields = ['f-tipo','f-min-ped','f-max-ped','f-min-gasto','f-max-gasto','f-d-min','f-d-max','f-score-min','f-score-max','f-ufs'];
+    const updatePreview = () => {
+      const filtros = coletarFiltrosModal();
+      const n = aplicarFiltrosSegmento(state.clientes, filtros).length;
+      const el = document.getElementById('seg-preview-count');
+      if (el) el.textContent = fmtNum(n);
+    };
+    fields.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', updatePreview);
+      if (el) el.addEventListener('input', updatePreview);
+    });
+    document.querySelectorAll('#f-segs input').forEach(i => i.addEventListener('change', updatePreview));
+    setTimeout(updatePreview, 30);
+  }
+
+  function coletarFiltrosModal() {
+    const tp = document.getElementById('f-tipo')?.value;
+    const ufsEl = document.getElementById('f-ufs');
+    const ufs = ufsEl ? [...ufsEl.selectedOptions].map(o => o.value) : [];
+    const segs = [...document.querySelectorAll('#f-segs input:checked')].map(i => i.value);
+    const num = (id) => {
+      const v = document.getElementById(id)?.value;
+      return v === '' || v == null ? null : Number(v);
+    };
+    return {
+      tipo_pessoa: tp === 'todos' ? null : tp,
+      ufs: ufs.length ? ufs : null,
+      segmentos: segs.length ? segs : null,
+      min_pedidos: num('f-min-ped'),
+      max_pedidos: num('f-max-ped'),
+      min_gasto: num('f-min-gasto'),
+      max_gasto: num('f-max-gasto'),
+      dias_sem_compra_min: num('f-d-min'),
+      dias_sem_compra_max: num('f-d-max'),
+      score_min: num('f-score-min'),
+      score_max: num('f-score-max'),
+    };
+  }
+
+  window.c360SaveSegmento = async function(idStr) {
+    const id = idStr === 'null' ? null : Number(idStr);
+    const nome = (document.getElementById('seg-nome')?.value || '').trim();
+    if (!nome) { if (typeof showToast === 'function') showToast('Nome é obrigatório', 'error'); return; }
+    const descricao = (document.getElementById('seg-desc')?.value || '').trim();
+    const empresa = document.getElementById('seg-empresa')?.value || 'ambas';
+    const cor = document.getElementById('seg-cor')?.value || '#60a5fa';
+    const filtros = coletarFiltrosModal();
+    try {
+      if (id) {
+        const { error } = await state.sb.from('cliente_segmentos_custom').update({
+          nome, descricao, empresa, cor, filtros, updated_at: new Date().toISOString()
+        }).eq('id', id);
+        if (error) throw error;
+      } else {
+        const { data: { user } } = await state.sb.auth.getUser();
+        const { data: profile } = await state.sb.from('profiles').select('nome').eq('id', user.id).single();
+        const { error } = await state.sb.from('cliente_segmentos_custom').insert({
+          nome, descricao, empresa, cor, filtros,
+          user_id: user.id, user_nome: profile?.nome || user.email,
+        });
+        if (error) throw error;
+      }
+      document.getElementById('c360-seg-modal')?.remove();
+      if (typeof showToast === 'function') showToast('Segmento ' + (id ? 'atualizado' : 'criado'), 'success');
+      await renderSegmentosPage();
+    } catch (e) {
+      if (typeof showToast === 'function') showToast('Erro: ' + e.message, 'error');
+    }
+  };
+
+  window.c360DeleteSegmento = async function(id) {
+    if (!confirm('Apagar este segmento?')) return;
+    const { error } = await state.sb.from('cliente_segmentos_custom').delete().eq('id', id);
+    if (error) {
+      if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error');
+      return;
+    }
+    if (typeof showToast === 'function') showToast('Segmento apagado', 'success');
+    await renderSegmentosPage();
+  };
+
+  // Realtime pra segmentos (sincroniza criacao/edicao entre users)
+  function subscribeRealtimeSegmentos() {
+    if (state.segmentosChannel) return;
+    state.segmentosChannel = state.sb
+      .channel('realtime-cliente-segmentos')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cliente_segmentos_custom' }, async () => {
+        // So re-renderiza se a aba atual é segmentos
+        const active = document.querySelector('.page-section.active');
+        if (active?.id === 'page-segmentos') await renderSegmentosPage();
+      })
+      .subscribe();
+  }
+
+  // Hook: quando showPage('segmentos') for chamado, renderiza dados reais
+  const origShowPage = window.showPage;
+  if (typeof origShowPage === 'function') {
+    window.showPage = function(id) {
+      origShowPage(id);
+      if (id === 'segmentos') renderSegmentosPage();
+    };
+  }
+
+  // Expoe helper pra c360SetEmpresa poder chamar
+  window.c360ReRenderSegmentosIfActive = async function() {
+    const active = document.querySelector('.page-section.active');
+    if (active?.id === 'page-segmentos') await renderSegmentosPage();
+  };
+
   // ─── Boot ───
   async function boot() {
     console.log('[c360] Boot iniciado · empresa=' + state.empresa);
@@ -1385,8 +1897,9 @@
     wireSearchAndFilters();
     // Paralelo: lista + dashboard + mencionaveis (preload)
     await Promise.all([loadClientes(), loadDashboardResumo(), loadMencionaveis()]);
-    // Subscribe realtime pra notas
+    // Subscribe realtime pra notas e segmentos
     subscribeRealtimeNotas();
+    subscribeRealtimeSegmentos();
     // Se veio deep-link via sessionStorage, abre o cliente/aba certa
     await checkDeepLink();
   }
