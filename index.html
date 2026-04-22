@@ -2820,22 +2820,22 @@ select.input { cursor: pointer; }
     </div>
 
     <div class="card">
-      <div class="card-header"><div><div class="card-title">Financeiro Resumo</div><div class="card-sub">Dados Bling — 13/04/2026</div></div></div>
+      <div class="card-header"><div><div class="card-title">Financeiro Resumo</div><div class="card-sub" id="fin-resumo-sub">Dados Bling</div></div></div>
       <div class="tl-item">
         <div class="tl-dot active"><div class="tl-inner"></div></div>
-        <div class="tl-content"><div class="tl-title">Contas a Receber</div><div class="tl-meta now" id="fin-receber">R$291.1k em aberto</div></div>
+        <div class="tl-content"><div class="tl-title">Contas a Receber</div><div class="tl-meta now" id="fin-receber">carregando...</div></div>
       </div>
       <div class="tl-item">
         <div class="tl-dot"><div class="tl-inner"></div></div>
-        <div class="tl-content"><div class="tl-title">Contas a Pagar</div><div class="tl-meta" id="fin-pagar">R$1.109k em aberto</div></div>
+        <div class="tl-content"><div class="tl-title">Contas a Pagar</div><div class="tl-meta" id="fin-pagar">carregando...</div></div>
       </div>
       <div class="tl-item">
         <div class="tl-dot"><div class="tl-inner"></div></div>
-        <div class="tl-content"><div class="tl-title">38 categorias de produto</div><div class="tl-meta">Jalecos, Scrubs, Toucas, Dolmas, Aventais, Gorros...</div></div>
+        <div class="tl-content"><div class="tl-title" id="fin-cat-title">Categorias de produto</div><div class="tl-meta" id="fin-cat-meta">Jalecos, Scrubs, Toucas, Dolmas, Aventais, Gorros…</div></div>
       </div>
       <div class="tl-item">
         <div class="tl-dot done"><div class="tl-inner"></div></div>
-        <div class="tl-content"><div class="tl-title">6 depósitos ativos</div><div class="tl-meta" style="color:var(--green);font-weight:600">Dhom Fábrica, Ducato, Donare, Magalu Fulfillment</div></div>
+        <div class="tl-content"><div class="tl-title" id="fin-dep-title">Depósitos ativos</div><div class="tl-meta" id="fin-dep-meta" style="color:var(--green);font-weight:600">Dhom Fábrica, Ducato, Donare, Magalu Fulfillment</div></div>
       </div>
     </div>
   </div>
@@ -17613,6 +17613,33 @@ function atualizarVisibilidadePorEmpresa() {
   `).join('');
 }
 
+function atualizarFinanceiroResumoCard() {
+  const e = empresaAtual();
+  const elSub = document.getElementById('fin-resumo-sub');
+  const elCatTitle = document.getElementById('fin-cat-title');
+  const elCatMeta = document.getElementById('fin-cat-meta');
+  const elDepTitle = document.getElementById('fin-dep-title');
+  const elDepMeta = document.getElementById('fin-dep-meta');
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  if (elSub) elSub.textContent = 'Dados Bling — ' + hoje + ' · ' + (e === 'todas' ? 'Matriz + BC' : (e === 'matriz' ? 'Matriz' : 'BC'));
+  if (e === 'matriz') {
+    if (elCatTitle) elCatTitle.textContent = '38 categorias de produto';
+    if (elCatMeta) elCatMeta.textContent = 'Jalecos, Scrubs, Toucas, Dolmas, Aventais, Gorros…';
+    if (elDepTitle) elDepTitle.textContent = '5 depósitos ativos';
+    if (elDepMeta) elDepMeta.textContent = 'Dhom Fábrica, Ducato, Donare, Magalu Fulfillment, Marcia';
+  } else if (e === 'bc') {
+    if (elCatTitle) elCatTitle.textContent = '—';
+    if (elCatMeta) elCatMeta.textContent = 'Categorias não mapeadas pra BC';
+    if (elDepTitle) elDepTitle.textContent = '1 depósito ativo';
+    if (elDepMeta) elDepMeta.textContent = 'Geral (loja BC)';
+  } else { // todas
+    if (elCatTitle) elCatTitle.textContent = '38 categorias de produto';
+    if (elCatMeta) elCatMeta.textContent = 'Jalecos, Scrubs, Toucas, Dolmas, Aventais, Gorros…';
+    if (elDepTitle) elDepTitle.textContent = '6 depósitos ativos';
+    if (elDepMeta) elDepMeta.textContent = 'Matriz (5) + BC (1)';
+  }
+}
+
 async function carregarTopProdutosDash() {
   const lista = document.getElementById('top-prod-dash-lista');
   const sub = document.getElementById('top-prod-dash-sub');
@@ -17656,6 +17683,7 @@ async function carregarTopProdutosDash() {
 
 function recarregarTudoPorEmpresa() {
   atualizarVisibilidadePorEmpresa();
+  atualizarFinanceiroResumoCard();
   carregarTopProdutosDash();
   // Invalida caches e dispara reload da view ativa
   try {
@@ -17687,7 +17715,7 @@ document.addEventListener('click', (e) => {
 });
 
 // Inicializa botão ao carregar
-setTimeout(() => { atualizarBotaoEmpresa(); atualizarVisibilidadePorEmpresa(); carregarTopProdutosDash(); }, 500);
+setTimeout(() => { atualizarBotaoEmpresa(); atualizarVisibilidadePorEmpresa(); atualizarFinanceiroResumoCard(); carregarTopProdutosDash(); }, 500);
 
 function aiChatMount() {
   if (document.getElementById('ai-chat-bubble')) return;
