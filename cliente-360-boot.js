@@ -13,8 +13,7 @@
   const state = {
     sb: null,
     empresa: localStorage.getItem('c360_empresa') || 'matriz',
-    clientes: [],                // cliente_scoring rows
-    contatosByName: {},          // 'Nome' -> { telefone, celular, uf }
+    clientes: [],
     filtered: [],
     segmentFilter: 'todos',
     ufFilter: 'todos',
@@ -23,6 +22,9 @@
     loadingList: false,
     clientSelected: null,
   };
+  // Cache por empresa (TTL 5min) - evita reload ao trocar matriz<->bc
+  const cache = { matriz: null, bc: null };
+  const CACHE_TTL = 5 * 60 * 1000;
 
   // ─── DDD (2 primeiros digitos do fone) -> UF ───
   const DDD_TO_UF = {
@@ -148,28 +150,51 @@
   }
 
   // ─── Carrega clientes do Supabase ───
+  function setLoadingIndicator(on) {
+    const tbody = document.querySelector('#page-clientes table tbody');
+    if (on && tbody) {
+      tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-12 text-center text-muted-foreground">⏳ Carregando clientes...</td></tr>';
+    }
+  }
+
   async function loadClientes() {
     if (state.loadingList) return;
     state.loadingList = true;
     try {
-      // Paraleliza: cliente_scoring + contatos
-      const [scoringRes, contatosRes] = await Promise.all([
-        state.sb.from('cliente_scoring')
-          .select('*')
-          .eq('empresa', state.empresa)
-          .order('score', { ascending: false, nullsFirst: false })
-          .limit(5000),
-        loadContatosBatched(state.empresa),
-      ]);
-
-      if (scoringRes.error) {
-        console.error('[c360] erro load clientes:', scoringRes.error);
+      // Cache hit?
+      const c = cache[state.empresa];
+      if (c && Date.now() - c.ts < CACHE_TTL) {
+        state.clientes = c.rows;
+        console.log(`[c360] cache hit (${state.empresa}): ${state.clientes.length}`);
+        buildUfOptions();
+        applyFilters();
         return;
       }
 
-      state.clientes = scoringRes.data || [];
-      state.contatosByName = contatosRes || {};
-      console.log(`[c360] ${state.clientes.length} clientes + ${Object.keys(state.contatosByName).length} contatos (empresa=${state.empresa})`);
+      setLoadingIndicator(true);
+
+      // 1 query só — view server-side ja traz telefone/celular
+      const { data, error } = await state.sb
+        .from('cliente_scoring_full')
+        .select('*')
+        .eq('empresa', state.empresa)
+        .order('score', { ascending: false, nullsFirst: false })
+        .limit(5000);
+
+      if (error) {
+        console.error('[c360] erro load clientes:', error);
+        return;
+      }
+
+      // Enriquece cada row com uf calculada (cliente-side)
+      const rows = (data || []).map(r => ({
+        ...r,
+        uf: phoneToUF(r.celular || r.telefone)
+      }));
+
+      state.clientes = rows;
+      cache[state.empresa] = { rows, ts: Date.now() };
+      console.log(`[c360] ${rows.length} clientes (empresa=${state.empresa}) em 1 query`);
 
       buildUfOptions();
       applyFilters();
@@ -180,41 +205,13 @@
     }
   }
 
-  // Carrega contatos em lotes (evita timeout em 28k+ rows) e indexa por nome
-  async function loadContatosBatched(empresa) {
-    const map = {};
-    const BATCH = 1000;
-    let offset = 0;
-    let total = 0;
-    while (offset < 100000) {
-      const { data, error } = await state.sb
-        .from('contatos')
-        .select('nome, telefone, celular')
-        .eq('empresa', empresa)
-        .range(offset, offset + BATCH - 1);
-      if (error) { console.warn('[c360] erro contatos batch', offset, error); break; }
-      if (!data || data.length === 0) break;
-      for (const c of data) {
-        if (!c.nome) continue;
-        const fone = c.celular || c.telefone || '';
-        const uf = phoneToUF(fone);
-        map[c.nome] = { telefone: c.telefone || '', celular: c.celular || '', uf };
-      }
-      total += data.length;
-      if (data.length < BATCH) break;
-      offset += BATCH;
-    }
-    return map;
-  }
-
   // Popula o <select> de UF com os estados realmente presentes
   function buildUfOptions() {
     const sel = document.getElementById('c360-uf-select');
     if (!sel) return;
     const ufs = {};
     for (const c of state.clientes) {
-      const ct = state.contatosByName[c.contato_nome];
-      if (ct && ct.uf) ufs[ct.uf] = (ufs[ct.uf] || 0) + 1;
+      if (c.uf) ufs[c.uf] = (ufs[c.uf] || 0) + 1;
     }
     const ordenados = Object.entries(ufs).sort((a,b) => b[1]-a[1]);
     const opts = ['<option value="todos">Todos os estados</option>']
@@ -226,26 +223,19 @@
 
   function applyFilters() {
     const q = (state.searchQuery || '').trim().toLowerCase();
-    const qDigits = q.replace(/\D/g, ''); // pra match em telefone
+    const qDigits = q.replace(/\D/g, '');
     state.filtered = state.clientes.filter(c => {
-      // Segmento
       if (state.segmentFilter !== 'todos' && c.segmento !== state.segmentFilter) return false;
-      // UF (inferida do fone via contatos)
-      const ct = state.contatosByName[c.contato_nome];
       if (state.ufFilter !== 'todos') {
-        if (state.ufFilter === 'null') {
-          if (ct && ct.uf) return false; // quer os sem fone
-        } else {
-          if (!ct || ct.uf !== state.ufFilter) return false;
-        }
+        if (state.ufFilter === 'null') { if (c.uf) return false; }
+        else { if (c.uf !== state.ufFilter) return false; }
       }
-      // Busca: nome OU telefone OU celular
       if (q) {
         const nome = String(c.contato_nome || '').toLowerCase();
-        const tel = (ct?.telefone || '').toLowerCase();
-        const cel = (ct?.celular || '').toLowerCase();
-        const telDigits = (ct?.telefone || '').replace(/\D/g,'');
-        const celDigits = (ct?.celular || '').replace(/\D/g,'');
+        const tel = String(c.telefone || '').toLowerCase();
+        const cel = String(c.celular || '').toLowerCase();
+        const telDigits = String(c.telefone || '').replace(/\D/g,'');
+        const celDigits = String(c.celular || '').replace(/\D/g,'');
         const achou = nome.includes(q)
           || tel.includes(q) || cel.includes(q)
           || (qDigits.length >= 3 && (telDigits.includes(qDigits) || celDigits.includes(qDigits)));
@@ -356,8 +346,8 @@
     }
 
     // 2) Substituir os botoes Radix Select por <select> nativos
-    // Estilo compartilhado pros dois
-    const selectStyle = 'height:36px;padding:0 32px 0 12px;font-size:14px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.9);cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url(\'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgb(161,161,170)" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>\');background-repeat:no-repeat;background-position:right 10px center;';
+    // color-scheme:dark faz o popup do <select> herdar tema dark do OS
+    const selectStyle = 'height:36px;padding:0 32px 0 12px;font-size:14px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(20,20,25,1);color:rgba(255,255,255,0.9);cursor:pointer;appearance:none;-webkit-appearance:none;color-scheme:dark;background-image:url(\'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgb(161,161,170)" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>\');background-repeat:no-repeat;background-position:right 10px center;';
 
     // Estagios/segmento
     const btnSeg = Array.from(document.querySelectorAll('#page-clientes button[role="combobox"]')).find(b => (b.textContent || '').includes('estágios') || (b.textContent || '').includes('estagios'));
