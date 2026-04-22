@@ -391,12 +391,340 @@
 
   // (Filtro agora é gerenciado dentro do Cliente 360 via toggle sidebar - ver c360SetEmpresa)
 
-  // ─── Detalhe de cliente (placeholder — sobrescreve a demo) ───
-  // Será completado no Commit 2
-  window.showClientDetail = function(clienteId) {
-    console.log('[c360] showClientDetail (encoded):', clienteId);
+  // ─── Mapeamentos Bling ───
+  const LOJA_NOMES = {
+    0: 'Site (e-commerce)', null: 'Site (e-commerce)',
+    203536978: 'Loja/WhatsApp (Piçarras)',
+    203550865: 'Loja Física BC',
+    205337834: 'Mercado Livre',
+    205430008: 'TikTok Shop',
+    205522474: 'Shopee',
+  };
+  function lojaNome(lojaId) {
+    if (lojaId === null || lojaId === 0 || lojaId === undefined) return 'Site (e-commerce)';
+    return LOJA_NOMES[lojaId] || 'Magalu';
+  }
+
+  // Situacoes Bling
+  const SITUACAO_LABELS = {
+    1: 'Em aberto', 2: 'Atendido', 3: 'Cancelado', 6: 'Em aberto',
+    9: 'Atendido', 12: 'Cancelado', 15: 'Em andamento',
+  };
+  const SITUACAO_COLORS = {
+    Atendido: { bg: 'rgba(34,197,94,0.15)', fg: '#22c55e' },
+    'Em aberto': { bg: 'rgba(251,191,36,0.15)', fg: '#fbbf24' },
+    Cancelado: { bg: 'rgba(239,68,68,0.15)', fg: '#ef4444' },
+    'Em andamento': { bg: 'rgba(96,165,250,0.15)', fg: '#60a5fa' },
+  };
+
+  // RFM 0-5 baseado nos dados
+  function computeRFM(c) {
+    const dias = c.dias_sem_compra || 9999;
+    const pedidos = c.total_pedidos || 0;
+    const gasto = Number(c.total_gasto) || 0;
+    const r = dias < 30 ? 5 : dias < 60 ? 4 : dias < 120 ? 3 : dias < 240 ? 2 : dias < 365 ? 1 : 0;
+    const f = pedidos >= 15 ? 5 : pedidos >= 8 ? 4 : pedidos >= 4 ? 3 : pedidos >= 2 ? 2 : pedidos >= 1 ? 1 : 0;
+    const m = gasto >= 20000 ? 5 : gasto >= 10000 ? 4 : gasto >= 5000 ? 3 : gasto >= 2000 ? 2 : gasto >= 500 ? 1 : 0;
+    return { r, f, m };
+  }
+
+  // Probabilidade de recompra 0-100 (heuristica)
+  function probRecompra(c) {
+    let p = c.score || 0;
+    const dias = c.dias_sem_compra || 9999;
+    if (dias < 60) p = Math.min(100, p + 10);
+    else if (dias > 365) p = Math.max(0, p - 25);
+    else if (dias > 180) p = Math.max(0, p - 10);
+    return Math.round(p);
+  }
+
+  // ─── Busca pedidos + itens do cliente ───
+  async function fetchPedidosCliente(contatoNome, empresa) {
+    const { data: pedidos, error } = await state.sb
+      .from('pedidos')
+      .select('id, numero, data, data_saida, total, total_produtos, situacao_id, loja_id, vendedor_nome, numero_loja')
+      .eq('empresa', empresa)
+      .eq('contato_nome', contatoNome)
+      .order('data', { ascending: false })
+      .limit(100);
+    if (error) { console.error('[c360] erro pedidos:', error); return []; }
+    if (!pedidos || pedidos.length === 0) return [];
+
+    // Busca itens dos pedidos em 1 query
+    const pedidoIds = pedidos.map(p => p.id);
+    const { data: itens } = await state.sb
+      .from('pedidos_itens')
+      .select('pedido_id, descricao, codigo, quantidade, valor_unitario, valor_total')
+      .in('pedido_id', pedidoIds);
+
+    const itensByPedido = {};
+    (itens || []).forEach(i => {
+      if (!itensByPedido[i.pedido_id]) itensByPedido[i.pedido_id] = [];
+      itensByPedido[i.pedido_id].push(i);
+    });
+
+    return pedidos.map(p => ({ ...p, itens: itensByPedido[p.id] || [] }));
+  }
+
+  // Categoria e canal preferidos
+  function computeFavoritos(pedidos) {
+    const lojaCount = {};
+    const catCount = {};
+    for (const p of pedidos) {
+      const lnome = lojaNome(p.loja_id);
+      lojaCount[lnome] = (lojaCount[lnome] || 0) + 1;
+      for (const it of p.itens || []) {
+        // Categoria heuristica por palavras-chave na descricao
+        const desc = String(it.descricao || '').toLowerCase();
+        let cat = 'Outros';
+        if (desc.includes('jaleco')) cat = 'Jalecos';
+        else if (desc.includes('scrub')) cat = 'Scrubs';
+        else if (desc.includes('kit')) cat = 'Kits';
+        else if (desc.includes('conjunto')) cat = 'Conjuntos';
+        else if (desc.includes('camisa') || desc.includes('blusa')) cat = 'Camisas';
+        else if (desc.includes('calca') || desc.includes('calça')) cat = 'Calças';
+        else if (desc.includes('avental')) cat = 'Aventais';
+        else if (desc.includes('gorro') || desc.includes('touca')) cat = 'Acessórios';
+        catCount[cat] = (catCount[cat] || 0) + (Number(it.quantidade) || 1);
+      }
+    }
+    const topLoja = Object.entries(lojaCount).sort((a,b) => b[1]-a[1])[0]?.[0] || '—';
+    const topCat  = Object.entries(catCount).sort((a,b) => b[1]-a[1])[0]?.[0] || '—';
+    return { canalPreferido: topLoja, categoriaPreferida: topCat };
+  }
+
+  // ─── Detalhe do cliente (Fase 2 · Commit 2) ───
+  window.showClientDetail = async function(clienteId) {
     const nome = decodeURIComponent(clienteId);
-    alert('Detalhe do cliente "' + nome + '" será implementado no próximo commit.\n\n(Fase 2 — Commit 1: lista dinâmica já funcionando!)');
+    const page = document.getElementById('page-cliente-1');
+    if (!page) { console.error('[c360] page-cliente-1 nao encontrada'); return; }
+
+    // Loading state
+    page.innerHTML = '<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.5)">⏳ Carregando dados de ' + escapeHtml(nome) + '...</div>';
+    document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
+    page.classList.add('active');
+    window.scrollTo(0,0);
+
+    try {
+      // Cliente completo + pedidos
+      const c = state.clientes.find(x => x.contato_nome === nome);
+      const [pedidos] = await Promise.all([ fetchPedidosCliente(nome, state.empresa) ]);
+      const fav = computeFavoritos(pedidos);
+      renderClientDetail(c, nome, pedidos, fav);
+    } catch (e) {
+      console.error('[c360] erro detalhe:', e);
+      page.innerHTML = '<div style="padding:40px;text-align:center;color:#ef4444">Erro ao carregar: ' + escapeHtml(String(e.message||e)) + '</div>';
+    }
+  };
+
+  function renderClientDetail(c, nome, pedidos, fav) {
+    const page = document.getElementById('page-cliente-1');
+    if (!page) return;
+    if (!c) {
+      page.innerHTML = '<div style="padding:40px;text-align:center"><button onclick="showPage(\'clientes\')" style="color:#94a3b8;background:none;border:none;cursor:pointer;margin-bottom:20px">← Voltar</button><div style="color:rgba(255,255,255,0.5)">Cliente "'+escapeHtml(nome)+'" nao encontrado na empresa atual.</div></div>';
+      return;
+    }
+
+    const seg = c.segmento || 'Sem histórico';
+    const segStyle = SEGMENT_STYLES[seg] || SEGMENT_STYLES['Sem histórico'];
+    const risco = riscoBadge(c);
+    const score = Number(c.score) || 0;
+    const rfm = computeRFM(c);
+    const pRec = probRecompra(c);
+    const initial = (nome.trim()[0] || '?').toUpperCase();
+    const tipo = c.tipo_pessoa === 'J' ? 'Pessoa Jurídica' : c.tipo_pessoa === 'F' ? 'Pessoa Física' : (c.tipo_pessoa || '');
+    const doc = c.numero_documento ? (tipo === 'Pessoa Jurídica' ? 'CNPJ: ' : tipo === 'Pessoa Física' ? 'CPF: ' : 'Doc: ') + c.numero_documento : '';
+    const fone = c.celular || c.telefone || '';
+
+    // Ciclo medio: dias entre pedidos consecutivos
+    let cicloMedio = '—';
+    if (pedidos.length >= 2) {
+      const datas = pedidos.map(p => new Date(p.data)).sort((a,b) => a-b);
+      let soma = 0, n = 0;
+      for (let i = 1; i < datas.length; i++) { soma += (datas[i] - datas[i-1]) / 86400000; n++; }
+      cicloMedio = n > 0 ? Math.round(soma/n) + ' dias' : '—';
+    }
+    // Proxima estimada: ultima_compra + ciclo
+    let proximaEstimada = '—';
+    let diasProxima = '';
+    if (c.ultima_compra && pedidos.length >= 2) {
+      const cmDias = parseInt(cicloMedio, 10);
+      if (!isNaN(cmDias)) {
+        const dt = new Date(c.ultima_compra + 'T00:00:00');
+        dt.setDate(dt.getDate() + cmDias);
+        proximaEstimada = dt.toLocaleDateString('pt-BR');
+        const hoje = new Date();
+        const dif = Math.round((dt - hoje) / 86400000);
+        diasProxima = dif > 0 ? 'Em ' + dif + ' dias' : dif < 0 ? 'Atrasado ' + (-dif) + ' dias' : 'Hoje';
+      }
+    }
+
+    const barColor = score >= 80 ? '#22c55e' : score >= 60 ? '#eab308' : score >= 40 ? '#f97316' : '#ef4444';
+    const barRecColor = pRec >= 70 ? '#22c55e' : pRec >= 40 ? '#eab308' : '#ef4444';
+    const recLabel = pRec >= 70 ? 'Alta chance de recompra' : pRec >= 40 ? 'Média chance de recompra' : 'Baixa chance — reativar';
+
+    const fmtStatus = (sitId) => {
+      const lbl = SITUACAO_LABELS[sitId] || 'Situação ' + sitId;
+      const col = SITUACAO_COLORS[lbl] || SITUACAO_COLORS['Em aberto'];
+      return { lbl, bg: col.bg, fg: col.fg };
+    };
+
+    const pedidosHtml = pedidos.length === 0
+      ? '<div style="padding:24px;text-align:center;color:#64748b;font-size:13px">Sem pedidos cadastrados.</div>'
+      : pedidos.map(p => {
+          const st = fmtStatus(p.situacao_id);
+          const valor = Number(p.total) || Number(p.total_produtos) || 0;
+          const itensHtml = (p.itens || []).slice(0, 8).map(it => `
+            <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:#94a3b8;border-top:1px solid rgba(255,255,255,0.05)">
+              <span>${fmtNum(it.quantidade)}x ${escapeHtml(it.descricao||'(sem descricao)')}</span>
+              <span>${fmtBRL(it.valor_total || (Number(it.quantidade)||0)*(Number(it.valor_unitario)||0))}</span>
+            </div>
+          `).join('');
+          const mais = (p.itens || []).length > 8 ? `<div style="padding:6px 0;font-size:12px;color:#64748b">+ ${(p.itens||[]).length-8} item(s)...</div>` : '';
+          return `
+            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;margin-bottom:12px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <div>
+                  <span style="font-weight:600;font-size:14px;color:#e2e8f0">Pedido #${escapeHtml(String(p.numero||p.id))}</span>
+                  <span style="font-size:12px;color:#64748b;margin-left:10px">${fmtDate(p.data)} · ${escapeHtml(lojaNome(p.loja_id))}${p.vendedor_nome?' · Vend: '+escapeHtml(p.vendedor_nome):''}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-weight:700;font-size:15px;color:#22c55e">${fmtBRL(valor)}</span>
+                  <span style="background:${st.bg};color:${st.fg};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600">${st.lbl}</span>
+                </div>
+              </div>
+              ${itensHtml}${mais}
+            </div>`;
+        }).join('');
+
+    page.innerHTML = `
+<div style="padding:24px;max-width:1200px;margin:0 auto">
+  <button onclick="showPage('clientes')" style="display:flex;align-items:center;gap:8px;background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:14px;margin-bottom:20px;padding:0;font-family:Inter,sans-serif">
+    <svg fill="none" height="16" stroke="currentColor" stroke-width="2" viewbox="0 0 24 24" width="16"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    Voltar para Clientes
+  </button>
+
+  <!-- Header -->
+  <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:24px;margin-bottom:20px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px">
+      <div style="display:flex;align-items:center;gap:16px">
+        <div style="width:56px;height:56px;border-radius:50%;background:rgba(167,139,250,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#a78bfa;flex-shrink:0">${escapeHtml(initial)}</div>
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+            <h2 style="margin:0;font-size:22px;font-weight:700;color:#f1f5f9">${escapeHtml(nome)}</h2>
+            <span class="inline-flex items-center rounded-full font-medium text-xs px-2.5 py-1 ${segStyle.bg} ${segStyle.fg} border ${segStyle.border}">${seg}</span>
+            <span class="inline-flex items-center rounded-full font-medium text-xs px-2.5 py-1 ${risco.cls} border">Risco: ${risco.label}</span>
+          </div>
+          <div style="font-size:13px;color:#94a3b8;margin-bottom:4px">${fone ? escapeHtml(fone) : '<span style="color:#475569">sem telefone</span>'}${c.uf ? ' · '+c.uf : ''}${doc ? ' · '+escapeHtml(doc) : ''}</div>
+          <div style="font-size:12px;color:#64748b">${EMPRESA_LABELS[c.empresa] || c.empresa}${tipo ? ' · '+tipo : ''}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-shrink:0">
+        <button onclick="c360Recalcular()" style="padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:#e2e8f0;cursor:pointer;font-size:13px;font-weight:500">Recalcular</button>
+        <button onclick="c360InsightIA()" style="padding:8px 16px;border-radius:8px;border:1px solid rgba(251,191,36,0.4);background:rgba(251,191,36,0.1);color:#fbbf24;cursor:pointer;font-size:13px;font-weight:500">◆ Insight IA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI cards -->
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px">
+    ${kpiCard('🛒 Total de Pedidos', fmtNum(c.total_pedidos), '')}
+    ${kpiCard('$ Total Gasto', fmtBRL(c.total_gasto), '', 18)}
+    ${kpiCard('↗ Ticket Médio', fmtBRL(c.ticket_medio), '', 18)}
+    ${kpiCard('⏰ Ciclo Médio', cicloMedio, '', 18)}
+    ${kpiCard('⏰ Última Compra', fmtDate(c.ultima_compra), 'Há '+fmtNum(c.dias_sem_compra)+' dias', 16)}
+    ${kpiCard('↗ Próxima Estimada', proximaEstimada, diasProxima, 16)}
+  </div>
+
+  <!-- Scores -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:20px">
+      <h3 style="margin:0 0 16px;font-size:15px;font-weight:600;color:#f1f5f9">Score RFM</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:13px;color:#94a3b8">Score Geral</span>
+        <span style="font-size:14px;font-weight:700;color:#f1f5f9">${score}</span>
+      </div>
+      <div style="height:6px;background:rgba(255,255,255,0.08);border-radius:3px;margin-bottom:20px">
+        <div style="height:100%;width:${score}%;background:${barColor};border-radius:3px;transition:width 0.5s"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center">
+        <div><div style="font-size:28px;font-weight:700;color:#f1f5f9">${rfm.r}</div><div style="font-size:12px;color:#64748b">Recência</div></div>
+        <div><div style="font-size:28px;font-weight:700;color:#f1f5f9">${rfm.f}</div><div style="font-size:12px;color:#64748b">Frequência</div></div>
+        <div><div style="font-size:28px;font-weight:700;color:#f1f5f9">${rfm.m}</div><div style="font-size:12px;color:#64748b">Monetário</div></div>
+      </div>
+    </div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:20px">
+      <h3 style="margin:0 0 16px;font-size:15px;font-weight:600;color:#f1f5f9">Score de Recompra</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:13px;color:#94a3b8">Probabilidade de Recompra</span>
+        <span style="font-size:14px;font-weight:700;color:#f1f5f9">${pRec}</span>
+      </div>
+      <div style="height:6px;background:rgba(255,255,255,0.08);border-radius:3px;margin-bottom:20px">
+        <div style="height:100%;width:${pRec}%;background:${barRecColor};border-radius:3px;transition:width 0.5s"></div>
+      </div>
+      <div style="margin-bottom:12px"><span style="color:${barRecColor};font-size:14px;font-weight:600">◆ ${recLabel}</span></div>
+      <div style="font-size:13px;color:#94a3b8">
+        Categoria preferida: <strong style="color:#e2e8f0">${escapeHtml(fav.categoriaPreferida)}</strong><br/>
+        Canal preferido: <strong style="color:#e2e8f0">${escapeHtml(fav.canalPreferido)}</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden">
+    <div style="display:flex;border-bottom:1px solid rgba(255,255,255,0.08)">
+      <button id="c360-tab-pedidos" onclick="c360SwitchTab('pedidos')" style="padding:14px 20px;background:transparent;border:none;color:oklch(88% 0.018 80);cursor:pointer;font-size:14px;font-weight:600;border-bottom:2px solid oklch(88% 0.018 80);display:flex;align-items:center;gap:6px">
+        🛒 Pedidos <span style="background:rgba(255,255,255,0.1);color:oklch(88% 0.018 80);padding:2px 8px;border-radius:20px;font-size:11px">${fmtNum(pedidos.length)}</span>
+      </button>
+      <button id="c360-tab-insights" onclick="c360SwitchTab('insights')" style="padding:14px 20px;background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:14px;font-weight:500;border-bottom:2px solid transparent;display:flex;align-items:center;gap:6px">◆ Insights IA</button>
+      <button id="c360-tab-notas" onclick="c360SwitchTab('notas')" style="padding:14px 20px;background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:14px;font-weight:500;border-bottom:2px solid transparent;display:flex;align-items:center;gap:6px">💬 Notas</button>
+    </div>
+    <div id="c360-tabpanel-pedidos" style="padding:16px">${pedidosHtml}</div>
+    <div id="c360-tabpanel-insights" style="padding:40px;display:none;text-align:center;color:#64748b">
+      <div style="font-size:32px;margin-bottom:8px">◆</div>
+      <div style="font-size:14px;margin-bottom:4px;color:#e2e8f0">Insights IA — em breve</div>
+      <div style="font-size:12px">Esta aba vai gerar análises automáticas via IA sobre comportamento, oportunidades e recomendações específicas deste cliente. Disponível na Fase 3.</div>
+    </div>
+    <div id="c360-tabpanel-notas" style="padding:40px;display:none;text-align:center;color:#64748b">
+      <div style="font-size:32px;margin-bottom:8px">💬</div>
+      <div style="font-size:14px;margin-bottom:4px;color:#e2e8f0">Notas — em breve</div>
+      <div style="font-size:12px">Em breve você vai poder adicionar notas internas sobre este cliente (observações, histórico de contato, preferências).</div>
+    </div>
+  </div>
+</div>`;
+  }
+
+  function kpiCard(label, valor, sub, fontSize) {
+    const fs = fontSize || 24;
+    return `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px">
+      <div style="font-size:11px;color:#64748b;margin-bottom:8px">${escapeHtml(label)}</div>
+      <div style="font-size:${fs}px;font-weight:700;color:#f1f5f9">${escapeHtml(valor)}</div>
+      ${sub ? `<div style="font-size:11px;color:#64748b;margin-top:4px">${escapeHtml(sub)}</div>` : ''}
+    </div>`;
+  }
+
+  // Tabs internos
+  window.c360SwitchTab = function(tab) {
+    const tabs = ['pedidos','insights','notas'];
+    for (const t of tabs) {
+      const btn = document.getElementById('c360-tab-'+t);
+      const panel = document.getElementById('c360-tabpanel-'+t);
+      const ativo = t === tab;
+      if (btn) {
+        btn.style.color = ativo ? 'oklch(88% 0.018 80)' : '#94a3b8';
+        btn.style.fontWeight = ativo ? '600' : '500';
+        btn.style.borderBottomColor = ativo ? 'oklch(88% 0.018 80)' : 'transparent';
+      }
+      if (panel) panel.style.display = ativo ? '' : 'none';
+    }
+  };
+
+  window.c360Recalcular = function() {
+    // Por enquanto: mostra toast + reload. Fase 3 vai chamar IA
+    if (typeof showToast === 'function') showToast('Os scores serão recalculados na próxima sincronização com o Bling', 'info');
+  };
+  window.c360InsightIA = function() {
+    if (typeof showToast === 'function') showToast('Insight IA será implementado na Fase 3', 'info');
   };
 
   // ─── Boot ───
