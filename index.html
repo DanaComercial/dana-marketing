@@ -17698,14 +17698,20 @@ async function recarregarTudoPorEmpresa() {
     const active = document.querySelector('.view.active');
     if (!active) return;
     const viewId = active.id.replace('view-', '');
-    // Callbacks: pode ser string (1 função) ou array (múltiplas funções)
+    // Callbacks: pode ser string (1 função) ou array (múltiplas funções). Nomes das funções reais do código.
     const callbacks = {
-      home: 'loadDashboard', financeiro: 'loadFinanceiro', projecoes: 'loadProjecoes',
-      comunidade: 'loadComunidade', marketplaces: 'loadMarketplaces',
-      canaisvendas: ['loadCanaisVenda', 'loadMarketplacesExtras'], // Top Clientes usa mp-* do marketplacesExtras
-      ecommerce: 'loadEcommerce', lojafisica: 'loadLojaFisica',
-      performance: 'loadPerformance', relatorio: 'renderRelatorioExecutivo',
-      personas: 'loadPersonaReal', roi: 'calcROI'
+      financeiro:   'loadFinanceiro',
+      projecoes:    'loadProjecoes',
+      comunidade:   'loadClienteScoring',
+      marketplaces: ['loadMarketplaces', 'loadMarketplacesExtras'],
+      canaisvendas: ['loadCanaisVenda', 'loadMarketplacesExtras'],
+      ecommerce:    'loadEcommerce',
+      lojafisica:   'loadLojaFisica',
+      performance:  'loadPerformanceData',
+      relatorio:    'loadRelatorio',
+      personas:     'loadPersonasStats',
+      roi:          'calcROI',
+      // 'home' (dashboard) é atualizado via loadSupabaseData já chamado acima
     };
     const fns = callbacks[viewId];
     const lista = Array.isArray(fns) ? fns : (fns ? [fns] : []);
