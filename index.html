@@ -2503,6 +2503,9 @@ select.input { cursor: pointer; }
     <div class="nav-item" onclick="go(this,'comunidade')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 10c0 1.1-.9 2-2 2H4l-2.5 2V4c0-1.1.9-2 2-2h8.5c1.1 0 2 .9 2 2z"/></svg></div>Comunidade e CRM
     </div>
+    <div class="nav-item" onclick="go(this,'cliente360')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.5"/><circle cx="8" cy="6" r="2"/><path d="M3.5 13c1-2 2.7-3 4.5-3s3.5 1 4.5 3"/></svg></div>Cliente 360
+    </div>
   </div>
 
   <div class="nav-section">
@@ -7031,6 +7034,16 @@ updateDynamicField('foto');
     <div id="proj-barras" style="padding:8px 0"><div style="color:var(--text3);font-size:12px;padding:12px">Carregando...</div></div>
   </div>
 </div></div>
+
+<!-- ════════ CLIENTE 360 ════════ -->
+<div class="view" id="view-cliente360" style="padding:0 !important">
+  <iframe id="cliente360-iframe"
+          src="about:blank"
+          style="width:100%;height:calc(100vh - 60px);border:0;display:block;background:#0a0a0a"
+          title="Cliente 360"
+          loading="lazy"></iframe>
+</div>
+
 <div class="view" id="view-provasocial"><div style="padding:24px 28px">
   <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;margin-bottom:4px">Prova Social</div>
   <div style="font-size:12.5px;color:var(--text3);margin-bottom:20px">Dados reais de clientes e revendas que validam a marca Dana · <span style="color:var(--green)">Bling ao vivo</span></div>
@@ -9058,6 +9071,7 @@ const VIEW_META = {
   referencias:  { title: 'Referências', sub: 'Banco de inspiração de criativos e estratégias', action: '' },
   performance:  { title: 'Performance', sub: 'ROAS, canais, Meta Ads e GA4', action: 'Exportar PDF' },
   comunidade:   { title: 'Comunidade e CRM', sub: 'Segmentos, disparos e métricas', action: '' },
+  cliente360:   { title: 'Cliente 360', sub: 'Visão completa dos clientes · CRM avançado', action: '' },
   marketplaces: { title: 'Marketplaces', sub: 'Mercado Livre e Shopee', action: 'Exportar PDF' },
   provasocial:  { title: 'Prova Social', sub: 'UGC, depoimentos e aprovação', action: 'Novo Conteúdo' },
   apis:         { title: 'Conectar APIs', sub: 'Integrações externas', action: '' },
@@ -9090,6 +9104,10 @@ const VIEW_SLUG_TO_ID = {};
   // Perfil entra também (não tem VIEW_META)
   VIEW_ID_TO_SLUG['perfil'] = 'meu-perfil';
   VIEW_SLUG_TO_ID['meu-perfil'] = 'perfil';
+  // Cliente 360: slug sem traço (danacomercial.github.io/dana-marketing/#cliente360)
+  VIEW_ID_TO_SLUG['cliente360'] = 'cliente360';
+  VIEW_SLUG_TO_ID['cliente360'] = 'cliente360';
+  delete VIEW_SLUG_TO_ID['cliente-360'];
 })();
 
 // ═══ MOBILE · toggle sidebar (drawer em <=768px) ═══
@@ -9172,6 +9190,20 @@ function go(el, viewId) {
   if (viewId === 'lojafisica') { if (typeof loadLojaFisica === 'function') loadLojaFisica(); }
   if (viewId === 'personas' || viewId === 'construtor') { if (typeof loadPersonasStats === 'function') loadPersonasStats(); }
   if (viewId === 'calendario') { if (typeof loadCalendario==='function') loadCalendario(); if (typeof loadTarefas==='function' && !_tarefasCache?.length) loadTarefas(); else if (typeof renderCalendario==='function') setTimeout(renderCalendario, 100); }
+  if (viewId === 'cliente360') loadCliente360();
+}
+
+// ── CLIENTE 360 · lazy-load do iframe com contexto da empresa ──
+function loadCliente360() {
+  const iframe = document.getElementById('cliente360-iframe');
+  if (!iframe) return;
+  const empresa = (typeof empresaAtual === 'function' ? empresaAtual() : 'todas') || 'todas';
+  const targetSrc = './cliente-360.html?empresa=' + encodeURIComponent(empresa);
+  // Só recarrega se mudou (evita reload desnecessário)
+  if (iframe.getAttribute('data-loaded-empresa') !== empresa) {
+    iframe.src = targetSrc;
+    iframe.setAttribute('data-loaded-empresa', empresa);
+  }
 }
 
 // Responde aos botões back/forward do browser
