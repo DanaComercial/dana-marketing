@@ -723,26 +723,35 @@
   };
 
   // ─── Insight IA (Fase 3) ───
-  // Converte markdown leve (**bold**, ### headers, listas -) pra HTML
-  function mdToHtml(md) {
-    if (!md) return '';
-    let h = escapeHtml(md);
-    // headers ### / ##
-    h = h.replace(/^###\s+(.+)$/gm, '<h3 style="margin:18px 0 8px;font-size:15px;font-weight:700;color:#f1f5f9">$1</h3>');
-    h = h.replace(/^##\s+(.+)$/gm, '<h2 style="margin:18px 0 10px;font-size:17px;font-weight:700;color:#f1f5f9">$1</h2>');
-    // bold
+  // Parser das 3 secoes fixas (ANALISE DO COMPORTAMENTO ATUAL / RISCO / ACAO)
+  // Retorna objeto { analise, risco, acao }
+  function parseInsightSecoes(md) {
+    if (!md) return { analise: '', risco: '', acao: '' };
+    const secs = { analise: '', risco: '', acao: '' };
+    // Aceita varicoes dos labels (caps ou nao, com/sem dois pontos)
+    const re = /(an[aá]lise[^:\n]*comportamento[^:\n]*|risco[^:\n]*oportunidade[^:\n]*|a[cç][aã]o[^:\n]*comercial[^:\n]*)\s*:\s*\n?([\s\S]*?)(?=\n\s*(?:an[aá]lise[^:\n]*comportamento|risco[^:\n]*oportunidade|a[cç][aã]o[^:\n]*comercial)[^:\n]*:|$)/gi;
+    let m;
+    while ((m = re.exec(md))) {
+      const label = m[1].toLowerCase();
+      const texto = m[2].trim();
+      if (label.includes('compor')) secs.analise = texto;
+      else if (label.includes('risc')) secs.risco = texto;
+      else if (label.includes('a') && label.includes('o')) secs.acao = texto;
+    }
+    // Se nao parsear nada, coloca tudo em analise
+    if (!secs.analise && !secs.risco && !secs.acao) secs.analise = md;
+    return secs;
+  }
+
+  function formatTextoInsight(t) {
+    if (!t) return '';
+    let h = escapeHtml(t);
     h = h.replace(/\*\*([^*]+)\*\*/g, '<strong style="color:#fbbf24">$1</strong>');
-    // listas
-    h = h.replace(/(?:^|\n)((?:- [^\n]+\n?)+)/g, (m) => {
-      const items = m.trim().split(/\n/).map(l => l.replace(/^- /, '').trim()).filter(Boolean);
-      return '\n<ul style="margin:6px 0 12px 18px;padding:0;list-style:disc;color:#cbd5e1">' + items.map(i => '<li style="margin-bottom:4px;line-height:1.55">'+i+'</li>').join('') + '</ul>\n';
-    });
-    // quebras de linha em paragrafos
-    h = h.split(/\n{2,}/).map(p => p.trim()).filter(Boolean).map(p => {
-      if (p.startsWith('<h2') || p.startsWith('<h3') || p.startsWith('<ul')) return p;
-      return '<p style="margin:0 0 10px;line-height:1.6;color:#cbd5e1">' + p + '</p>';
-    }).join('\n');
-    return h;
+    // Remove headers markdown vazios que o modelo possa ter deixado
+    h = h.replace(/^#{1,6}\s*/gm, '');
+    // Quebras duplas viram paragrafos
+    const pars = h.split(/\n{2,}/).map(p => p.replace(/\n/g,' ').trim()).filter(Boolean);
+    return pars.map(p => `<p style="margin:0 0 8px;line-height:1.65;color:#cbd5e1;font-size:13.5px">${p}</p>`).join('');
   }
 
   async function c360GenerateInsight(contatoNome) {
@@ -773,31 +782,70 @@
     return data || [];
   }
 
+  function insightCard(ins, isNewest) {
+    const s = parseInsightSecoes(ins.insight || '');
+    const data = new Date(ins.created_at);
+    const dataStr = data.toLocaleDateString('pt-BR');
+    const dataFull = data.toLocaleString('pt-BR');
+    const secBlock = (label, conteudo) => conteudo ? `
+      <div style="margin-top:16px">
+        <div style="font-size:10.5px;font-weight:700;color:oklch(88% 0.018 80);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">${label}:</div>
+        ${formatTextoInsight(conteudo)}
+      </div>` : '';
+    return `
+      <div style="background:rgba(255,255,255,0.02);border:1px solid oklch(88% 0.018 80 / 0.3);border-radius:12px;padding:20px;margin-bottom:14px;position:relative">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:32px;height:32px;border-radius:8px;background:oklch(88% 0.018 80 / 0.15);display:flex;align-items:center;justify-content:center;color:oklch(88% 0.018 80);font-size:16px">◉</div>
+            <div>
+              <div style="font-size:15px;font-weight:700;color:oklch(88% 0.018 80)">Análise de Comportamento</div>
+              <div style="font-size:11px;color:#64748b;margin-top:2px">${ins.modelo || 'IA'} · por ${escapeHtml(ins.user_nome || '—')}${isNewest ? ' · <span style="color:#22c55e;font-weight:600">◉ mais recente</span>' : ''}</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:#64748b" title="${dataFull}">${dataStr}</span>
+            <button onclick="c360DeleteInsight(${ins.id}, this)" title="Apagar insight" style="width:28px;height:28px;border-radius:6px;border:1px solid rgba(239,68,68,0.25);background:transparent;color:#ef4444;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center" onmouseover="this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.background='transparent'">🗑</button>
+          </div>
+        </div>
+        ${secBlock('Análise do Comportamento Atual', s.analise)}
+        ${secBlock('Risco ou Oportunidade Principal', s.risco)}
+        ${secBlock('Ação Comercial Recomendada', s.acao)}
+      </div>`;
+  }
+
   function renderInsightsTab(contatoNome, insights, gerando) {
     const panel = document.getElementById('c360-tabpanel-insights');
     if (!panel) return;
-    const ultimos = (insights || []).map((ins, idx) => `
-      <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:16px;margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:11px;color:#64748b">
-          <span>◆ ${ins.modelo || 'IA'} · ${new Date(ins.created_at).toLocaleString('pt-BR')} · por ${escapeHtml(ins.user_nome || '—')}</span>
-          ${idx === 0 ? '<span style="background:rgba(34,197,94,0.15);color:#22c55e;padding:2px 8px;border-radius:8px;font-weight:600">mais recente</span>' : ''}
-        </div>
-        <div>${mdToHtml(ins.insight)}</div>
-      </div>`).join('');
-
+    const cards = (insights || []).map((ins, idx) => insightCard(ins, idx === 0)).join('');
     panel.innerHTML = `
       <div style="padding:20px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-          <div style="font-size:13px;color:#94a3b8">Análises geradas por IA sobre este cliente (Groq Llama 3.3 · fallback Gemini 2.5)</div>
-          <button onclick="c360InsightIA()" ${gerando?'disabled':''} style="padding:8px 16px;border-radius:8px;border:1px solid rgba(251,191,36,0.4);background:rgba(251,191,36,0.1);color:#fbbf24;cursor:${gerando?'not-allowed':'pointer'};font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;opacity:${gerando?0.6:1}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px">
+          <div style="font-size:13px;color:#94a3b8">Análises geradas por IA (Groq Llama 3.3 · fallback Gemini 2.5)</div>
+          <button onclick="c360InsightIA()" ${gerando?'disabled':''} style="padding:8px 16px;border-radius:8px;border:1px solid oklch(88% 0.018 80 / 0.5);background:oklch(88% 0.018 80 / 0.12);color:oklch(88% 0.018 80);cursor:${gerando?'not-allowed':'pointer'};font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;opacity:${gerando?0.6:1}">
             ${gerando ? '⏳ Gerando...' : '◆ Gerar novo Insight'}
           </button>
         </div>
         ${insights.length === 0
-          ? '<div style="padding:40px;text-align:center;color:#64748b"><div style="font-size:32px;margin-bottom:8px">◆</div><div style="font-size:14px;margin-bottom:4px;color:#e2e8f0">Nenhum insight gerado ainda</div><div style="font-size:12px">Clique em "Gerar novo Insight" pra criar o primeiro.</div></div>'
-          : ultimos}
+          ? '<div style="padding:40px;text-align:center;color:#64748b"><div style="font-size:32px;margin-bottom:8px;color:oklch(88% 0.018 80)">◉</div><div style="font-size:14px;margin-bottom:4px;color:#e2e8f0">Nenhum insight gerado ainda</div><div style="font-size:12px">Clique em "Gerar novo Insight" pra criar o primeiro.</div></div>'
+          : cards}
       </div>`;
   }
+
+  // Apagar insight
+  window.c360DeleteInsight = async function(id, btn) {
+    if (!confirm('Apagar esta análise?')) return;
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    const { error } = await state.sb.from('cliente_insights').delete().eq('id', id);
+    if (error) {
+      if (typeof showToast === 'function') showToast('Erro ao apagar: ' + error.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '🗑'; }
+      return;
+    }
+    // Remove o card do DOM
+    const card = btn?.closest('div[style*="border-radius:12px"]');
+    if (card) card.remove();
+    if (typeof showToast === 'function') showToast('Análise apagada', 'success');
+  };
 
   // Botão do header (◆ Insight IA) + aba Insights IA compartilham lógica
   window.c360InsightIA = async function() {
