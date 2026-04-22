@@ -11611,6 +11611,17 @@ function abrirLinkAlerta(ref, alertaId, dados) {
     if (dados.comentario_id) window._scrollToComentarioId = dados.comentario_id;
     setTimeout(() => focarTarefa(dados.tarefa_id), 500);
   }
+  // Deep-link pra Cliente 360 — abre cliente especifico + aba Notas
+  if (dados && dados.contato_nome && viewId === 'cliente360') {
+    try {
+      sessionStorage.setItem('c360_open_cliente', JSON.stringify({
+        empresa: dados.empresa || 'matriz',
+        contato_nome: dados.contato_nome,
+        tab: dados.tab || 'notas',
+        nota_id: dados.nota_id || null,
+      }));
+    } catch(e) {}
+  }
 }
 
 // Abre uma tarefa específica após aguardar loadTarefas terminar

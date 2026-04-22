@@ -684,10 +684,8 @@
       <div style="font-size:14px;margin-bottom:4px;color:#e2e8f0">Insights IA — em breve</div>
       <div style="font-size:12px">Esta aba vai gerar análises automáticas via IA sobre comportamento, oportunidades e recomendações específicas deste cliente. Disponível na Fase 3.</div>
     </div>
-    <div id="c360-tabpanel-notas" style="padding:40px;display:none;text-align:center;color:#64748b">
-      <div style="font-size:32px;margin-bottom:8px">💬</div>
-      <div style="font-size:14px;margin-bottom:4px;color:#e2e8f0">Notas — em breve</div>
-      <div style="font-size:12px">Em breve você vai poder adicionar notas internas sobre este cliente (observações, histórico de contato, preferências).</div>
+    <div id="c360-tabpanel-notas" style="padding:20px;display:none;color:#64748b">
+      <div style="text-align:center;padding:20px;color:rgba(255,255,255,0.4)">⏳ Carregando notas...</div>
     </div>
   </div>
 </div>`;
@@ -848,6 +846,296 @@
       </div>`;
   }
 
+  // ─── Notas por cliente (Fase 4) ───
+  // Cache de users mencionáveis (carregado on-demand)
+  state.mencionaveis = null; // array de { id, nome, cargo }
+
+  async function loadMencionaveis() {
+    if (state.mencionaveis) return state.mencionaveis;
+    // Busca cargos que têm permissão cliente360=true
+    const { data: perms } = await state.sb
+      .from('cargo_permissoes')
+      .select('cargo')
+      .eq('secao', 'cliente360')
+      .eq('permitido', true);
+    const cargosAutorizados = new Set((perms || []).map(p => p.cargo));
+    cargosAutorizados.add('admin'); // admin sempre pode
+    // Busca profiles com esses cargos
+    const { data: profiles } = await state.sb
+      .from('profiles')
+      .select('id, nome, cargo')
+      .order('nome');
+    state.mencionaveis = (profiles || []).filter(p => cargosAutorizados.has(p.cargo));
+    return state.mencionaveis;
+  }
+
+  async function loadNotasCliente(contatoNome) {
+    const { data, error } = await state.sb
+      .from('cliente_notas')
+      .select('*')
+      .eq('empresa', state.empresa)
+      .eq('contato_nome', contatoNome)
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) { console.warn('[c360] notas erro:', error); return []; }
+    return data || [];
+  }
+
+  // Parse texto da nota: marca @Nome substituindo por link estilizado
+  function renderTextoNota(texto, mentionsIds) {
+    if (!texto) return '';
+    let h = escapeHtml(texto);
+    // Destaca @Nome (qualquer combinacao de palavras nos mencionaveis)
+    const lista = (state.mencionaveis || []);
+    for (const m of lista) {
+      const nomeEsc = escapeHtml(m.nome).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp('@' + nomeEsc, 'g');
+      h = h.replace(re, `<span style="color:oklch(88% 0.018 80);font-weight:600;background:oklch(88% 0.018 80 / 0.1);padding:1px 4px;border-radius:4px">@${escapeHtml(m.nome)}</span>`);
+    }
+    // Quebras de linha simples
+    return h.replace(/\n/g, '<br>');
+  }
+
+  function notaCard(n, currentUserId) {
+    const autor = n.user_nome || '—';
+    const inicial = (autor.trim()[0] || '?').toUpperCase();
+    const quando = new Date(n.created_at);
+    const diff = Date.now() - quando.getTime();
+    let quandoStr;
+    if (diff < 60_000) quandoStr = 'agora';
+    else if (diff < 3600_000) quandoStr = Math.floor(diff/60000) + 'min atrás';
+    else if (diff < 86400_000) quandoStr = Math.floor(diff/3600000) + 'h atrás';
+    else quandoStr = quando.toLocaleString('pt-BR');
+    const isOwn = String(n.user_id) === String(currentUserId);
+    const isAdmin = state.currentCargo === 'admin';
+    const canDelete = isOwn || isAdmin;
+    return `
+      <div id="nota-${n.id}" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+            <div style="width:28px;height:28px;border-radius:50%;background:rgba(167,139,250,0.2);color:#a78bfa;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">${escapeHtml(inicial)}</div>
+            <div style="min-width:0">
+              <div style="font-size:13px;font-weight:600;color:#e2e8f0">${escapeHtml(autor)}</div>
+              <div style="font-size:11px;color:#64748b">${quandoStr}${n.updated_at ? ' · editada' : ''}</div>
+            </div>
+          </div>
+          ${canDelete ? `<button onclick="c360DeleteNota(${n.id})" title="Apagar" style="width:26px;height:26px;border-radius:6px;border:1px solid rgba(239,68,68,0.25);background:transparent;color:#ef4444;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">🗑</button>` : ''}
+        </div>
+        <div style="font-size:13.5px;line-height:1.6;color:#cbd5e1;white-space:pre-wrap;word-break:break-word">${renderTextoNota(n.texto, n.mentions_ids)}</div>
+      </div>`;
+  }
+
+  async function renderNotasTab(contatoNome) {
+    const panel = document.getElementById('c360-tabpanel-notas');
+    if (!panel) return;
+    const [{ data: { user } }, notas, mencionaveis] = await Promise.all([
+      state.sb.auth.getUser(),
+      loadNotasCliente(contatoNome),
+      loadMencionaveis(),
+    ]);
+    // Guarda cargo do usuario atual pra controle de delete
+    if (user) {
+      const { data: p } = await state.sb.from('profiles').select('cargo').eq('id', user.id).maybeSingle();
+      state.currentCargo = p?.cargo;
+    }
+    const currentUserId = user?.id;
+
+    const cards = notas.length === 0
+      ? '<div style="padding:30px;text-align:center;color:#64748b"><div style="font-size:28px;margin-bottom:6px">💬</div><div style="font-size:13px;color:#e2e8f0">Nenhuma nota ainda</div><div style="font-size:11.5px;margin-top:2px">Adicione observações, lembretes ou histórico de contato deste cliente.</div></div>'
+      : notas.map(n => notaCard(n, currentUserId)).join('');
+
+    panel.innerHTML = `
+      <div style="padding:20px">
+        <!-- Form de nova nota -->
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:14px;margin-bottom:18px;position:relative">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.5);margin-bottom:8px">Nova nota</div>
+          <textarea id="c360-nota-input" placeholder="Escreva uma nota sobre ${escapeHtml(contatoNome)}... Use @nome pra mencionar um colega" rows="3"
+            style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);color:#e2e8f0;font-size:13.5px;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+          <!-- Dropdown de menção (absoluto, aparece ao digitar @) -->
+          <div id="c360-mention-dropdown" style="display:none;position:absolute;background:rgb(20,20,25);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:4px;z-index:100;max-height:180px;overflow-y:auto;min-width:220px;box-shadow:0 8px 24px rgba(0,0,0,0.3)"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:10px">
+            <div style="font-size:11px;color:#64748b">Mencionáveis: ${mencionaveis.length} pessoa(s) com acesso ao Cliente 360</div>
+            <button onclick="c360SaveNota()" id="c360-btn-nota" style="padding:8px 16px;border-radius:8px;border:1px solid oklch(88% 0.018 80 / 0.5);background:oklch(88% 0.018 80 / 0.12);color:oklch(88% 0.018 80);cursor:pointer;font-size:13px;font-weight:600">💬 Adicionar nota</button>
+          </div>
+        </div>
+        <!-- Lista de notas -->
+        <div id="c360-notas-lista">${cards}</div>
+      </div>`;
+
+    // Autocomplete @
+    wireMentionAutocomplete();
+  }
+
+  function wireMentionAutocomplete() {
+    const input = document.getElementById('c360-nota-input');
+    const drop = document.getElementById('c360-mention-dropdown');
+    if (!input || !drop) return;
+    let aIdx = -1; // posicao do @ atual
+
+    const close = () => { drop.style.display = 'none'; aIdx = -1; };
+
+    input.addEventListener('input', (e) => {
+      const val = input.value;
+      const caret = input.selectionStart;
+      const before = val.slice(0, caret);
+      const atMatch = /(?:^|\s)@([^\s]{0,30})$/.exec(before);
+      if (!atMatch) { close(); return; }
+      aIdx = caret - atMatch[1].length - 1; // posicao do @
+      const query = atMatch[1].toLowerCase();
+      const matches = (state.mencionaveis || [])
+        .filter(m => m.nome && m.nome.toLowerCase().includes(query))
+        .slice(0, 6);
+      if (matches.length === 0) { close(); return; }
+      drop.innerHTML = matches.map((m, i) => `
+        <div class="c360-mention-opt" data-id="${m.id}" data-nome="${escapeHtml(m.nome)}" data-idx="${i}"
+          style="padding:8px 10px;border-radius:6px;cursor:pointer;font-size:13px;color:#e2e8f0;display:flex;align-items:center;gap:8px"
+          onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background=''">
+          <div style="width:20px;height:20px;border-radius:50%;background:rgba(167,139,250,0.2);color:#a78bfa;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">${escapeHtml((m.nome.trim()[0]||'?').toUpperCase())}</div>
+          <div><div>${escapeHtml(m.nome)}</div><div style="font-size:10.5px;color:#64748b">${escapeHtml(m.cargo || '')}</div></div>
+        </div>
+      `).join('');
+      drop.style.display = 'block';
+      drop.style.left = '14px';
+      drop.style.top = (input.offsetTop + input.offsetHeight + 4) + 'px';
+    });
+
+    drop.addEventListener('click', (e) => {
+      const opt = e.target.closest('.c360-mention-opt');
+      if (!opt) return;
+      const nome = opt.getAttribute('data-nome');
+      const id = opt.getAttribute('data-id');
+      if (aIdx < 0) return;
+      // Insere @Nome no lugar
+      const val = input.value;
+      const caret = input.selectionStart;
+      const novo = val.slice(0, aIdx) + '@' + nome + ' ' + val.slice(caret);
+      input.value = novo;
+      input.focus();
+      const newCaret = aIdx + nome.length + 2;
+      input.setSelectionRange(newCaret, newCaret);
+      close();
+    });
+
+    input.addEventListener('blur', () => setTimeout(close, 150));
+    input.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  }
+
+  // Detecta @mencoes no texto e retorna array de user ids
+  function extractMentions(texto) {
+    const ids = [];
+    const lista = state.mencionaveis || [];
+    for (const m of lista) {
+      const nomeEsc = m.nome.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp('@' + nomeEsc + '(?:\\s|$|[^\\w])');
+      if (re.test(texto)) ids.push(m.id);
+    }
+    return ids;
+  }
+
+  window.c360SaveNota = async function() {
+    const page = document.getElementById('page-cliente-1');
+    const nomeEl = page?.querySelector('h2');
+    const contatoNome = nomeEl?.textContent?.trim();
+    if (!contatoNome) return;
+    const input = document.getElementById('c360-nota-input');
+    const btn = document.getElementById('c360-btn-nota');
+    const texto = (input?.value || '').trim();
+    if (!texto) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+    try {
+      const { data: { user } } = await state.sb.auth.getUser();
+      const { data: profile } = await state.sb.from('profiles').select('nome, cargo').eq('id', user.id).single();
+      const mentions = extractMentions(texto);
+      const { data: novaNota, error } = await state.sb.from('cliente_notas').insert({
+        empresa: state.empresa,
+        contato_nome: contatoNome,
+        texto,
+        mentions_ids: mentions,
+        user_id: user.id,
+        user_nome: profile?.nome || user.email,
+        user_cargo: profile?.cargo,
+      }).select().single();
+      if (error) throw error;
+
+      // Cria alertas pra cada menção
+      if (mentions.length > 0) {
+        const alertas = mentions.map(uid => {
+          const mUser = (state.mencionaveis || []).find(m => m.id === uid);
+          return {
+            tipo: 'mencao_nota_cliente',
+            nivel: 'info',
+            titulo: `${profile?.nome || 'Alguém'} mencionou você`,
+            mensagem: `Em nota sobre ${contatoNome}: "${texto.slice(0, 120)}${texto.length > 120 ? '...' : ''}"`,
+            destinatario_id: uid,
+            destinatario_nome: mUser?.nome || null,
+            link_ref: 'cliente360',
+            link_label: 'Ver nota',
+            audiencia: 'pessoal',
+            dados: {
+              empresa: state.empresa,
+              contato_nome: contatoNome,
+              tab: 'notas',
+              nota_id: novaNota?.id,
+            },
+          };
+        });
+        const { error: alErr } = await state.sb.from('alertas').insert(alertas);
+        if (alErr) console.warn('[c360] erro criar alertas:', alErr);
+      }
+
+      if (input) input.value = '';
+      await renderNotasTab(contatoNome);
+      if (typeof showToast === 'function') showToast('Nota adicionada' + (mentions.length ? ` · ${mentions.length} notificação(ões)` : ''), 'success');
+    } catch (e) {
+      console.error('[c360] erro salvar nota:', e);
+      if (typeof showToast === 'function') showToast('Erro: ' + (e.message || e), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '💬 Adicionar nota'; }
+    }
+  };
+
+  window.c360DeleteNota = async function(id) {
+    if (!confirm('Apagar esta nota?')) return;
+    const { error } = await state.sb.from('cliente_notas').delete().eq('id', id);
+    if (error) {
+      if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error');
+      return;
+    }
+    const el = document.getElementById('nota-' + id);
+    if (el) el.remove();
+    if (typeof showToast === 'function') showToast('Nota apagada', 'success');
+  };
+
+  // Deep-link vindo do DMS: session storage define quem abrir
+  async function checkDeepLink() {
+    try {
+      const raw = sessionStorage.getItem('c360_open_cliente');
+      if (!raw) return;
+      sessionStorage.removeItem('c360_open_cliente');
+      const spec = JSON.parse(raw);
+      if (spec.empresa && spec.empresa !== state.empresa && (spec.empresa === 'matriz' || spec.empresa === 'bc')) {
+        await window.c360SetEmpresa(spec.empresa);
+      }
+      if (spec.contato_nome) {
+        await window.showClientDetail(encodeURIComponent(spec.contato_nome));
+        if (spec.tab) {
+          setTimeout(() => window.c360SwitchTab(spec.tab), 300);
+          // Destaca a nota se especificada
+          if (spec.nota_id) {
+            setTimeout(() => {
+              const el = document.getElementById('nota-' + spec.nota_id);
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el.style.transition = 'background .3s';
+                el.style.background = 'oklch(88% 0.018 80 / 0.12)';
+                setTimeout(() => { el.style.background = ''; }, 2000);
+              }
+            }, 800);
+          }
+        }
+      }
+    } catch(e) { console.warn('[c360] deep-link:', e); }
+  }
+
   // Apagar insight
   window.c360DeleteInsight = async function(id, btn) {
     if (!confirm('Apagar esta análise?')) return;
@@ -889,21 +1177,27 @@
     }
   };
 
-  // Ao trocar pra aba insights, carrega histórico (se ainda não tem)
+  // Ao trocar pra aba insights/notas, carrega conteúdo on-demand
   const origSwitchTab = window.c360SwitchTab;
   window.c360SwitchTab = async function(tab) {
     origSwitchTab(tab);
+    const page = document.getElementById('page-cliente-1');
+    const nomeEl = page?.querySelector('h2');
+    const nome = nomeEl?.textContent?.trim();
+    if (!nome) return;
+
     if (tab === 'insights') {
-      const page = document.getElementById('page-cliente-1');
-      const nomeEl = page?.querySelector('h2');
-      const nome = nomeEl?.textContent?.trim();
       const panel = document.getElementById('c360-tabpanel-insights');
-      if (!nome || !panel) return;
-      // Só carrega se ainda não foi carregado
-      if (panel.getAttribute('data-loaded-for') !== nome) {
+      if (panel && panel.getAttribute('data-loaded-for') !== nome) {
         panel.setAttribute('data-loaded-for', nome);
         const history = await c360LoadInsightsHistory(nome);
         renderInsightsTab(nome, history, false);
+      }
+    } else if (tab === 'notas') {
+      const panel = document.getElementById('c360-tabpanel-notas');
+      if (panel && panel.getAttribute('data-loaded-for') !== nome) {
+        panel.setAttribute('data-loaded-for', nome);
+        await renderNotasTab(nome);
       }
     }
   };
@@ -1050,8 +1344,10 @@
     const authOK = await initSupabase();
     if (!authOK) return;
     wireSearchAndFilters();
-    // Paralelo: lista + dashboard
-    await Promise.all([loadClientes(), loadDashboardResumo()]);
+    // Paralelo: lista + dashboard + mencionaveis (preload)
+    await Promise.all([loadClientes(), loadDashboardResumo(), loadMencionaveis()]);
+    // Se veio deep-link via sessionStorage, abre o cliente/aba certa
+    await checkDeepLink();
   }
 
   if (document.readyState === 'loading') {
