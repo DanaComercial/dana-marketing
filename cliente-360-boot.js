@@ -719,11 +719,128 @@
   };
 
   window.c360Recalcular = function() {
-    // Por enquanto: mostra toast + reload. Fase 3 vai chamar IA
     if (typeof showToast === 'function') showToast('Os scores serão recalculados na próxima sincronização com o Bling', 'info');
   };
-  window.c360InsightIA = function() {
-    if (typeof showToast === 'function') showToast('Insight IA será implementado na Fase 3', 'info');
+
+  // ─── Insight IA (Fase 3) ───
+  // Converte markdown leve (**bold**, ### headers, listas -) pra HTML
+  function mdToHtml(md) {
+    if (!md) return '';
+    let h = escapeHtml(md);
+    // headers ### / ##
+    h = h.replace(/^###\s+(.+)$/gm, '<h3 style="margin:18px 0 8px;font-size:15px;font-weight:700;color:#f1f5f9">$1</h3>');
+    h = h.replace(/^##\s+(.+)$/gm, '<h2 style="margin:18px 0 10px;font-size:17px;font-weight:700;color:#f1f5f9">$1</h2>');
+    // bold
+    h = h.replace(/\*\*([^*]+)\*\*/g, '<strong style="color:#fbbf24">$1</strong>');
+    // listas
+    h = h.replace(/(?:^|\n)((?:- [^\n]+\n?)+)/g, (m) => {
+      const items = m.trim().split(/\n/).map(l => l.replace(/^- /, '').trim()).filter(Boolean);
+      return '\n<ul style="margin:6px 0 12px 18px;padding:0;list-style:disc;color:#cbd5e1">' + items.map(i => '<li style="margin-bottom:4px;line-height:1.55">'+i+'</li>').join('') + '</ul>\n';
+    });
+    // quebras de linha em paragrafos
+    h = h.split(/\n{2,}/).map(p => p.trim()).filter(Boolean).map(p => {
+      if (p.startsWith('<h2') || p.startsWith('<h3') || p.startsWith('<ul')) return p;
+      return '<p style="margin:0 0 10px;line-height:1.6;color:#cbd5e1">' + p + '</p>';
+    }).join('\n');
+    return h;
+  }
+
+  async function c360GenerateInsight(contatoNome) {
+    const { data: { session } } = await state.sb.auth.getSession();
+    if (!session) throw new Error('Sessão expirada. Relogue.');
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/cliente360-insight`, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ contato_nome: contatoNome, empresa: state.empresa }),
+    });
+    const j = await resp.json();
+    if (!resp.ok) throw new Error(j.error || ('Erro ' + resp.status));
+    return j;
+  }
+
+  async function c360LoadInsightsHistory(contatoNome) {
+    const { data } = await state.sb
+      .from('cliente_insights')
+      .select('*')
+      .eq('empresa', state.empresa)
+      .eq('contato_nome', contatoNome)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    return data || [];
+  }
+
+  function renderInsightsTab(contatoNome, insights, gerando) {
+    const panel = document.getElementById('c360-tabpanel-insights');
+    if (!panel) return;
+    const ultimos = (insights || []).map((ins, idx) => `
+      <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:16px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:11px;color:#64748b">
+          <span>◆ ${ins.modelo || 'IA'} · ${new Date(ins.created_at).toLocaleString('pt-BR')} · por ${escapeHtml(ins.user_nome || '—')}</span>
+          ${idx === 0 ? '<span style="background:rgba(34,197,94,0.15);color:#22c55e;padding:2px 8px;border-radius:8px;font-weight:600">mais recente</span>' : ''}
+        </div>
+        <div>${mdToHtml(ins.insight)}</div>
+      </div>`).join('');
+
+    panel.innerHTML = `
+      <div style="padding:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div style="font-size:13px;color:#94a3b8">Análises geradas por IA sobre este cliente (Groq Llama 3.3 · fallback Gemini 2.5)</div>
+          <button onclick="c360InsightIA()" ${gerando?'disabled':''} style="padding:8px 16px;border-radius:8px;border:1px solid rgba(251,191,36,0.4);background:rgba(251,191,36,0.1);color:#fbbf24;cursor:${gerando?'not-allowed':'pointer'};font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;opacity:${gerando?0.6:1}">
+            ${gerando ? '⏳ Gerando...' : '◆ Gerar novo Insight'}
+          </button>
+        </div>
+        ${insights.length === 0
+          ? '<div style="padding:40px;text-align:center;color:#64748b"><div style="font-size:32px;margin-bottom:8px">◆</div><div style="font-size:14px;margin-bottom:4px;color:#e2e8f0">Nenhum insight gerado ainda</div><div style="font-size:12px">Clique em "Gerar novo Insight" pra criar o primeiro.</div></div>'
+          : ultimos}
+      </div>`;
+  }
+
+  // Botão do header (◆ Insight IA) + aba Insights IA compartilham lógica
+  window.c360InsightIA = async function() {
+    const page = document.getElementById('page-cliente-1');
+    const nomeEl = page?.querySelector('h2');
+    const nome = nomeEl?.textContent?.trim();
+    if (!nome) return;
+
+    // Muda pra aba insights
+    c360SwitchTab('insights');
+    const history = await c360LoadInsightsHistory(nome);
+    renderInsightsTab(nome, history, true);
+
+    try {
+      const result = await c360GenerateInsight(nome);
+      if (typeof showToast === 'function') showToast('Insight gerado!', 'success');
+      // Reload com o novo insight no topo
+      const newHistory = await c360LoadInsightsHistory(nome);
+      renderInsightsTab(nome, newHistory, false);
+    } catch (e) {
+      console.error('[c360] erro insight:', e);
+      if (typeof showToast === 'function') showToast('Erro: ' + e.message, 'error');
+      renderInsightsTab(nome, history, false);
+    }
+  };
+
+  // Ao trocar pra aba insights, carrega histórico (se ainda não tem)
+  const origSwitchTab = window.c360SwitchTab;
+  window.c360SwitchTab = async function(tab) {
+    origSwitchTab(tab);
+    if (tab === 'insights') {
+      const page = document.getElementById('page-cliente-1');
+      const nomeEl = page?.querySelector('h2');
+      const nome = nomeEl?.textContent?.trim();
+      const panel = document.getElementById('c360-tabpanel-insights');
+      if (!nome || !panel) return;
+      // Só carrega se ainda não foi carregado
+      if (panel.getAttribute('data-loaded-for') !== nome) {
+        panel.setAttribute('data-loaded-for', nome);
+        const history = await c360LoadInsightsHistory(nome);
+        renderInsightsTab(nome, history, false);
+      }
+    }
   };
 
   // ─── Dashboard principal (Commit 3) ───
