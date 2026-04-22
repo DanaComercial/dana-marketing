@@ -9161,6 +9161,9 @@ function go(el, viewId) {
   if (location.hash !== newHash) {
     try { history.pushState(null, '', newHash); } catch(e) {}
   }
+  // Esconde o filtro global de empresa quando estiver em Cliente 360 (filtro proprio la dentro)
+  const empSel = document.getElementById('empresa-selector');
+  if (empSel) empSel.style.display = (viewId === 'cliente360') ? 'none' : '';
   // Log navegacao
   logActivity('visualizou', meta.title || viewId, viewId);
   // Carregar dados especiais
@@ -9193,18 +9196,14 @@ function go(el, viewId) {
   if (viewId === 'cliente360') loadCliente360();
 }
 
-// ── CLIENTE 360 · lazy-load do iframe com contexto da empresa ──
-// Cache-busting: cada sessao do DMS pega uma versao nova do cliente-360.html
+// ── CLIENTE 360 · lazy-load do iframe (filtro de empresa é gerenciado internamente pelo iframe) ──
 const CLIENTE360_VERSION = Date.now();
 function loadCliente360() {
   const iframe = document.getElementById('cliente360-iframe');
   if (!iframe) return;
-  const empresa = (typeof empresaAtual === 'function' ? empresaAtual() : 'todas') || 'todas';
-  const targetSrc = `./cliente-360.html?empresa=${encodeURIComponent(empresa)}&v=${CLIENTE360_VERSION}`;
-  // Só recarrega se mudou (evita reload desnecessário)
-  if (iframe.getAttribute('data-loaded-empresa') !== empresa) {
-    iframe.src = targetSrc;
-    iframe.setAttribute('data-loaded-empresa', empresa);
+  if (!iframe.getAttribute('data-loaded')) {
+    iframe.src = `./cliente-360.html?v=${CLIENTE360_VERSION}`;
+    iframe.setAttribute('data-loaded', '1');
   }
 }
 
@@ -17854,7 +17853,7 @@ async function recarregarTudoPorEmpresa() {
       relatorio:    'loadRelatorio',
       personas:     'loadPersonasStats',
       roi:          'calcROI',
-      cliente360:   'loadCliente360',
+      // cliente360 nao precisa reload: tem filtro proprio internamente
       // 'home' (dashboard) é atualizado via loadSupabaseData já chamado acima
     };
     const fns = callbacks[viewId];

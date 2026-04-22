@@ -12,7 +12,7 @@
   // Estado global simples
   const state = {
     sb: null,
-    empresa: 'todas',
+    empresa: localStorage.getItem('c360_empresa') || 'matriz',
     clientes: [],     // Array de cliente_scoring rows
     filtered: [],     // Após aplicar busca
     segmentFilter: 'todos',
@@ -31,7 +31,36 @@
   const escapeHtml = (s) => String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   // Empresa label
-  const EMPRESA_LABELS = { matriz: 'Matriz (Piçarras)', bc: 'BC (Balneário)', todas: 'Matriz + BC' };
+  const EMPRESA_LABELS = { matriz: 'Matriz (Piçarras)', bc: 'Balneário Camboriú' };
+
+  // ─── Toggle de empresa (sidebar interno) ───
+  function updateEmpresaToggleUI() {
+    const btns = document.querySelectorAll('.c360-emp-btn');
+    btns.forEach(b => {
+      const emp = b.getAttribute('data-emp');
+      const ativo = emp === state.empresa;
+      if (ativo) {
+        b.style.background = 'oklch(88% 0.018 80)';
+        b.style.color = 'oklch(9% 0.008 260)';
+        b.style.borderColor = 'oklch(88% 0.018 80)';
+      } else {
+        b.style.background = 'rgba(255,255,255,0.04)';
+        b.style.color = 'rgba(255,255,255,0.7)';
+        b.style.borderColor = 'rgba(255,255,255,0.1)';
+      }
+    });
+  }
+
+  window.c360SetEmpresa = async function(emp) {
+    if (emp !== 'matriz' && emp !== 'bc') return;
+    if (emp === state.empresa) return;
+    state.empresa = emp;
+    localStorage.setItem('c360_empresa', emp);
+    updateEmpresaToggleUI();
+    await loadClientes();
+    state.page = 0;
+    // Commit 3 vai atualizar o dashboard também
+  };
 
   // Segmento -> badge style
   const SEGMENT_STYLES = {
@@ -94,9 +123,6 @@
     if (state.loadingList) return;
     state.loadingList = true;
     try {
-      const params = new URLSearchParams(location.search);
-      state.empresa = params.get('empresa') || 'todas';
-
       const { data, error } = await state.sb
         .from('cliente_scoring')
         .select('*')
@@ -236,13 +262,7 @@
     };
   }
 
-  // ─── Realtime de mudanças no filtro de empresa (parent muda ?empresa=) ───
-  window.addEventListener('message', (e) => {
-    if (e && e.data && e.data.type === 'empresa-changed') {
-      state.empresa = e.data.empresa || 'todas';
-      loadClientes();
-    }
-  });
+  // (Filtro agora é gerenciado dentro do Cliente 360 via toggle sidebar - ver c360SetEmpresa)
 
   // ─── Detalhe de cliente (placeholder — sobrescreve a demo) ───
   // Será completado no Commit 2
@@ -254,7 +274,8 @@
 
   // ─── Boot ───
   async function boot() {
-    console.log('[c360] Boot iniciado');
+    console.log('[c360] Boot iniciado · empresa=' + state.empresa);
+    updateEmpresaToggleUI();
     const authOK = await initSupabase();
     if (!authOK) return;
     wireSearchAndFilters();
