@@ -2096,13 +2096,15 @@
       const descricao = `${totalInfo}${CANAL_LABELS[camp.canal] || camp.canal} · Segmento: ${camp.segmento_nome_cache || '—'}${camp.mensagem ? '\n\n' + camp.mensagem : ''}`;
 
       if (hasDate && hasEvent) {
+        // cor:null pra usar a cor do tipo (tiposCor['campanha_c360'] = laranja)
+        // em vez do default #0a0a0a (preto) da tabela
         const { error } = await state.sb.from('calendario')
-          .update({ titulo, data_inicio: dateStr, descricao, tipo: 'campanha_c360' })
+          .update({ titulo, data_inicio: dateStr, descricao, tipo: 'campanha_c360', cor: null })
           .eq('id', camp.calendario_evento_id);
         if (error) throw error;
       } else if (hasDate && !hasEvent) {
         const { data: newEvt, error } = await state.sb.from('calendario')
-          .insert({ titulo, tipo: 'campanha_c360', data_inicio: dateStr, descricao })
+          .insert({ titulo, tipo: 'campanha_c360', data_inicio: dateStr, descricao, cor: null })
           .select('id').single();
         if (error) throw error;
         await state.sb.from('cliente_campanhas')
