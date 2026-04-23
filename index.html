@@ -2500,9 +2500,6 @@ select.input { cursor: pointer; }
     <div class="nav-item" onclick="go(this,'canaisvendas')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1 3h14v2H1z"/><path d="M2 5v8h12V5"/><path d="M6 8h4v3H6z"/></svg></div>Canais e Vendas
     </div>
-    <div class="nav-item" onclick="go(this,'comunidade')">
-      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 10c0 1.1-.9 2-2 2H4l-2.5 2V4c0-1.1.9-2 2-2h8.5c1.1 0 2 .9 2 2z"/></svg></div>Comunidade e CRM
-    </div>
     <div class="nav-item" onclick="go(this,'cliente360')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.5"/><circle cx="8" cy="6" r="2"/><path d="M3.5 13c1-2 2.7-3 4.5-3s3.5 1 4.5 3"/></svg></div>Cliente 360
     </div>
@@ -6828,72 +6825,6 @@ updateDynamicField('foto');
     </div>
   </div>
 </div></div>
-<div class="view" id="view-comunidade"><div style="padding:24px 28px">
-  <!-- Scoring KPIs -->
-  <div class="kpi-grid mb20" id="scoring-kpis">
-    <div class="kpi-card dark"><div class="kpi-label">Clientes VIP</div><div class="kpi-value" id="score-vip">--</div><div class="kpi-change up">Score 80+</div></div>
-    <div class="kpi-card"><div class="kpi-label">Frequentes</div><div class="kpi-value" id="score-freq">--</div><div class="kpi-change up">Score 60-79</div></div>
-    <div class="kpi-card"><div class="kpi-label">Em Risco</div><div class="kpi-value" id="score-risco">--</div><div class="kpi-change dn">90+ dias sem compra</div></div>
-    <div class="kpi-card"><div class="kpi-label">Total Segmentados</div><div class="kpi-value" id="score-total">--</div><div class="kpi-change neutral">Clientes com pedidos</div></div>
-  </div>
-
-  <!-- Distribuicao de segmentos -->
-  <div class="card mb20">
-    <div class="card-header">
-      <div><div class="card-title">Distribuição de Segmentos</div><div class="card-sub">Classificação automática baseada em frequência, valor, recência e ticket</div></div>
-    </div>
-    <div id="segmento-distribuicao" style="margin-top:8px">
-      <div style="display:flex;height:28px;border-radius:8px;overflow:hidden;gap:2px" id="segmento-bar"></div>
-      <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap" id="segmento-legenda"></div>
-    </div>
-  </div>
-
-  <!-- Filtro + Tabela de clientes -->
-  <div class="card mb20">
-    <div class="card-header">
-      <div><div class="card-title">Clientes por Score</div><div class="card-sub">Ordenados por pontuação — dados reais Bling</div></div>
-      <div class="tabs" style="margin-bottom:0">
-        <div class="tab active" onclick="filterScoring(this,'')">Todos</div>
-        <div class="tab" onclick="filterScoring(this,'VIP')">VIP</div>
-        <div class="tab" onclick="filterScoring(this,'Frequente')">Frequente</div>
-        <div class="tab" onclick="filterScoring(this,'Ocasional')">Ocasional</div>
-        <div class="tab" onclick="filterScoring(this,'Em Risco')">Em Risco</div>
-        <div class="tab" onclick="filterScoring(this,'Inativo')">Inativo</div>
-      </div>
-    </div>
-    <div id="scoring-table-container" style="max-height:400px;overflow-y:auto">
-      <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Carregando clientes...</div>
-    </div>
-  </div>
-
-  <!-- Canais e Revendas originais -->
-  <div class="g2">
-    <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Canais de Relacionamento (Bling)</div>
-      <table><thead><tr><th>Canal</th><th>Responsavel</th><th>Tipo</th></tr></thead><tbody>
-        <tr><td class="em">WhatsApp</td><td>Miguel Kricheldorf</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">AmoCRM</td><td>Ana Cecilia da Silva</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">CRM Nata</td><td>Nata CRM / Loja / Bazar</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">CRM Fabiana</td><td>Fabiana Elisa Edson</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">CRM Thamyres</td><td>Thamyres Neves</td><td><span class="chip ativo">Ativo</span></td></tr>
-        <tr><td class="em">Academia da Face</td><td>Academia da Face-AmoCRM</td><td><span class="chip prod">Parceria</span></td></tr>
-      </tbody></table>
-    </div>
-    <div class="card">
-      <div class="card-title" style="margin-bottom:12px">Revendas por Cidade (Bling)</div>
-      <table><thead><tr><th>Revenda</th><th>Cidade</th></tr></thead><tbody>
-        <tr><td class="em">Jalecos Bauru</td><td>Bauru, SP</td></tr>
-        <tr><td class="em">Nossa Dental</td><td>Imperatriz, MA</td></tr>
-        <tr><td class="em">Doctor Scan</td><td>Cuiaba, MT</td></tr>
-        <tr><td class="em">Fatel</td><td>Londrina, PR</td></tr>
-        <tr><td class="em">Meus Jalecos</td><td>Palmas, TO</td></tr>
-        <tr><td class="em">Revenda Mafra</td><td>Mafra, SC</td></tr>
-        <tr><td class="em">Revenda Julia</td><td>—</td></tr>
-        <tr><td class="em">Revenda Porto Velho</td><td>Porto Velho, RO</td></tr>
-      </tbody></table>
-    </div>
-  </div>
-</div></div>
 <div class="view" id="view-marketplaces"><div style="padding:24px 28px">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
     <div>
@@ -7095,6 +7026,20 @@ updateDynamicField('foto');
       <div class="card-title" style="margin-bottom:12px">Revendas Internacionais + Parcerias</div>
       <table><thead><tr><th>Parceiro</th><th>Tipo</th></tr></thead><tbody id="cv-revendas-intl-tbody"><tr><td colspan="2" style="text-align:center;color:var(--text3);font-size:12px;padding:12px">Carregando...</td></tr></tbody></table>
     </div>
+  </div>
+
+  <!-- Canais de Relacionamento (CRMs Internos) -->
+  <div class="card mb20">
+    <div class="card-title" style="margin-bottom:4px">Canais de Relacionamento (CRMs Internos)</div>
+    <div class="card-sub" style="margin-bottom:10px">Atendimento direto via WhatsApp e AmoCRM por vendedor</div>
+    <table><thead><tr><th>Canal</th><th>Responsavel</th><th>Tipo</th></tr></thead><tbody>
+      <tr><td class="em">WhatsApp</td><td>Miguel Kricheldorf</td><td><span class="chip ativo">Ativo</span></td></tr>
+      <tr><td class="em">AmoCRM</td><td>Ana Cecilia da Silva</td><td><span class="chip ativo">Ativo</span></td></tr>
+      <tr><td class="em">CRM Nata</td><td>Nata CRM / Loja / Bazar</td><td><span class="chip ativo">Ativo</span></td></tr>
+      <tr><td class="em">CRM Fabiana</td><td>Fabiana Elisa Edson</td><td><span class="chip ativo">Ativo</span></td></tr>
+      <tr><td class="em">CRM Thamyres</td><td>Thamyres Neves</td><td><span class="chip ativo">Ativo</span></td></tr>
+      <tr><td class="em">Academia da Face</td><td>Academia da Face-AmoCRM</td><td><span class="chip prod">Parceria</span></td></tr>
+    </tbody></table>
   </div>
 
   <!-- Eventos e Feiras -->
@@ -9068,7 +9013,6 @@ const VIEW_META = {
   mercado:      { title: 'Mercado e Tendências', sub: 'Monitoramento ao vivo de concorrentes e tendências', action: '' },
   referencias:  { title: 'Referências', sub: 'Banco de inspiração de criativos e estratégias', action: '' },
   performance:  { title: 'Performance', sub: 'ROAS, canais, Meta Ads e GA4', action: 'Exportar PDF' },
-  comunidade:   { title: 'Comunidade e CRM', sub: 'Segmentos, disparos e métricas', action: '' },
   cliente360:   { title: 'Cliente 360', sub: 'Visão completa dos clientes · CRM avançado', action: '' },
   marketplaces: { title: 'Marketplaces', sub: 'Mercado Livre e Shopee', action: 'Exportar PDF' },
   provasocial:  { title: 'Prova Social', sub: 'UGC, depoimentos e aprovação', action: 'Novo Conteúdo' },
@@ -16275,7 +16219,7 @@ let _permData = [];
 // Grupos de seções (header → lista de secoes)
 const PERM_GROUPS = [
   ['📊 Visão Geral', ['home','analytics','relatorio']],
-  ['💰 Vendas',      ['ecommerce','lojafisica','marketplaces','canaisvendas','comunidade','cliente360']],
+  ['💰 Vendas',      ['ecommerce','lojafisica','marketplaces','canaisvendas','cliente360']],
   ['🏦 Financeiro',  ['financeiro','projecoes','roi']],
   ['📣 Marketing',   ['canaisaquisicao','campanhas','construtor','criativos','briefingvisual','influenciadores','provasocial']],
   ['🎯 Inteligência',['personas','keywords','mercado','referencias','performance']],
@@ -16577,7 +16521,6 @@ async function initUpgradeFeatures() {
   initCalendario();
   loadPrevisaoReceita();
   loadPerformanceData();
-  loadClienteScoring();
   // Esperar liveData ficar disponível, então carregar seções que dependem dele
   setTimeout(() => {
     loadMarketplaces();
@@ -18063,7 +18006,6 @@ async function recarregarTudoPorEmpresa() {
     const callbacks = {
       financeiro:   'loadFinanceiro',
       projecoes:    'loadProjecoes',
-      comunidade:   'loadClienteScoring',
       marketplaces: ['loadMarketplaces', 'loadMarketplacesExtras'],
       canaisvendas: ['loadCanaisVenda', 'loadMarketplacesExtras'],
       ecommerce:    'loadEcommerce',
