@@ -5,6 +5,26 @@
 (function() {
   'use strict';
 
+  // ─── Overlay de loading IMEDIATO ───
+  // Evita flash dos dados demo (30 clientes, R$41k) enquanto buscamos os reais
+  function showBootOverlay() {
+    if (document.getElementById('c360-boot-overlay')) return;
+    const ov = document.createElement('div');
+    ov.id = 'c360-boot-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:oklch(9% 0.008 260);z-index:99999;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-family:Inter,sans-serif;font-size:13px;transition:opacity 0.2s';
+    ov.innerHTML = '<div style="text-align:center"><div style="font-size:28px;margin-bottom:12px;animation:c360spin 1s linear infinite;display:inline-block">⏳</div><div>Carregando Cliente 360...</div></div><style>@keyframes c360spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>';
+    (document.body || document.documentElement).appendChild(ov);
+  }
+  function hideBootOverlay() {
+    const ov = document.getElementById('c360-boot-overlay');
+    if (!ov) return;
+    ov.style.opacity = '0';
+    setTimeout(() => ov.remove(), 200);
+  }
+  // Mostra IMEDIATAMENTE (script eh carregado ao final do HTML, body ja existe)
+  if (document.body) showBootOverlay();
+  else document.addEventListener('DOMContentLoaded', showBootOverlay);
+
   const SUPABASE_URL = 'https://wltmiqbhziefusnzmmkt.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdG1pcWJoemllZnVzbnptbWt0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NzUxMzEsImV4cCI6MjA5MjQ1MTEzMX0.GfdryMC-RTnp2h-6RSHf1WBVYCCTfGtqHAXtilYHzTY';
   const PAGE_SIZE = 50;
@@ -2821,19 +2841,26 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
 
   // ─── Boot ───
   async function boot() {
-    console.log('[c360] Boot iniciado · empresa=' + state.empresa);
-    updateEmpresaToggleUI();
-    const authOK = await initSupabase();
-    if (!authOK) return;
-    wireSearchAndFilters();
-    // Paralelo: lista + dashboard + mencionaveis (preload)
-    await Promise.all([loadClientes(), loadDashboardResumo(), loadMencionaveis()]);
-    // Subscribe realtime pra notas, segmentos e campanhas
-    subscribeRealtimeNotas();
-    subscribeRealtimeSegmentos();
-    subscribeRealtimeCampanhas();
-    // Se veio deep-link via sessionStorage, abre o cliente/aba certa
-    await checkDeepLink();
+    try {
+      console.log('[c360] Boot iniciado · empresa=' + state.empresa);
+      updateEmpresaToggleUI();
+      const authOK = await initSupabase();
+      if (!authOK) return;
+      wireSearchAndFilters();
+      // Paralelo: lista + dashboard + mencionaveis (preload)
+      await Promise.all([loadClientes(), loadDashboardResumo(), loadMencionaveis()]);
+      // Subscribe realtime pra notas, segmentos e campanhas
+      subscribeRealtimeNotas();
+      subscribeRealtimeSegmentos();
+      subscribeRealtimeCampanhas();
+      // Se veio deep-link via sessionStorage, abre o cliente/aba certa
+      await checkDeepLink();
+    } catch (e) {
+      console.error('[c360] Boot falhou:', e);
+    } finally {
+      // Remove o overlay em QUALQUER caso (sucesso, auth fail, exception)
+      hideBootOverlay();
+    }
   }
 
   if (document.readyState === 'loading') {
