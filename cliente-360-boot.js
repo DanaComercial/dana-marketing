@@ -1949,6 +1949,70 @@
   // CAMPANHAS (Fase 6) · listagem, modal, envios, PDF/CSV
   // ══════════════════════════════════════════════════════════
 
+  // CSS-fix pra options do <select> no Chrome/Windows
+  // (sem isso, o dropdown nativo abre com fundo branco)
+  function ensureCampanhasCSS() {
+    if (document.getElementById('c360-campanhas-css')) return;
+    const s = document.createElement('style');
+    s.id = 'c360-campanhas-css';
+    s.textContent = `
+      #c360-camp-modal select option,
+      #c360-envios-modal select option,
+      #c360-camp-modal select optgroup,
+      #c360-envios-modal select optgroup {
+        background: #0b0f17 !important;
+        color: #f1f5f9 !important;
+      }
+      #c360-camp-modal select optgroup,
+      #c360-envios-modal select optgroup {
+        color: #94a3b8 !important;
+        font-weight: 700 !important;
+        font-style: normal !important;
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
+  // Confirm/alert customizado em tema dark (substitui confirm() nativo feio)
+  function c360Confirm(message, opts) {
+    opts = opts || {};
+    const danger = opts.danger === true;
+    const btnOk = opts.okLabel || (danger ? 'Apagar' : 'Confirmar');
+    const btnCancel = opts.cancelLabel || 'Cancelar';
+    return new Promise(resolve => {
+      document.getElementById('c360-confirm-modal')?.remove();
+      const html = `
+      <div id="c360-confirm-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Inter,sans-serif">
+        <div style="background:#0b0f17;border:1px solid rgba(255,255,255,0.12);border-radius:12px;max-width:440px;width:100%;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.5)">
+          <div style="padding:22px 24px 18px">
+            <div style="font-size:14px;color:#e2e8f0;line-height:1.55;white-space:pre-wrap">${escapeHtml(message)}</div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02)">
+            <button id="c360-conf-no" style="padding:8px 18px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:#e2e8f0;cursor:pointer;font-size:13px;font-family:inherit">${escapeHtml(btnCancel)}</button>
+            <button id="c360-conf-yes" style="padding:8px 22px;border-radius:6px;border:none;background:${danger ? '#ef4444' : 'oklch(88% 0.018 80)'};color:${danger ? '#fff' : 'oklch(9% 0.008 260)'};cursor:pointer;font-size:13px;font-weight:600;font-family:inherit">${escapeHtml(btnOk)}</button>
+          </div>
+        </div>
+      </div>`;
+      const div = document.createElement('div');
+      div.innerHTML = html;
+      document.body.appendChild(div.firstElementChild);
+      const cleanup = (v) => {
+        window.removeEventListener('keydown', escHandler);
+        document.getElementById('c360-confirm-modal')?.remove();
+        resolve(v);
+      };
+      const escHandler = (e) => {
+        if (e.key === 'Escape') cleanup(false);
+        else if (e.key === 'Enter') cleanup(true);
+      };
+      window.addEventListener('keydown', escHandler);
+      document.getElementById('c360-conf-yes').onclick = () => cleanup(true);
+      document.getElementById('c360-conf-no').onclick = () => cleanup(false);
+      // Foco no botao confirmar pra Enter funcionar
+      setTimeout(() => document.getElementById('c360-conf-yes')?.focus(), 50);
+    });
+  }
+
   const CANAL_LABELS = { whatsapp:'WhatsApp', email:'Email', sms:'SMS', outro:'Outro' };
   const STATUS_CAMP_LABELS = { rascunho:'Rascunho', agendada:'Agendada', enviada:'Enviada', concluida:'Concluída', cancelada:'Cancelada' };
   const STATUS_CAMP_CORES = { rascunho:'#94a3b8', agendada:'#60a5fa', enviada:'#a78bfa', concluida:'#10b981', cancelada:'#ef4444' };
@@ -2107,6 +2171,7 @@
   };
 
   async function openCampanhaModal(camp) {
+    ensureCampanhasCSS();
     if (!state.segmentosCustom) state.segmentosCustom = await loadSegmentosCustom();
     if (!state.canaisAquisicao || state.canaisAquisicao.length === 0) await loadCanaisAquisicao();
 
@@ -2299,7 +2364,8 @@
   window.c360DeleteCampanha = async function(id) {
     const c = state.campanhas.find(x => x.id === id);
     if (!c) return;
-    if (!confirm(`Apagar a campanha "${c.nome}"? Isso remove também todos os envios vinculados.`)) return;
+    const ok = await c360Confirm(`Apagar a campanha "${c.nome}"?\n\nIsso remove também todos os envios vinculados.`, { danger: true, okLabel: 'Apagar campanha' });
+    if (!ok) return;
     const { error } = await state.sb.from('cliente_campanhas').delete().eq('id', id);
     if (error) { if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error'); return; }
     if (typeof showToast === 'function') showToast('Campanha apagada', 'success');
@@ -2332,8 +2398,9 @@
       if (typeof showToast === 'function') showToast(msg, 'warn');
       return;
     }
-    const msgConfirm = `Adicionar ${novos.length} novos clientes a lista de envios?${jaIn.size > 0 ? ' (' + jaIn.size + ' ja existem e nao serao duplicados)' : ''}${semContato > 0 ? ' · ' + semContato + ' sem contato_id serao ignorados' : ''}`;
-    if (!confirm(msgConfirm)) return;
+    const msgConfirm = `Adicionar ${novos.length} novos clientes à lista de envios?${jaIn.size > 0 ? '\n\n(' + jaIn.size + ' já existem e não serão duplicados)' : ''}${semContato > 0 ? '\n\n' + semContato + ' sem contato_id serão ignorados' : ''}`;
+    const okGerar = await c360Confirm(msgConfirm, { okLabel: 'Adicionar à lista' });
+    if (!okGerar) return;
 
     const rowsInserir = novos.map(cliente => ({
       campanha_id: id,
@@ -2365,6 +2432,7 @@
 
   // ─── Modal ver envios ───
   window.c360VerEnvios = async function(id) {
+    ensureCampanhasCSS();
     const c = state.campanhas.find(x => x.id === id);
     if (!c) return;
     const { data: envios, error } = await state.sb
@@ -2448,7 +2516,8 @@
   };
 
   window.c360MarcarTodosEnviados = async function(campanhaId) {
-    if (!confirm('Marcar TODOS os envios pendentes como "enviados"?')) return;
+    const ok = await c360Confirm('Marcar TODOS os envios pendentes como "enviados"?', { okLabel: 'Marcar enviados' });
+    if (!ok) return;
     const { error } = await state.sb.from('cliente_campanha_envios')
       .update({ status: 'enviado', enviado_em: new Date().toISOString() })
       .eq('campanha_id', campanhaId).eq('status', 'pendente');
@@ -2459,7 +2528,8 @@
   };
 
   window.c360LimparEnvios = async function(campanhaId) {
-    if (!confirm('Remover todos os envios PENDENTES? (Os ja enviados permanecem.)')) return;
+    const ok = await c360Confirm('Remover todos os envios PENDENTES?\n\n(Os já enviados permanecem.)', { danger: true, okLabel: 'Remover pendentes' });
+    if (!ok) return;
     const { error } = await state.sb.from('cliente_campanha_envios')
       .delete().eq('campanha_id', campanhaId).eq('status', 'pendente');
     if (error) { if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error'); return; }
