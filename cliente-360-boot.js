@@ -1157,7 +1157,8 @@
   };
 
   window.c360DeleteNota = async function(id) {
-    if (!confirm('Apagar esta nota?')) return;
+    const ok = await c360Confirm('Apagar esta nota?', { danger: true, okLabel: 'Apagar nota' });
+    if (!ok) return;
     const { error } = await state.sb.from('cliente_notas').delete().eq('id', id);
     if (error) {
       if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error');
@@ -1240,7 +1241,8 @@
 
   // Apagar insight
   window.c360DeleteInsight = async function(id, btn) {
-    if (!confirm('Apagar esta análise?')) return;
+    const ok = await c360Confirm('Apagar esta análise?', { danger: true, okLabel: 'Apagar análise' });
+    if (!ok) return;
     if (btn) { btn.disabled = true; btn.textContent = '…'; }
     const { error } = await state.sb.from('cliente_insights').delete().eq('id', id);
     if (error) {
@@ -1906,7 +1908,8 @@
   };
 
   window.c360DeleteSegmento = async function(id) {
-    if (!confirm('Apagar este segmento?')) return;
+    const ok = await c360Confirm('Apagar este segmento?', { danger: true, okLabel: 'Apagar segmento' });
+    if (!ok) return;
     const { error } = await state.sb.from('cliente_segmentos_custom').delete().eq('id', id);
     if (error) {
       if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error');
