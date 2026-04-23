@@ -2552,13 +2552,11 @@
       .select('contato_nome,contato_telefone,contato_celular,contato_uf')
       .eq('campanha_id', campanhaId).order('contato_nome').limit(2000);
 
-    let lista = envios || [];
+    const lista = envios || [];
     if (lista.length === 0) {
-      if (!state.segmentosCustom) state.segmentosCustom = await loadSegmentosCustom();
-      const alvos = getClientesAlvoCampanha(c);
-      lista = alvos.map(a => ({ contato_nome: a.contato_nome, contato_celular: a.celular, contato_telefone: a.telefone, contato_uf: a.uf }));
+      if (typeof showToast === 'function') showToast('Lista vazia — clique em 📋 Gerar primeiro', 'warn');
+      return;
     }
-    if (lista.length === 0) { if (typeof showToast === 'function') showToast('Nenhum cliente', 'warn'); return; }
 
     const linhas = lista.map(cli => renderMensagemComPlaceholders(c.mensagem, { contato_nome: cli.contato_nome, uf: cli.contato_uf }, c));
     const texto = linhas.join('\n\n═══════════════════\n\n');
@@ -2583,17 +2581,11 @@
       .from('cliente_campanha_envios').select('*')
       .eq('campanha_id', campanhaId).order('contato_nome').limit(5000);
 
-    let lista = envios || [];
+    const lista = envios || [];
     if (lista.length === 0) {
-      if (!state.segmentosCustom) state.segmentosCustom = await loadSegmentosCustom();
-      const alvos = getClientesAlvoCampanha(c);
-      lista = alvos.map(a => ({
-        contato_nome: a.contato_nome, contato_telefone: a.telefone, contato_celular: a.celular,
-        contato_email: null, contato_uf: a.uf, status: 'pendente',
-        mensagem_renderizada: renderMensagemComPlaceholders(c.mensagem || '', a, c),
-      }));
+      if (typeof showToast === 'function') showToast('Lista vazia — clique em 📋 Gerar primeiro', 'warn');
+      return;
     }
-    if (lista.length === 0) { if (typeof showToast === 'function') showToast('Nenhum cliente', 'warn'); return; }
 
     const BOM = '\ufeff';
     const headers = ['Nome','Telefone','Celular','Email','UF','Status','Mensagem'];
@@ -2619,17 +2611,11 @@
       .from('cliente_campanha_envios').select('*')
       .eq('campanha_id', campanhaId).order('contato_nome').limit(3000);
 
-    let lista = envios || [];
+    const lista = envios || [];
     if (lista.length === 0) {
-      if (!state.segmentosCustom) state.segmentosCustom = await loadSegmentosCustom();
-      const alvos = getClientesAlvoCampanha(c);
-      lista = alvos.map(a => ({
-        contato_nome: a.contato_nome, contato_telefone: a.telefone, contato_celular: a.celular,
-        contato_email: null, contato_uf: a.uf, segmento: a.segmento, status: 'pendente',
-        mensagem_renderizada: renderMensagemComPlaceholders(c.mensagem || '', a, c),
-      }));
+      if (typeof showToast === 'function') showToast('Lista vazia — clique em 📋 Gerar primeiro', 'warn');
+      return;
     }
-    if (lista.length === 0) { if (typeof showToast === 'function') showToast('Nenhum cliente', 'warn'); return; }
 
     const win = window.open('', '_blank', 'width=900,height=1200');
     if (!win) { if (typeof showToast === 'function') showToast('Permita popups pra exportar', 'error'); return; }
