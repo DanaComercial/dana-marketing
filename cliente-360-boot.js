@@ -2899,7 +2899,8 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     } catch (e) {
       console.error('[c360] Boot falhou:', e);
     } finally {
-      // Remove o overlay em QUALQUER caso (sucesso, auth fail, exception)
+      // Remove o hide do #root (CSS inline do HTML) + overlay em QUALQUER caso
+      document.body.classList.add('c360-ready');
       hideBootOverlay();
     }
   }

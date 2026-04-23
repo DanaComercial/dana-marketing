@@ -32,8 +32,21 @@
   .client-score-grid { grid-template-columns: 1fr !important; }
 }
 </style>
+<!-- Esconde conteudo demo enquanto o boot.js nao termina (evita FOUC do dashboard antigo) -->
+<style>body:not(.c360-ready) #root{visibility:hidden!important}</style>
 </head>
 <body>
+<!-- Overlay de loading criado sincrono ANTES do parse do #root -->
+<script>
+(function(){
+  if (document.getElementById('c360-boot-overlay')) return;
+  var ov = document.createElement('div');
+  ov.id = 'c360-boot-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:oklch(9% 0.008 260);z-index:99999;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-family:Inter,sans-serif;font-size:13px;transition:opacity 0.2s';
+  ov.innerHTML = '<div style="text-align:center"><div style="font-size:28px;margin-bottom:12px;animation:c360spin 1s linear infinite;display:inline-block">⏳</div><div>Carregando Cliente 360...</div></div><style>@keyframes c360spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>';
+  document.body.appendChild(ov);
+})();
+</script>
 <div id="root">
 <section aria-atomic="false" aria-label="Notifications alt+T" aria-live="polite" aria-relevant="additions text" tabindex="-1"></section>
 <div class="group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full" data-slot="sidebar-wrapper" style="--sidebar-width: 280px; --sidebar-width-icon: 3rem;">
@@ -6980,6 +6993,6 @@ if (document.readyState === 'loading') {
 }
 
 </script>
-<script src="./cliente-360-boot.js?v=26"></script>
+<script src="./cliente-360-boot.js?v=27"></script>
 </body>
 </html>
