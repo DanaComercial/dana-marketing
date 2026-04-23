@@ -3478,7 +3478,39 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     return data || [];
   }
 
-  function mcInvalidateCache() { state.mcScoringCache = null; }
+  function mcInvalidateCache() {
+    state.mcScoringCache = null;
+    state.mcProfiles = null;
+    state.mcAdminRanking = null;
+    state.mcAdminVendedores = null;
+  }
+
+  // Realtime: escuta mudancas em vendedor_mapping e profiles pra re-renderizar
+  // quando outro admin cria/muda usuario ou mapeia vendedor.
+  function mcSubscribeRealtime() {
+    if (state.mcRealtimeChannel) return;
+    state.mcRealtimeChannel = state.sb
+      .channel('realtime-meus-clientes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendedor_mapping' }, async () => {
+        console.log('[mc] vendedor_mapping mudou - invalidando cache');
+        mcInvalidateCache();
+        const active = document.querySelector('.page-section.active');
+        if (active?.id === 'page-meus-clientes') await renderMeusClientesPage();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, async () => {
+        console.log('[mc] profiles mudou - invalidando cache de profiles');
+        state.mcProfiles = null;
+        const active = document.querySelector('.page-section.active');
+        if (active?.id === 'page-meus-clientes') await renderMeusClientesPage();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cliente_vendedor_manual' }, async () => {
+        console.log('[mc] cliente_vendedor_manual mudou');
+        mcInvalidateCache();
+        const active = document.querySelector('.page-section.active');
+        if (active?.id === 'page-meus-clientes') await renderMeusClientesPage();
+      })
+      .subscribe();
+  }
 
   // Injeta nav "Meus Clientes" no sidebar + cria div da pagina
   async function mcSetupNav() {
@@ -4106,6 +4138,7 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       subscribeRealtimeSync();
       // Setup Meus Clientes (nav + page) se tiver permissao
       await mcSetupNav();
+      mcSubscribeRealtime();
       // Se veio deep-link via sessionStorage, abre o cliente/aba certa
       await checkDeepLink();
     } catch (e) {
