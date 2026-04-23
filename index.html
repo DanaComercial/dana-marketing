@@ -11826,9 +11826,11 @@ async function loadTarefas() {
       </div>`;
     }).join('');
 
-    // Botão Nova Tarefa — mostra/esconde conforme permissão
+    // Botão Nova Tarefa + Gerenciar Colunas — mostram/escondem conforme permissão
     const btnNova = document.getElementById('btn-nova-tarefa');
     if (btnNova) btnNova.style.display = canCreate ? '' : 'none';
+    const btnCols = document.getElementById('btn-gerenciar-cols');
+    if (btnCols) btnCols.style.display = canCreate ? '' : 'none';
 
     // Badge no sidebar: conta tarefas pendentes (com prazo e não concluídas)
     // + tarefas em atraso têm prioridade vermelha
@@ -16365,6 +16367,8 @@ async function loadAdminPermissoes() {
     document.querySelectorAll('#perm-cargo-groups input[type="checkbox"][data-cargo]').forEach(ch => {
       window._permState[ch.dataset.cargo+'||'+ch.dataset.secao] = ch.checked;
     });
+    // Guarda cargo atual pra preservar entre reloads
+    window._permLastCargo = cargo;
     const host = document.getElementById('perm-cargo-groups');
     if (!host) return;
     const toggleRow = (s) => {
@@ -16417,15 +16421,22 @@ async function loadAdminPermissoes() {
     });
     updatePermDirtyBadge();
   };
-  // Marcar/desmarcar por grupo
+  // Marcar/desmarcar por grupo — atualiza DOM direto pra não perder no render
   window.toggleGroupPerms = function(titulo, val) {
     const group = window._permGroups.find(g => g[0] === titulo);
     if (!group) return;
     const cargo = document.getElementById('perm-cargo-selector')?.value;
+    if (!cargo) return;
     for (const s of group[1]) {
       window._permState[cargo+'||'+s] = val;
+      // Atualiza o checkbox correspondente direto no DOM
+      const ch = document.querySelector('#perm-cargo-groups input[type="checkbox"][data-cargo="'+cargo+'"][data-secao="'+s+'"]');
+      if (ch) {
+        ch.checked = val;
+        ch.style.background = val ? 'var(--black)' : 'var(--surface3)';
+      }
     }
-    renderPermsForCargo(cargo);
+    updatePermDirtyBadge();
   };
 
   // Badge "alterações pendentes"
@@ -16444,7 +16455,13 @@ async function loadAdminPermissoes() {
     btn.style.opacity = dirty > 0 ? '1' : '0.7';
   };
 
-  renderPermsForCargo(cargos[0]);
+  // Preserva o cargo selecionado anteriormente (salvo globalmente entre reloads)
+  const cargoPreservado = window._permLastCargo || cargos[0];
+  const existe = cargos.includes(cargoPreservado);
+  const cargoInicial = existe ? cargoPreservado : cargos[0];
+  const sel = document.getElementById('perm-cargo-selector');
+  if (sel) sel.value = cargoInicial;
+  renderPermsForCargo(cargoInicial);
 }
 
 async function savePermissoes() {
