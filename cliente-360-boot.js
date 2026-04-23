@@ -2017,6 +2017,8 @@
       if (id === 'segmentos') renderSegmentosPage();
       if (id === 'campanhas') renderCampanhasPage();
       if (id === 'sincronizacao') renderSincronizacaoPage();
+      if (id === 'configuracoes') renderConfiguracoesPage();
+      if (id === 'logs') renderLogsPage();
     };
   }
 
@@ -3071,6 +3073,343 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       })
       .subscribe();
   }
+
+  // ══════════════════════════════════════════════════════════
+  // CONFIGURAÇÕES (Fase 7.2) · info, preferencias, manutencao
+  // ══════════════════════════════════════════════════════════
+
+  const C360_PREFS_KEY = 'c360_prefs_v1';
+  state.c360ConfigStats = null;
+
+  function loadC360Prefs() {
+    try {
+      const raw = localStorage.getItem(C360_PREFS_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    return { paginaTamanho: 50, empresaPadrao: 'matriz' };
+  }
+  function saveC360Prefs(prefs) {
+    try { localStorage.setItem(C360_PREFS_KEY, JSON.stringify(prefs)); } catch(e) {}
+  }
+
+  async function loadConfigStats() {
+    try {
+      const [clientes, notas, insights, segs, camps, envios] = await Promise.all([
+        state.sb.from('cliente_scoring_full').select('*', { count: 'exact', head: true }),
+        state.sb.from('cliente_notas').select('*', { count: 'exact', head: true }),
+        state.sb.from('cliente_insights').select('*', { count: 'exact', head: true }),
+        state.sb.from('cliente_segmentos_custom').select('*', { count: 'exact', head: true }),
+        state.sb.from('cliente_campanhas').select('*', { count: 'exact', head: true }),
+        state.sb.from('cliente_campanha_envios').select('*', { count: 'exact', head: true }),
+      ]);
+      const sixtyDays = new Date(Date.now() - 60*24*60*60*1000).toISOString();
+      const { count: insightsAntigos } = await state.sb.from('cliente_insights')
+        .select('*', { count: 'exact', head: true }).lt('created_at', sixtyDays);
+      return {
+        clientes: clientes.count || 0, notas: notas.count || 0,
+        insights: insights.count || 0, insightsAntigos: insightsAntigos || 0,
+        segmentos: segs.count || 0, campanhas: camps.count || 0, envios: envios.count || 0,
+      };
+    } catch(e) { console.warn('[c360 config] stats:', e); return null; }
+  }
+
+  async function renderConfiguracoesPage() {
+    const page = document.getElementById('page-configuracoes');
+    if (!page) return;
+    page.innerHTML = '<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.5)">⏳ Carregando...</div>';
+
+    const [stats, profile] = await Promise.all([
+      loadConfigStats(),
+      (async () => {
+        try {
+          const { data: { user } } = await state.sb.auth.getUser();
+          if (!user) return null;
+          const { data } = await state.sb.from('profiles').select('nome, cargo').eq('id', user.id).single();
+          return data;
+        } catch(e) { return null; }
+      })(),
+    ]);
+    const isAdmin = profile?.cargo === 'admin';
+    const prefs = loadC360Prefs();
+
+    const infoCard = (icon, label, value, sub) => `
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:18px">${icon}</span>
+          <span style="font-size:10.5px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px">${label}</span>
+        </div>
+        <div style="font-size:22px;font-weight:700;color:#f1f5f9">${value}</div>
+        ${sub ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px">${sub}</div>` : ''}
+      </div>`;
+
+    page.innerHTML = `
+<div style="padding:24px;max-width:1400px;margin:0 auto">
+  <div style="margin-bottom:24px">
+    <h1 style="margin:0 0 6px;font-size:28px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">Configurações</h1>
+    <div style="font-size:13px;color:#94a3b8">Preferências, manutenção e info de uso do Cliente 360</div>
+  </div>
+
+  <div style="margin-bottom:28px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.5);margin-bottom:12px">📊 Info de Uso</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px">
+      ${stats ? `
+        ${infoCard('👥', 'Clientes scorados', fmtNum(stats.clientes), 'Em todas empresas')}
+        ${infoCard('📝', 'Notas', fmtNum(stats.notas), null)}
+        ${infoCard('◆', 'Insights IA', fmtNum(stats.insights), stats.insightsAntigos ? fmtNum(stats.insightsAntigos) + ' com +60 dias' : 'todos recentes')}
+        ${infoCard('🎯', 'Segmentos customizados', fmtNum(stats.segmentos), null)}
+        ${infoCard('📣', 'Campanhas', fmtNum(stats.campanhas), fmtNum(stats.envios) + ' envios registrados')}
+      ` : '<div style="padding:20px;color:#94a3b8">Não foi possível carregar estatísticas</div>'}
+    </div>
+  </div>
+
+  <div style="margin-bottom:28px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.5);margin-bottom:12px">⚙️ Preferências pessoais</div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Itens por página (lista de clientes)</label>
+          <select id="cfg-pagesize" onchange="c360SavePrefs()" style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(20,20,25,1);color:#f1f5f9;font-size:13px;font-family:inherit">
+            <option value="25" ${prefs.paginaTamanho==25?'selected':''}>25</option>
+            <option value="50" ${prefs.paginaTamanho==50?'selected':''}>50 (padrão)</option>
+            <option value="100" ${prefs.paginaTamanho==100?'selected':''}>100</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Empresa padrão ao abrir</label>
+          <select id="cfg-empresa-padrao" onchange="c360SavePrefs()" style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(20,20,25,1);color:#f1f5f9;font-size:13px;font-family:inherit">
+            <option value="matriz" ${prefs.empresaPadrao==='matriz'?'selected':''}>Matriz</option>
+            <option value="bc" ${prefs.empresaPadrao==='bc'?'selected':''}>BC</option>
+          </select>
+        </div>
+      </div>
+      <div style="font-size:10.5px;color:#64748b;margin-top:10px">Preferências salvas localmente no navegador (localStorage). Não afeta outros usuários.</div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:24px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.5);margin-bottom:12px">🧹 Manutenção${isAdmin ? '' : ' <span style="color:#f59e0b;font-size:10px;margin-left:6px;font-weight:600">(só admin)</span>'}</div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px">
+      <button onclick="c360LimparInsightsAntigos()" ${!isAdmin?'disabled':''} style="padding:10px 16px;border-radius:6px;border:1px solid rgba(245,158,11,${isAdmin?'0.3':'0.12'});background:${isAdmin?'rgba(245,158,11,0.1)':'rgba(255,255,255,0.02)'};color:${isAdmin?'#f59e0b':'#64748b'};cursor:${isAdmin?'pointer':'not-allowed'};font-size:13px;font-family:inherit;text-align:left">🗑 Apagar insights IA com mais de 60 dias${stats?.insightsAntigos ? ` (${stats.insightsAntigos} eligíveis)` : ''}</button>
+      <button onclick="c360ClearLocalCache()" style="padding:10px 16px;border-radius:6px;border:1px solid rgba(96,165,250,0.3);background:rgba(96,165,250,0.1);color:#60a5fa;cursor:pointer;font-size:13px;font-family:inherit;text-align:left">🔄 Invalidar cache local e recarregar</button>
+    </div>
+  </div>
+</div>`;
+  }
+
+  window.c360SavePrefs = function() {
+    const pageSize = parseInt(document.getElementById('cfg-pagesize')?.value || '50', 10);
+    const empresa = document.getElementById('cfg-empresa-padrao')?.value || 'matriz';
+    saveC360Prefs({ paginaTamanho: pageSize, empresaPadrao: empresa });
+    if (typeof showToast === 'function') showToast('Preferências salvas', 'success');
+  };
+
+  window.c360LimparInsightsAntigos = async function() {
+    const ok = await c360Confirm('Apagar TODOS os insights IA com mais de 60 dias?\n\nEsta ação é permanente e não pode ser desfeita.', { danger: true, okLabel: 'Apagar insights antigos' });
+    if (!ok) return;
+    const sixtyDays = new Date(Date.now() - 60*24*60*60*1000).toISOString();
+    const { error, count } = await state.sb.from('cliente_insights')
+      .delete({ count: 'exact' }).lt('created_at', sixtyDays);
+    if (error) {
+      if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error');
+      return;
+    }
+    if (typeof showToast === 'function') showToast(`${count || 0} insights apagados`, 'success');
+    await renderConfiguracoesPage();
+  };
+
+  window.c360ClearLocalCache = function() {
+    // Invalida caches em memoria antes do reload
+    try {
+      cache.matriz = null; cache.bc = null;
+      state.campanhas = []; state.canaisAquisicao = [];
+      state.segmentosCustom = null; state.syncLog = [];
+      state.logsCache = null; state.c360ConfigStats = null;
+    } catch(e) {}
+    if (typeof showToast === 'function') showToast('Cache limpo. Recarregando...', 'success');
+    setTimeout(() => window.location.reload(), 400);
+  };
+
+  window.c360ReRenderConfiguracoesIfActive = async function() {
+    const active = document.querySelector('.page-section.active');
+    if (active?.id === 'page-configuracoes') await renderConfiguracoesPage();
+  };
+
+  // ══════════════════════════════════════════════════════════
+  // LOGS (Fase 7.3) · timeline unificada de eventos do C360
+  // ══════════════════════════════════════════════════════════
+
+  state.logsCache = null;
+  state.logsFiltroTipo = 'todos';
+  state.logsFiltroPeriodo = 30;
+  state.logsPage = 0;
+
+  async function loadLogsC360() {
+    const desde = new Date(Date.now() - state.logsFiltroPeriodo * 24*60*60*1000).toISOString();
+    try {
+      const [notas, insights, segs, camps] = await Promise.all([
+        state.sb.from('cliente_notas')
+          .select('id, contato_nome, empresa, user_nome, created_at')
+          .gte('created_at', desde).order('created_at', { ascending: false }).limit(200),
+        state.sb.from('cliente_insights')
+          .select('id, contato_nome, empresa, user_nome, created_at')
+          .gte('created_at', desde).order('created_at', { ascending: false }).limit(200),
+        state.sb.from('cliente_segmentos_custom')
+          .select('id, nome, empresa, user_nome, created_at')
+          .gte('created_at', desde).order('created_at', { ascending: false }).limit(200),
+        state.sb.from('cliente_campanhas')
+          .select('id, nome, empresa, criado_por_nome, created_at')
+          .gte('created_at', desde).order('created_at', { ascending: false }).limit(200),
+      ]);
+
+      const eventos = [];
+      (notas.data || []).forEach(n => eventos.push({
+        tipo: 'nota', icon: '📝', label: 'escreveu nota em',
+        alvo: n.contato_nome, empresa: n.empresa,
+        autor: n.user_nome || '—', data: n.created_at,
+      }));
+      (insights.data || []).forEach(i => eventos.push({
+        tipo: 'insight', icon: '◆', label: 'gerou insight IA para',
+        alvo: i.contato_nome, empresa: i.empresa,
+        autor: i.user_nome || '—', data: i.created_at,
+      }));
+      (segs.data || []).forEach(s => eventos.push({
+        tipo: 'segmento', icon: '🎯', label: 'criou segmento:',
+        alvo: s.nome, empresa: s.empresa,
+        autor: s.user_nome || '—', data: s.created_at,
+      }));
+      (camps.data || []).forEach(c => eventos.push({
+        tipo: 'campanha', icon: '📣', label: 'criou campanha:',
+        alvo: c.nome, empresa: c.empresa,
+        autor: c.criado_por_nome || '—', data: c.created_at,
+      }));
+
+      eventos.sort((a, b) => new Date(b.data) - new Date(a.data));
+      state.logsCache = eventos;
+      return eventos;
+    } catch(e) {
+      console.warn('[c360 logs] load:', e);
+      state.logsCache = [];
+      return [];
+    }
+  }
+
+  async function renderLogsPage() {
+    const page = document.getElementById('page-logs');
+    if (!page) return;
+    page.innerHTML = '<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.5)">⏳ Carregando logs...</div>';
+
+    const eventos = await loadLogsC360();
+    const filtrados = eventos.filter(e => state.logsFiltroTipo === 'todos' || e.tipo === state.logsFiltroTipo);
+
+    const PAGE = 50;
+    const start = state.logsPage * PAGE;
+    const end = Math.min(start + PAGE, filtrados.length);
+    const slice = filtrados.slice(start, end);
+
+    const fmt = (d) => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const empLabel = (e) => e === 'matriz' ? 'Matriz' : e === 'bc' ? 'BC' : e === 'ambas' ? 'Ambas' : (e || '—');
+    const TIPO_CORES = { nota: '#60a5fa', insight: '#a78bfa', segmento: '#10b981', campanha: '#f59e0b' };
+
+    const row = (ev) => `
+      <div style="display:flex;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.05);align-items:flex-start">
+        <div style="font-size:16px;margin-top:2px;flex-shrink:0">${ev.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12.5px;color:#e2e8f0;line-height:1.4">
+            <strong style="color:${TIPO_CORES[ev.tipo] || '#94a3b8'}">${escapeHtml(ev.autor)}</strong>
+            <span style="color:#94a3b8"> ${ev.label} </span>
+            <strong style="color:#f1f5f9">${escapeHtml(ev.alvo || '—')}</strong>
+          </div>
+          <div style="font-size:10.5px;color:#64748b;margin-top:3px">${empLabel(ev.empresa)} · ${fmt(ev.data)}</div>
+        </div>
+      </div>`;
+
+    const contagens = {
+      todos: eventos.length,
+      nota: eventos.filter(e => e.tipo === 'nota').length,
+      insight: eventos.filter(e => e.tipo === 'insight').length,
+      segmento: eventos.filter(e => e.tipo === 'segmento').length,
+      campanha: eventos.filter(e => e.tipo === 'campanha').length,
+    };
+
+    page.innerHTML = `
+<div style="padding:24px;max-width:1400px;margin:0 auto">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+    <div>
+      <h1 style="margin:0 0 6px;font-size:28px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">Logs</h1>
+      <div style="font-size:13px;color:#94a3b8">Timeline de eventos do Cliente 360 · últimos ${state.logsFiltroPeriodo} dias</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="c360ExportLogsCsv()" style="padding:10px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:#e2e8f0;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit">⬇ CSV</button>
+      <button onclick="c360ReloadLogs()" style="padding:10px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:#e2e8f0;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit">🔄 Atualizar</button>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+    <select onchange="c360FiltraLogsTipo(this.value)" style="padding:8px 26px 8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(20,20,25,1);color:#f1f5f9;font-size:12px;font-family:inherit;cursor:pointer">
+      <option value="todos" ${state.logsFiltroTipo==='todos'?'selected':''}>Todos os tipos (${contagens.todos})</option>
+      <option value="nota" ${state.logsFiltroTipo==='nota'?'selected':''}>📝 Notas (${contagens.nota})</option>
+      <option value="insight" ${state.logsFiltroTipo==='insight'?'selected':''}>◆ Insights IA (${contagens.insight})</option>
+      <option value="segmento" ${state.logsFiltroTipo==='segmento'?'selected':''}>🎯 Segmentos (${contagens.segmento})</option>
+      <option value="campanha" ${state.logsFiltroTipo==='campanha'?'selected':''}>📣 Campanhas (${contagens.campanha})</option>
+    </select>
+    <select onchange="c360FiltraLogsPeriodo(this.value)" style="padding:8px 26px 8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(20,20,25,1);color:#f1f5f9;font-size:12px;font-family:inherit;cursor:pointer">
+      <option value="7" ${state.logsFiltroPeriodo==7?'selected':''}>Últimos 7 dias</option>
+      <option value="30" ${state.logsFiltroPeriodo==30?'selected':''}>Últimos 30 dias</option>
+      <option value="90" ${state.logsFiltroPeriodo==90?'selected':''}>Últimos 90 dias</option>
+    </select>
+    <span style="font-size:11px;color:#94a3b8;margin-left:auto">${filtrados.length} eventos${filtrados.length ? ` · mostrando ${start+1}-${end}` : ''}</span>
+  </div>
+
+  <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden">
+    ${slice.length === 0
+      ? '<div style="padding:40px;text-align:center;color:#64748b"><div style="font-size:24px;margin-bottom:8px">📭</div>Nenhum evento no período filtrado</div>'
+      : slice.map(row).join('')}
+  </div>
+
+  ${filtrados.length > PAGE ? `
+    <div style="display:flex;justify-content:center;gap:8px;margin-top:16px;align-items:center">
+      <button onclick="c360LogsPage(-1)" ${state.logsPage===0?'disabled':''} style="padding:6px 14px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:${state.logsPage===0?'#64748b':'#e2e8f0'};cursor:${state.logsPage===0?'not-allowed':'pointer'};font-size:12px;font-family:inherit">← Anterior</button>
+      <span style="padding:6px 14px;font-size:12px;color:#94a3b8">Página ${state.logsPage+1} de ${Math.ceil(filtrados.length / PAGE)}</span>
+      <button onclick="c360LogsPage(1)" ${end>=filtrados.length?'disabled':''} style="padding:6px 14px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:${end>=filtrados.length?'#64748b':'#e2e8f0'};cursor:${end>=filtrados.length?'not-allowed':'pointer'};font-size:12px;font-family:inherit">Próxima →</button>
+    </div>
+  ` : ''}
+</div>`;
+  }
+
+  window.c360FiltraLogsTipo = async function(v) { state.logsFiltroTipo = v; state.logsPage = 0; await renderLogsPage(); };
+  window.c360FiltraLogsPeriodo = async function(v) { state.logsFiltroPeriodo = +v; state.logsPage = 0; state.logsCache = null; await renderLogsPage(); };
+  window.c360LogsPage = async function(dir) { state.logsPage = Math.max(0, state.logsPage + dir); await renderLogsPage(); };
+  window.c360ReloadLogs = async function() {
+    state.logsCache = null;
+    await renderLogsPage();
+    if (typeof showToast === 'function') showToast('Atualizado', 'success');
+  };
+
+  window.c360ExportLogsCsv = function() {
+    const eventos = state.logsCache || [];
+    if (eventos.length === 0) {
+      if (typeof showToast === 'function') showToast('Nada pra exportar', 'warn');
+      return;
+    }
+    const BOM = '\ufeff';
+    const headers = ['Tipo', 'Autor', 'Acao', 'Alvo', 'Empresa', 'Data'];
+    const esc = (v) => `"${String(v == null ? '' : v).replace(/"/g,'""').replace(/\r?\n/g,' ')}"`;
+    const csv = BOM + headers.map(esc).join(';') + '\r\n'
+      + eventos.map(e => [e.tipo, e.autor, e.label, e.alvo, e.empresa, e.data].map(esc).join(';')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `logs_cliente360_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+    if (typeof showToast === 'function') showToast(`${eventos.length} eventos exportados`, 'success');
+  };
+
+  window.c360ReRenderLogsIfActive = async function() {
+    const active = document.querySelector('.page-section.active');
+    if (active?.id === 'page-logs') await renderLogsPage();
+  };
 
   // ─── Boot ───
   async function boot() {
