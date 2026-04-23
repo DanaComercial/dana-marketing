@@ -156,6 +156,102 @@ const TOOLS = [
       }
     }
   },
+  // ─── FERRAMENTAS CLIENTE 360 ───
+  {
+    type: 'function',
+    function: {
+      name: 'resumo_cliente360',
+      description: 'Panorama geral da carteira de clientes do Cliente 360 (CRM): total de clientes, VIPs, ativos, em risco, perdidos, faturamento, ticket médio, taxa de recompra. Use pra "como tá minha carteira", "quantos VIPs tenho", "resumo do Cliente 360", "minhas metricas de CRM".',
+      parameters: {
+        type: 'object',
+        properties: {
+          empresa: { type: 'string', enum: ['matriz', 'bc', 'ambas'], description: 'Padrão: ambas. Filtra por empresa (Matriz Piçarras ou BC).' }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'alertas_cliente360',
+      description: 'Lista clientes em uma das 4 categorias de alerta RFM do Cliente 360. Use pra "clientes prontos pra recompra", "VIPs sumidos", "novos sem segunda compra", "oportunidades de alto potencial", "quem contatar hoje".',
+      parameters: {
+        type: 'object',
+        properties: {
+          empresa: { type: 'string', enum: ['matriz', 'bc'], description: 'Empresa (obrigatório)' },
+          tipo: {
+            type: 'string',
+            enum: ['prontos_recompra', 'vips_sem_comprar', 'novos_sem_segunda', 'alto_potencial'],
+            description: 'prontos_recompra (score >=80 + 30+ dias) | vips_sem_comprar (VIP + 120+ dias) | novos_sem_segunda (1 pedido + 30+ dias) | alto_potencial (2+ pedidos + score >=70 + <90 dias)'
+          },
+          limite: { type: 'number', description: 'Padrão 10, máx 30' }
+        },
+        required: ['empresa', 'tipo']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'listar_segmentos_c360',
+      description: 'Lista os 5 segmentos automáticos (VIP, Frequente, Ocasional, Em Risco, Inativo) com contagem, mais os segmentos customizados criados manualmente. Use pra "quais segmentos tenho", "quantos clientes em cada segmento", "segmentos customizados".',
+      parameters: {
+        type: 'object',
+        properties: {
+          empresa: { type: 'string', enum: ['matriz', 'bc'], description: 'Empresa (obrigatório pra contagens corretas)' }
+        },
+        required: ['empresa']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'listar_campanhas_c360',
+      description: 'Lista campanhas do Cliente 360 com progresso de envio (total alvo, enviados, respondidos). Use pra "campanhas ativas", "status das campanhas", "quantas campanhas rodando", "como tá a campanha X".',
+      parameters: {
+        type: 'object',
+        properties: {
+          empresa: { type: 'string', enum: ['matriz', 'bc', 'ambas'], description: 'Padrão: ambas' },
+          status: { type: 'string', enum: ['rascunho', 'agendada', 'enviada', 'concluida', 'cancelada', 'todas'], description: 'Padrão: todas' }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'detalhe_cliente_c360',
+      description: 'Info completa de um cliente específico: score RFM decomposto, total pedidos, ticket médio, última compra, dias sem comprar, segmento, nível de risco, últimas notas e insights IA. Use pra "me fala do cliente X", "como tá a Maria Silva no CRM", "status RFM do cliente Y".',
+      parameters: {
+        type: 'object',
+        properties: {
+          nome: { type: 'string', description: 'Nome completo ou parcial do cliente' },
+          empresa: { type: 'string', enum: ['matriz', 'bc'], description: 'Empresa' }
+        },
+        required: ['nome', 'empresa']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'buscar_notas_c360',
+      description: 'Lista notas internas deixadas em clientes. Use pra "notas recentes do CRM", "o que a Dana comentou", "notas sobre cliente X", "últimas anotações".',
+      parameters: {
+        type: 'object',
+        properties: {
+          cliente_nome: { type: 'string', description: 'Opcional: filtrar notas de um cliente específico (busca parcial)' },
+          autor: { type: 'string', description: 'Opcional: filtrar por quem escreveu a nota (busca parcial)' },
+          dias_recentes: { type: 'number', description: 'Padrão 30, máx 180. Quantos dias olhar pra trás' },
+          limite: { type: 'number', description: 'Padrão 10, máx 50' }
+        },
+        required: []
+      }
+    }
+  },
   {
     type: 'function',
     function: {
@@ -207,6 +303,14 @@ const TOOL_SECOES: Record<string, string[]> = {
   resumo_kanban:                  ['tarefas'],
   buscar_contato:                 ['comunidade'],
   info_produto:                   ['marketplaces', 'home'],
+  // Cliente 360
+  resumo_cliente360:              ['cliente360'],
+  alertas_cliente360:             ['cliente360'],
+  listar_segmentos_c360:          ['cliente360'],
+  listar_campanhas_c360:          ['cliente360'],
+  detalhe_cliente_c360:           ['cliente360'],
+  buscar_notas_c360:              ['cliente360'],
+  // Internas
   listar_schema:                  [], // disponível pra todos
   consultar_tabela:               ['admin'], // só admins
 }
@@ -222,9 +326,13 @@ const TABELAS_PERMITIDAS = new Set([
   'briefings_campanha', 'materiais_briefing', 'brandkit_itens',
   'criativos', 'canais_aquisicao', 'concorrentes',
   'influenciadores', 'referencias_conteudo', 'revendas_parceiros',
+  // Cliente 360 (Fases 2-7)
+  'cliente_insights', 'cliente_notas', 'cliente_segmentos_custom',
+  'cliente_campanhas', 'cliente_campanha_envios',
   // Views
   'dashboard_resumo', 'dashboard_mensal', 'dashboard_contas',
-  'cliente_scoring', 'funil_vendas', 'receita_historica',
+  'cliente_scoring', 'cliente_scoring_full', 'cliente_scoring_resumo',
+  'funil_vendas', 'receita_historica',
   'top_produtos', 'top_produtos_mes', 'top_produtos_marketplaces',
   'top_produtos_marketplaces_mes',
 ])
@@ -474,6 +582,192 @@ async function executarFerramenta(nome: string, args: any, contextoUsuario: { ca
       return { total: data?.length || 0, produtos: data || [] }
     }
 
+    // ─── CLIENTE 360 ───
+    if (nome === 'resumo_cliente360') {
+      const empresa = args.empresa || 'ambas'
+      const { data, error } = await supabaseAdmin.from('cliente_scoring_resumo')
+        .select('*').eq('empresa', empresa).maybeSingle()
+      if (error) return { erro: error.message }
+      if (!data) return { empresa, aviso: 'Nenhum dado encontrado. Use empresa=matriz, bc ou ambas.' }
+      return { empresa, ...data }
+    }
+
+    if (nome === 'alertas_cliente360') {
+      const empresa = args.empresa
+      const tipo = args.tipo
+      const limite = Math.min(+args.limite || 10, 30)
+      if (!empresa || !tipo) return { erro: 'empresa e tipo são obrigatórios' }
+
+      let q = supabaseAdmin.from('cliente_scoring_full')
+        .select('contato_nome, telefone, celular, segmento, score, total_pedidos, total_gasto, ultima_compra, dias_sem_compra')
+        .eq('empresa', empresa)
+
+      if (tipo === 'prontos_recompra') {
+        q = q.gte('score', 80).gte('dias_sem_compra', 30)
+      } else if (tipo === 'vips_sem_comprar') {
+        q = q.eq('segmento', 'VIP').gte('dias_sem_compra', 120)
+      } else if (tipo === 'novos_sem_segunda') {
+        q = q.eq('total_pedidos', 1).gte('dias_sem_compra', 30)
+      } else if (tipo === 'alto_potencial') {
+        q = q.gte('total_pedidos', 2).gte('score', 70).lte('dias_sem_compra', 90)
+      } else {
+        return { erro: `tipo inválido: ${tipo}. Use: prontos_recompra, vips_sem_comprar, novos_sem_segunda, alto_potencial` }
+      }
+
+      const { data, error } = await q.order('score', { ascending: false }).limit(limite)
+      if (error) return { erro: error.message }
+      return {
+        empresa, tipo, total: data?.length || 0,
+        clientes: (data || []).map((c: any) => ({
+          nome: c.contato_nome,
+          telefone: c.celular || c.telefone,
+          segmento: c.segmento,
+          score: c.score,
+          total_pedidos: c.total_pedidos,
+          total_gasto: Math.round(+c.total_gasto || 0),
+          ultima_compra: c.ultima_compra,
+          dias_sem_compra: c.dias_sem_compra,
+        }))
+      }
+    }
+
+    if (nome === 'listar_segmentos_c360') {
+      const empresa = args.empresa
+      if (!empresa) return { erro: 'empresa obrigatória' }
+
+      // Contagens dos 5 automaticos direto na view
+      const { data: contagens, error: e1 } = await supabaseAdmin.from('cliente_scoring_full')
+        .select('segmento')
+        .eq('empresa', empresa)
+      if (e1) return { erro: e1.message }
+      const segAutos: Record<string, number> = { VIP: 0, Frequente: 0, Ocasional: 0, 'Em Risco': 0, Inativo: 0 }
+      for (const r of (contagens || []) as any[]) {
+        if (segAutos[r.segmento] !== undefined) segAutos[r.segmento]++
+      }
+
+      // Customizados
+      const { data: custos } = await supabaseAdmin.from('cliente_segmentos_custom')
+        .select('id, nome, descricao, filtros, empresa, user_nome, created_at')
+        .in('empresa', [empresa, 'ambas'])
+      return {
+        empresa,
+        automaticos: Object.entries(segAutos).map(([nome, total]) => ({ nome, total, tipo: 'automatico' })),
+        customizados: (custos || []).map((s: any) => ({
+          id: s.id, nome: s.nome, descricao: s.descricao, criado_por: s.user_nome,
+          empresa_aplicavel: s.empresa, criado_em: s.created_at, tipo: 'custom',
+        }))
+      }
+    }
+
+    if (nome === 'listar_campanhas_c360') {
+      const empresa = args.empresa || 'ambas'
+      const status = args.status || 'todas'
+      let q = supabaseAdmin.from('cliente_campanhas')
+        .select('id, nome, descricao, empresa, segmento_nome_cache, canal, status, data_envio, total_alvo, total_enviados, total_respondidos, total_falhados, criado_por_nome, created_at')
+        .order('created_at', { ascending: false }).limit(30)
+      if (empresa !== 'ambas') q = q.in('empresa', [empresa, 'ambas'])
+      if (status !== 'todas') q = q.eq('status', status)
+      const { data, error } = await q
+      if (error) return { erro: error.message }
+      return {
+        empresa, status_filtro: status, total: data?.length || 0,
+        campanhas: (data || []).map((c: any) => ({
+          nome: c.nome,
+          descricao: c.descricao,
+          empresa: c.empresa,
+          segmento: c.segmento_nome_cache,
+          canal: c.canal,
+          status: c.status,
+          data_envio: c.data_envio,
+          total_alvo: c.total_alvo,
+          enviados: c.total_enviados,
+          respondidos: c.total_respondidos,
+          falhados: c.total_falhados,
+          taxa_envio: c.total_alvo > 0 ? Math.round((c.total_enviados / c.total_alvo) * 100) + '%' : '0%',
+          taxa_resposta: c.total_enviados > 0 ? Math.round((c.total_respondidos / c.total_enviados) * 100) + '%' : '0%',
+          criado_por: c.criado_por_nome,
+          criado_em: c.created_at,
+        }))
+      }
+    }
+
+    if (nome === 'detalhe_cliente_c360') {
+      const nomeBusca = String(args.nome || '').trim()
+      const empresa = args.empresa
+      if (!nomeBusca || !empresa) return { erro: 'nome e empresa obrigatorios' }
+
+      const { data: cliente, error: e1 } = await supabaseAdmin.from('cliente_scoring_full')
+        .select('*').eq('empresa', empresa)
+        .ilike('contato_nome', `%${nomeBusca}%`)
+        .order('score', { ascending: false })
+        .limit(1).maybeSingle()
+      if (e1) return { erro: e1.message }
+      if (!cliente) return { aviso: `Nenhum cliente encontrado com "${nomeBusca}" na empresa ${empresa}` }
+
+      // Busca notas e insights recentes
+      const [notas, insights] = await Promise.all([
+        supabaseAdmin.from('cliente_notas')
+          .select('texto, user_nome, created_at')
+          .eq('empresa', empresa)
+          .eq('contato_nome', cliente.contato_nome)
+          .order('created_at', { ascending: false }).limit(5),
+        supabaseAdmin.from('cliente_insights')
+          .select('conteudo, user_nome, created_at')
+          .eq('empresa', empresa)
+          .eq('contato_nome', cliente.contato_nome)
+          .order('created_at', { ascending: false }).limit(3),
+      ])
+
+      return {
+        nome: cliente.contato_nome,
+        empresa,
+        telefone: cliente.celular || cliente.telefone,
+        tipo_pessoa: cliente.tipo_pessoa,
+        documento: cliente.numero_documento,
+        score: cliente.score,
+        segmento: cliente.segmento,
+        total_pedidos: cliente.total_pedidos,
+        total_gasto: Math.round(+cliente.total_gasto || 0),
+        ticket_medio: Math.round(+cliente.ticket_medio || 0),
+        ultima_compra: cliente.ultima_compra,
+        dias_sem_compra: cliente.dias_sem_compra,
+        meses_ativos: cliente.meses_ativos,
+        notas_recentes: (notas.data || []).map((n: any) => ({
+          texto: n.texto, autor: n.user_nome, data: n.created_at
+        })),
+        insights_ia: (insights.data || []).map((i: any) => ({
+          resumo: String(i.conteudo || '').slice(0, 400) + (i.conteudo?.length > 400 ? '...' : ''),
+          gerado_por: i.user_nome,
+          data: i.created_at,
+        })),
+      }
+    }
+
+    if (nome === 'buscar_notas_c360') {
+      const dias = Math.min(+args.dias_recentes || 30, 180)
+      const limite = Math.min(+args.limite || 10, 50)
+      const desde = new Date(Date.now() - dias * 24 * 60 * 60 * 1000).toISOString()
+      let q = supabaseAdmin.from('cliente_notas')
+        .select('texto, user_nome, contato_nome, empresa, created_at')
+        .gte('created_at', desde)
+        .order('created_at', { ascending: false }).limit(limite)
+      if (args.cliente_nome) q = q.ilike('contato_nome', `%${args.cliente_nome}%`)
+      if (args.autor) q = q.ilike('user_nome', `%${args.autor}%`)
+      const { data, error } = await q
+      if (error) return { erro: error.message }
+      return {
+        periodo_dias: dias,
+        total: data?.length || 0,
+        notas: (data || []).map((n: any) => ({
+          cliente: n.contato_nome,
+          empresa: n.empresa,
+          autor: n.user_nome,
+          data: n.created_at,
+          texto: n.texto,
+        }))
+      }
+    }
+
     if (nome === 'listar_schema') {
       // Para cada tabela na whitelist, pega as colunas via information_schema
       const tabelas = Array.from(TABELAS_PERMITIDAS)
@@ -497,6 +791,14 @@ async function executarFerramenta(nome: string, args: any, contextoUsuario: { ca
           referencias_conteudo: 'id, titulo, descricao, link, influenciador_nome, status, prioridade, prazo',
           contas_receber: 'id, situacao, vencimento, valor, data_emissao, contato_nome, origem_tipo, conta_contabil',
           contas_pagar: 'id, situacao, vencimento, valor, contato_id',
+          // Cliente 360 (prefira usar as tools dedicadas: resumo_cliente360, alertas_cliente360, etc)
+          cliente_scoring_full: 'empresa, contato_nome, contato_id, telefone, celular, tipo_pessoa, numero_documento, segmento, score, total_pedidos, total_gasto, ticket_medio, ultima_compra, dias_sem_compra, meses_ativos',
+          cliente_scoring_resumo: 'empresa, total_clientes, clientes_ativos, vip_count, em_risco, perdidos, prontos_recompra, vips_sem_comprar, novos_sem_2a, alto_potencial, faturamento_total, ticket_medio_global, ciclo_medio_aprox, taxa_recompra, fieis (1 row por empresa: matriz/bc/ambas)',
+          cliente_campanhas: 'id, empresa, nome, descricao, segmento_nome_cache, canal (whatsapp/email/sms), status (rascunho/agendada/enviada/concluida/cancelada), data_envio, total_alvo, total_enviados, total_respondidos, total_falhados, criado_por_nome',
+          cliente_campanha_envios: 'id, campanha_id, contato_nome, contato_telefone, status (pendente/enviado/entregue/lido/respondido/falhou), enviado_em, respondido_em',
+          cliente_notas: 'id, empresa, contato_nome, texto, user_nome, created_at',
+          cliente_insights: 'id, empresa, contato_nome, conteudo, user_nome, created_at (insights IA por cliente)',
+          cliente_segmentos_custom: 'id, nome, descricao, empresa, filtros (jsonb), cor, user_nome',
         }
       }
     }
