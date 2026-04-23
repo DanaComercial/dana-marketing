@@ -9064,23 +9064,46 @@ function toggleMobileSidebar(forceState) {
 // caminho tem que passar por aqui — não depende de cargo_permissoes.
 const ADMIN_ONLY_VIEWS = ['admin'];
 
+// Retorna o primeiro viewId que o usuario logado tem permissao pra acessar.
+// Usado no login inicial (sem hash/localStorage) e como fallback quando go()
+// bloqueia uma navegacao negada.
+function firstAllowedView() {
+  const ordem = [
+    'cliente360',   // principal pra vendedores (escopo interno)
+    'home',
+    'tarefas','calendario',
+    'relatorio','analytics',
+    'ecommerce','lojafisica','marketplaces','canaisvendas',
+    'financeiro','projecoes','roi',
+    'canaisaquisicao','campanhas','construtor','criativos','briefingvisual','influenciadores','provasocial',
+    'personas','keywords','mercado','referencias','performance',
+    'apis',
+  ];
+  if (currentProfile?.cargo === 'admin') return 'home';
+  for (const v of ordem) {
+    if (userPermissoes[v] !== false) return v;
+  }
+  return 'perfil'; // fallback absoluto (perfil sempre acessivel)
+}
+
 function go(el, viewId) {
   // 1. Bloqueio hard-coded: seções admin-only
   if (ADMIN_ONLY_VIEWS.includes(viewId) && currentProfile?.cargo !== 'admin') {
     if (typeof showToast === 'function') showToast('🚫 Acesso negado — apenas administradores');
-    // Redireciona pra home pra não ficar em tela em branco
-    if (viewId !== 'home') {
-      const home = document.querySelector('[onclick*="\'home\'"]');
-      if (home) return go(home, 'home');
+    const fb = firstAllowedView();
+    if (fb && fb !== viewId) {
+      const navEl = document.querySelector('[onclick*="\''+fb+'\'"]');
+      return go(navEl, fb);
     }
     return;
   }
   // 2. Bloqueio via cargo_permissoes (perfil sempre acessivel)
   if (viewId !== 'perfil' && userPermissoes[viewId] === false) {
     if (typeof showToast === 'function') showToast('Você não tem acesso a esta seção');
-    if (viewId !== 'home') {
-      const home = document.querySelector('[onclick*="\'home\'"]');
-      if (home) return go(home, 'home');
+    const fb = firstAllowedView();
+    if (fb && fb !== viewId) {
+      const navEl = document.querySelector('[onclick*="\''+fb+'\'"]');
+      return go(navEl, fb);
     }
     return;
   }
@@ -11270,6 +11293,7 @@ window.addEventListener('load', async () => {
   // Recarregar a cada 5 minutos
   setInterval(() => { if (typeof loadSupabaseData === 'function') loadSupabaseData(); }, 300000);
   // Restaurar view (agora com currentProfile já carregado)
+  // Prioridade: URL hash > localStorage > primeira view permitida pelo cargo
   try {
     const hash = (location.hash || '').slice(1);
     let targetView = null;
@@ -11279,11 +11303,17 @@ window.addEventListener('load', async () => {
     if (!targetView) {
       targetView = localStorage.getItem('dms-active-view');
     }
+    // Se targetView e null OU o usuario nao tem permissao → primeira view permitida
+    const naoTem = (v) => v && v !== 'perfil' && userPermissoes[v] === false;
+    const adminBloq = (v) => v && ADMIN_ONLY_VIEWS.includes(v) && currentProfile?.cargo !== 'admin';
+    if (!targetView || naoTem(targetView) || adminBloq(targetView)) {
+      targetView = firstAllowedView();
+    }
     if (targetView) {
       const navEl = document.querySelector('[onclick*="\''+targetView+'\'"]');
       go(navEl, targetView);
     }
-  } catch(e) {}
+  } catch(e) { console.warn('[init] restoreView:', e); }
   // animate KPI bars
   setTimeout(() => {
     document.querySelectorAll('.meta-fill').forEach(el => {
