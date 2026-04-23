@@ -1198,17 +1198,33 @@
   async function checkDeepLink() {
     try {
       const raw = sessionStorage.getItem('c360_open_cliente');
-      if (!raw) return;
-      sessionStorage.removeItem('c360_open_cliente');
-      await openClienteFromSpec(JSON.parse(raw));
+      if (raw) {
+        sessionStorage.removeItem('c360_open_cliente');
+        await openClienteFromSpec(JSON.parse(raw));
+      }
     } catch(e) { console.warn('[c360] deep-link session:', e); }
+    // Abre aba especifica (ex: vindo do calendario → Campanhas)
+    try {
+      const tab = sessionStorage.getItem('c360_open_tab');
+      if (tab) {
+        sessionStorage.removeItem('c360_open_tab');
+        setTimeout(() => {
+          if (typeof window.showPage === 'function') window.showPage(tab);
+        }, 200);
+      }
+    } catch(e) { console.warn('[c360] deep-link tab:', e); }
   }
 
   // postMessage do DMS pai - funciona mesmo com iframe ja montado
   window.addEventListener('message', async (e) => {
-    if (!e || !e.data || e.data.type !== 'c360_open_cliente') return;
-    console.log('[c360] postMessage deep-link:', e.data.spec);
-    await openClienteFromSpec(e.data.spec);
+    if (!e || !e.data) return;
+    if (e.data.type === 'c360_open_cliente') {
+      console.log('[c360] postMessage deep-link cliente:', e.data.spec);
+      await openClienteFromSpec(e.data.spec);
+    } else if (e.data.type === 'c360_open_tab') {
+      console.log('[c360] postMessage deep-link tab:', e.data.tab);
+      if (typeof window.showPage === 'function') window.showPage(e.data.tab);
+    }
   });
 
   // ─── Realtime: sincroniza notas entre usuarios ───

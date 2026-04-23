@@ -8390,7 +8390,6 @@ updateDynamicField('foto');
       <div><label class="label">Tipo</label>
         <select class="input" id="evt-tipo">
           <option value="campanha">📣 Campanha</option>
-          <option value="campanha_c360">📢 Campanha Cliente 360</option>
           <option value="promocao">🎁 Promoção</option>
           <option value="lancamento">🚀 Lançamento</option>
           <option value="evento">🎪 Evento</option>
@@ -8850,8 +8849,16 @@ updateDynamicField('foto');
       <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Descrição</label>
       <div id="ve-desc" style="font-size:13px;color:var(--text2);line-height:1.6;padding:10px;background:var(--surface2);border-radius:8px;max-height:200px;overflow-y:auto"></div>
     </div>
+    <div id="ve-c360-lock" style="display:none;margin-bottom:14px;padding:12px 14px;background:#e6eeff;border:1px solid #1d4ed8;border-radius:8px;font-size:12px;gap:10px;align-items:flex-start">
+      <span style="font-size:16px;margin-right:8px">🔒</span>
+      <div style="display:inline-block;vertical-align:top;width:calc(100% - 36px)">
+        <strong style="color:#1d4ed8">Gerenciada pelo Cliente 360</strong>
+        <div style="margin-top:2px;font-size:11.5px;color:var(--text3)">Pra editar ou apagar esta campanha, use a seção Cliente 360 → Campanhas.</div>
+      </div>
+    </div>
     <div style="display:flex;gap:8px" id="ve-actions">
       <button class="btn btn-ghost" onclick="closeModal('ver-evento')" style="flex:1">Fechar</button>
+      <button class="btn btn-primary" id="ve-c360-open-btn" onclick="irParaCliente360Campanhas()" style="display:none;flex:1">📢 Abrir no Cliente 360</button>
       <button class="btn btn-ghost" id="ve-cor-btn" onclick="mudarCorEvento()" style="display:none">🎨 Cor</button>
       <button class="btn btn-ghost" id="ve-delete-btn" onclick="excluirEventoAtual()" style="color:var(--red);border-color:var(--red);display:none">Excluir</button>
     </div>
@@ -13767,15 +13774,41 @@ function editarEvento(id) {
     descCont.style.display = 'none';
   }
 
-  // Botão excluir só para quem tem permissão
-  const canDelete = userPermissoes['calendario_excluir'] !== false || currentProfile?.cargo === 'admin';
+  // Campanhas do Cliente 360 sao READ-ONLY aqui — so podem ser editadas/apagadas via Cliente 360
+  const isC360 = evt.tipo === 'campanha_c360';
+  const lockBanner = document.getElementById('ve-c360-lock');
+  if (lockBanner) lockBanner.style.display = isC360 ? 'block' : 'none';
+
+  const c360Btn = document.getElementById('ve-c360-open-btn');
+  if (c360Btn) c360Btn.style.display = isC360 ? '' : 'none';
+
+  // Botão excluir só para quem tem permissão E nao for campanha_c360
+  const canDelete = !isC360 && (userPermissoes['calendario_excluir'] !== false || currentProfile?.cargo === 'admin');
   document.getElementById('ve-delete-btn').style.display = canDelete ? '' : 'none';
 
-  // Botão mudar cor — mesma permissão de criar
-  const canEditCor = userPermissoes['calendario_criar'] !== false || currentProfile?.cargo === 'admin';
+  // Botão mudar cor — mesma permissão de criar E nao for campanha_c360
+  const canEditCor = !isC360 && (userPermissoes['calendario_criar'] !== false || currentProfile?.cargo === 'admin');
   document.getElementById('ve-cor-btn').style.display = canEditCor ? '' : 'none';
 
   openModal('ver-evento');
+}
+
+// Navega pro Cliente 360 e abre a aba Campanhas (quando user clica num evento campanha_c360)
+function irParaCliente360Campanhas() {
+  closeModal('ver-evento');
+  // Salva no sessionStorage pra pegar no boot do iframe (primeira montagem)
+  try { sessionStorage.setItem('c360_open_tab', 'campanhas'); } catch(e) {}
+  // Navega pra view cliente360
+  const navEl = document.querySelector(`[onclick*="go(this,'cliente360')"]`);
+  if (navEl) go(navEl, 'cliente360');
+  else if (typeof go === 'function') go(null, 'cliente360');
+  // postMessage pro iframe caso ja esteja montado (iframe persiste entre navegacoes)
+  setTimeout(() => {
+    const iframe = document.getElementById('cliente360-iframe');
+    if (iframe && iframe.contentWindow) {
+      try { iframe.contentWindow.postMessage({ type: 'c360_open_tab', tab: 'campanhas' }, '*'); } catch(e) {}
+    }
+  }, 200);
 }
 
 async function excluirEventoAtual() {
