@@ -3486,13 +3486,37 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     if (!perms.meus_clientes) return;
 
     // 1) Cria page container se ainda nao existe
+    // Importante: precisa do wrapper sidebar-inset pra ocupar o espaço flex depois da sidebar
     if (!document.getElementById('page-meus-clientes')) {
-      const root = document.getElementById('root') || document.body;
-      const page = document.createElement('div');
-      page.id = 'page-meus-clientes';
-      page.className = 'page-section';
-      page.innerHTML = '<div style="padding:40px;color:#94a3b8;text-align:center">Carregando...</div>';
-      root.appendChild(page);
+      // Tenta clonar o wrapper externo de uma pagina que ja funciona (page-sincronizacao)
+      const ref = document.getElementById('page-sincronizacao') || document.getElementById('page-dashboard') || document.getElementById('page-clientes');
+      if (ref) {
+        const clone = ref.cloneNode(false);
+        clone.id = 'page-meus-clientes';
+        clone.className = 'page-section';
+        // Monta a mesma estrutura (2 mains aninhados + div interno) usando clone da referência
+        const refInner = ref.cloneNode(true);
+        clone.innerHTML = '';
+        // Copia só a estrutura do outer <main> — mas sem o conteudo
+        const outerMain = refInner.querySelector('main[data-slot="sidebar-inset"]');
+        if (outerMain) {
+          const innerMain = outerMain.querySelector('main.flex-1') || outerMain.querySelector('main');
+          if (innerMain) innerMain.innerHTML = '<div id="mc-content" style="padding:40px;color:#94a3b8;text-align:center">⏳ Carregando...</div>';
+          else outerMain.innerHTML = '<main class="flex-1 p-6 md:p-8"><div id="mc-content" style="padding:40px;color:#94a3b8;text-align:center">⏳ Carregando...</div></main>';
+          clone.appendChild(outerMain);
+        } else {
+          clone.innerHTML = '<main class="bg-background relative flex w-full flex-1 flex-col" data-slot="sidebar-inset"><main class="flex-1 p-6 md:p-8"><div id="mc-content" style="padding:40px;color:#94a3b8;text-align:center">⏳ Carregando...</div></main></main>';
+        }
+        ref.parentNode.appendChild(clone);
+      } else {
+        // Fallback: append direto em #root (menos confiavel)
+        const root = document.getElementById('root') || document.body;
+        const page = document.createElement('div');
+        page.id = 'page-meus-clientes';
+        page.className = 'page-section';
+        page.innerHTML = '<main class="bg-background relative flex w-full flex-1 flex-col" data-slot="sidebar-inset"><main class="flex-1 p-6 md:p-8"><div id="mc-content" style="padding:40px;color:#94a3b8;text-align:center">⏳ Carregando...</div></main></main>';
+        root.appendChild(page);
+      }
     }
 
     // 2) Injeta nav button (clona o botao de "logs" e adapta)
@@ -3527,25 +3551,30 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
   }
 
   // ─── Render principal ───
+  // Sempre escreve em #mc-content (div interno), preservando o wrapper sidebar-inset
+  function mcGetContent() {
+    return document.querySelector('#page-meus-clientes #mc-content');
+  }
   async function renderMeusClientesPage() {
     const page = document.getElementById('page-meus-clientes');
-    if (!page) return;
+    const content = mcGetContent();
+    if (!page || !content) return;
     const perms = await mcLoadPerms();
     if (!perms.meus_clientes) {
-      page.innerHTML = '<div style="padding:40px;color:#94a3b8;text-align:center">Sem permissão.</div>';
+      content.innerHTML = '<div style="padding:40px;color:#94a3b8;text-align:center">Sem permissão.</div>';
       return;
     }
-    page.innerHTML = '<div style="padding:30px;color:#94a3b8;text-align:center">⏳ Carregando...</div>';
+    content.innerHTML = '<div style="padding:30px;color:#94a3b8;text-align:center">⏳ Carregando...</div>';
 
     if (perms.eAdminOuGerente) {
-      await renderMcAdminView(page, perms);
+      await renderMcAdminView(content, perms);
     } else {
-      await renderMcVendedorView(page, perms);
+      await renderMcVendedorView(content, perms);
     }
   }
 
   // ─── View VENDEDOR (só clientes dele) ───
-  async function renderMcVendedorView(page, perms) {
+  async function renderMcVendedorView(content, perms) {
     const meus = await mcLoadClientes(state.empresa, perms.profileId, null, 1000);
     const totalFat = meus.reduce((s, c) => s + Number(c.total_gasto || 0), 0);
     const totalPedidos = meus.reduce((s, c) => s + Number(c.total_pedidos || 0), 0);
@@ -3554,7 +3583,7 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     const emRisco = meus.filter(c => c.segmento === 'Em Risco').length;
     const ticket = totalPedidos > 0 ? totalFat / totalPedidos : 0;
 
-    page.innerHTML = `
+    content.innerHTML = `
       <div style="padding:24px;max-width:1400px;margin:0 auto">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px">
           <div>
@@ -3576,11 +3605,11 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
         ${meus.length === 0 ? mcEmptyCarteira(perms) : mcTabelaClientes(meus, perms)}
       </div>
     `;
-    mcWireTable(page);
+    mcWireTable(content);
   }
 
   // ─── View ADMIN / GERENTE (ranking + global) ───
-  async function renderMcAdminView(page, perms) {
+  async function renderMcAdminView(content, perms) {
     // Aggregates server-side (nao limitados a 1000)
     const [totais, ranking, clientesPreview] = await Promise.all([
       mcLoadTotais(state.empresa),
@@ -3596,7 +3625,7 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     state.mcAdminRanking = ranking;
     state.mcAdminVendedores = ranking.filter(r => r.vendedor_profile_id);
 
-    page.innerHTML = `
+    content.innerHTML = `
       <div style="padding:24px;max-width:1400px;margin:0 auto">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px">
           <div>
@@ -3639,7 +3668,7 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
         </div>
       </div>
     `;
-    mcWireTable(page);
+    mcWireTable(content);
   }
 
   // ─── Helpers de UI ───
@@ -3915,10 +3944,14 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       if (typeof showToast === 'function') showToast('Sem permissão', 'error');
       return;
     }
-    // Lista todos bling_vendedor_ids distintos com contagem
-    const { data: blingIds } = await state.sb.rpc('__dummy__rpc__nao_existe__').catch(() => ({ data: null }));
-    // Query direta via PostgREST (rollup de pedidos)
-    const { data: pedidosAgr } = await state.sb.from('pedidos').select('vendedor_id').eq('empresa', state.empresa).not('vendedor_id', 'is', null).limit(10000);
+    // Lista todos bling_vendedor_ids distintos com contagem (rollup de pedidos)
+    const { data: pedidosAgr, error: errAgr } = await state.sb.from('pedidos')
+      .select('vendedor_id').eq('empresa', state.empresa).not('vendedor_id', 'is', null).limit(10000);
+    if (errAgr) {
+      console.error('[mc] erro ao listar vendedores do bling', errAgr);
+      if (typeof showToast === 'function') showToast('Erro: ' + errAgr.message, 'error');
+      return;
+    }
     const countsById = new Map();
     (pedidosAgr || []).forEach(p => {
       if (!p.vendedor_id || p.vendedor_id === 0) return;
