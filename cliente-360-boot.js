@@ -330,6 +330,17 @@
 
     tbody.innerHTML = rows;
     renderPager(total, start, end);
+    updateCountLabel();
+  }
+
+  // Atualiza o subtitulo "X clientes encontrados" no header da pagina Clientes
+  function updateCountLabel() {
+    const el = Array.from(document.querySelectorAll('#page-clientes p'))
+      .find(p => /clientes?\s+encontrad/i.test(p.textContent || ''));
+    if (el) {
+      const n = state.filtered.length;
+      el.textContent = n === 1 ? '1 cliente encontrado' : `${fmtNum(n)} clientes encontrados`;
+    }
   }
 
   function renderPager(total, start, end) {
@@ -366,18 +377,35 @@
     // 1) Input de busca
     const searchInput = document.querySelector('#page-clientes input[placeholder*="Buscar"]');
     if (searchInput) {
-      // Anti-autofill do Chrome (parava de preencher email do login automaticamente)
-      // Combinacao que funciona: type=search + autocomplete=off + name aleatorio
+      // Anti-autofill do Chrome — tecnica a prova de balas:
+      // Chrome nao autofill inputs readonly. Ao clicar, removemos o readonly.
+      // Ate o usuario clicar, o Chrome ja perdeu a janela de autofill.
       searchInput.setAttribute('type', 'search');
       searchInput.setAttribute('autocomplete', 'off');
       searchInput.setAttribute('autocorrect', 'off');
       searchInput.setAttribute('autocapitalize', 'off');
       searchInput.setAttribute('spellcheck', 'false');
       searchInput.setAttribute('name', 'c360-q-' + Math.random().toString(36).slice(2, 10));
-      // Limpa qualquer valor que o browser pode ter pre-preenchido antes desta funcao rodar
-      if (searchInput.value && /@/.test(searchInput.value)) {
-        searchInput.value = '';
-      }
+      searchInput.setAttribute('readonly', 'readonly');
+      searchInput.value = '';
+
+      const unlock = () => {
+        searchInput.removeAttribute('readonly');
+        searchInput.removeEventListener('focus', unlock);
+        searchInput.removeEventListener('mousedown', unlock);
+        searchInput.removeEventListener('touchstart', unlock);
+      };
+      searchInput.addEventListener('focus', unlock);
+      searchInput.addEventListener('mousedown', unlock);
+      searchInput.addEventListener('touchstart', unlock);
+
+      // Defensivo: se Chrome conseguiu inserir email async antes do readonly, zera
+      setTimeout(() => {
+        if (searchInput.value && /@/.test(searchInput.value)) searchInput.value = '';
+      }, 200);
+      setTimeout(() => {
+        if (searchInput.value && /@/.test(searchInput.value)) searchInput.value = '';
+      }, 800);
 
       searchInput.addEventListener('input', (e) => {
         state.searchQuery = e.target.value || '';
