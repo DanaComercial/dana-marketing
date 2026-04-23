@@ -9118,7 +9118,12 @@ function go(el, viewId) {
   document.getElementById('topbar-title').textContent = meta.title || viewId;
   document.getElementById('topbar-sub').textContent = meta.sub || '';
   const btn = document.getElementById('topbar-action');
-  if(meta.action) { btn.textContent = meta.action; btn.style.display=''; } else btn.style.display='none';
+  if (meta.action) {
+    const permNeeded = TOPBAR_ACTION_PERMS[viewId];
+    const podeAcao = !permNeeded || currentProfile?.cargo === 'admin' || userPermissoes[permNeeded] !== false;
+    if (podeAcao) { btn.textContent = meta.action; btn.style.display = ''; }
+    else { btn.style.display = 'none'; }
+  } else { btn.style.display = 'none'; }
   try { localStorage.setItem('dms-active-view', viewId); } catch(e) {}
   // Atualiza URL hash (pushState não dispara hashchange/popstate, então é seguro)
   const slug = VIEW_ID_TO_SLUG[viewId] || viewId;
@@ -9197,11 +9202,25 @@ const EXPORT_PDF_VIEWS = {
   performance:  'Performance',
 };
 
+// Mapa view -> chave de permissao necessaria pra executar a acao do topbar (criar/abrir modal).
+// Admin sempre pode; sem entrada aqui significa sem check granular.
+const TOPBAR_ACTION_PERMS = {
+  tarefas: 'tarefas_criar',
+  calendario: 'calendario_criar',
+  criativos: 'criativo_criar',
+};
+
 function topbarAction() {
   const views = { home:'nova-campanha', campanhas:'nova-campanha', tarefas:'nova-tarefa', calendario:'novo-evento' };
   const active = document.querySelector('.view.active');
   if(!active) return;
   const id = active.id.replace('view-','');
+  // Gate de permissao (defense in depth; botao ja fica escondido via go())
+  const permNeeded = TOPBAR_ACTION_PERMS[id];
+  if (permNeeded && currentProfile?.cargo !== 'admin' && userPermissoes[permNeeded] === false) {
+    if (typeof showToast === 'function') showToast('🚫 Sem permissão');
+    return;
+  }
   if(views[id]) openModal(views[id]);
   else if(id==='construtor') document.querySelector('[onclick*=construtor]')?.click();
   else if(EXPORT_PDF_VIEWS[id]) exportarViewPDF(id, EXPORT_PDF_VIEWS[id]);
