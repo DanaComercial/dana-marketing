@@ -8849,11 +8849,11 @@ updateDynamicField('foto');
       <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Descrição</label>
       <div id="ve-desc" style="font-size:13px;color:var(--text2);line-height:1.6;padding:10px;background:var(--surface2);border-radius:8px;max-height:200px;overflow-y:auto"></div>
     </div>
-    <div id="ve-c360-lock" style="display:none;margin-bottom:14px;padding:12px 14px;background:#fef3c7;border:1px solid #d97706;border-radius:8px;font-size:12px">
+    <div id="ve-c360-lock" style="display:none;margin-bottom:14px;padding:12px 14px;background:#ffedd5;border:1px solid #f97316;border-radius:8px;font-size:12px">
       <span style="font-size:16px;margin-right:8px">🔒</span>
       <div style="display:inline-block;vertical-align:top;width:calc(100% - 36px)">
-        <strong style="color:#92400e">Gerenciada pelo Cliente 360</strong>
-        <div style="margin-top:2px;font-size:11.5px;color:#78350f">Pra editar ou apagar esta campanha, use a seção Cliente 360 → Campanhas.</div>
+        <strong style="color:#9a3412">Gerenciada pelo Cliente 360</strong>
+        <div style="margin-top:2px;font-size:11.5px;color:#7c2d12">Pra editar ou apagar esta campanha, use a seção Cliente 360 → Campanhas.</div>
       </div>
     </div>
     <div style="display:flex;gap:8px" id="ve-actions">
@@ -13695,7 +13695,7 @@ function renderCalendario() {
     const eventos = _eventosCache.filter(e => e.data_inicio <= dateStr && (e.data_fim ? e.data_fim >= dateStr : e.data_inicio === dateStr));
     const tarefas = tarefasPorDia[dateStr] || [];
     const todayStyle = isToday ? 'font-weight:800;color:var(--green)' : '';
-    const tiposCor = { campanha:'var(--black)', campanha_c360:'var(--blue)', promocao:'var(--green)', lancamento:'var(--blue)', evento:'var(--amber)', deadline:'var(--red)', feriado:'#999' };
+    const tiposCor = { campanha:'var(--black)', campanha_c360:'#f97316', promocao:'var(--green)', lancamento:'var(--blue)', evento:'var(--amber)', deadline:'var(--red)', feriado:'#999' };
 
     // Combinar eventos e tarefas para mostrar (cor custom do evento > cor do tipo)
     const items = [
@@ -13731,7 +13731,7 @@ function editarEvento(id) {
 
   const tiposConfig = {
     campanha:      { icon: '📣', cor: '#0a0a0a', bg: '#f3f4f6', label: 'Campanha' },
-    campanha_c360: { icon: '📢', cor: '#1d4ed8', bg: '#dbeafe', label: 'Campanha Cliente 360' },
+    campanha_c360: { icon: '📢', cor: '#9a3412', bg: '#ffedd5', label: 'Campanha Cliente 360' },
     promocao:      { icon: '🎁', cor: '#15803d', bg: '#dcfce7', label: 'Promoção' },
     lancamento:    { icon: '🚀', cor: '#1d4ed8', bg: '#dbeafe', label: 'Lançamento' },
     evento:        { icon: '🎪', cor: '#b45309', bg: '#fef3c7', label: 'Evento' },
