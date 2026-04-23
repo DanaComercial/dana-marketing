@@ -3427,10 +3427,11 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
 
   async function mcLoadPerms() {
     if (state.mcPerms) return state.mcPerms;
+    // Nao cacheia resultado degradado (retry na proxima chamada)
     const { data: { user } } = await state.sb.auth.getUser();
-    if (!user) return { meus_clientes: false, c360Tabs: {} };
+    if (!user) { console.warn('[mc] mcLoadPerms: sem user (nao cacheia)'); return { meus_clientes: false, c360Tabs: {}, _degradado: true }; }
     const { data: profile } = await state.sb.from('profiles').select('id, nome, cargo').eq('id', user.id).maybeSingle();
-    if (!profile) return { meus_clientes: false, c360Tabs: {} };
+    if (!profile) { console.warn('[mc] mcLoadPerms: sem profile (nao cacheia)'); return { meus_clientes: false, c360Tabs: {}, _degradado: true }; }
     // Busca TODAS permissoes relevantes do cargo de uma vez
     const { data: perms } = await state.sb.from('cargo_permissoes')
       .select('secao, permitido').eq('cargo', profile.cargo)
@@ -3483,12 +3484,19 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     return data || [];
   }
 
-  // Lista de clientes - filtrada server-side por vendedor quando aplicavel
-  async function mcLoadClientes(empresa, vendedorId, busca, limit) {
+  // Lista de clientes - filtrada server-side
+  async function mcLoadClientes(empresa, vendedorId, busca, limit, filtros) {
     let q = state.sb.from('cliente_scoring_vendedor').select('*').eq('empresa', empresa);
     if (vendedorId === '__none__') q = q.is('vendedor_profile_id', null);
     else if (vendedorId) q = q.eq('vendedor_profile_id', vendedorId);
     if (busca) q = q.ilike('contato_nome', '%' + busca.replace(/%/g,'') + '%');
+    // Filtros opcionais
+    const f = filtros || {};
+    if (f.segmento) q = q.eq('segmento', f.segmento);
+    if (f.pedidosMin != null) q = q.gte('total_pedidos', f.pedidosMin);
+    if (f.pedidosMax != null) q = q.lte('total_pedidos', f.pedidosMax);
+    if (f.gastoMin != null) q = q.gte('total_gasto', f.gastoMin);
+    if (f.gastoMax != null) q = q.lte('total_gasto', f.gastoMax);
     q = q.order('score', { ascending: false }).limit(limit || 500);
     const { data, error } = await q;
     if (error) { console.error('[mc] clientes error', error); return []; }
@@ -3536,6 +3544,11 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
   // Tambem intercepta showPage pra impedir navegacao direta.
   async function mcApplyTabPermissions() {
     const perms = await mcLoadPerms();
+    // Se resultado degradado (auth nao pronto), tenta novamente
+    if (perms._degradado) {
+      setTimeout(() => mcApplyTabPermissions(), 500);
+      return;
+    }
     const tabs = perms.c360Tabs || {};
     // Determina primeira aba permitida (pra redirect se usuario cair numa bloqueada)
     const ordem = ['dashboard','clientes','meus-clientes','segmentos','campanhas','sincronizacao','configuracoes','logs'];
@@ -3591,9 +3604,14 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
   }
 
   // Injeta nav "Meus Clientes" no sidebar + cria div da pagina
+  // Sempre injeta — mcApplyTabPermissions decide se fica visivel ou nao.
   async function mcSetupNav() {
     const perms = await mcLoadPerms();
-    if (!perms.meus_clientes) return;
+    // Se resultado degradado (auth nao pronto), tenta novamente em 500ms
+    if (perms._degradado) {
+      setTimeout(() => mcSetupNav(), 500);
+      return;
+    }
 
     // 1) Cria page container se ainda nao existe
     // Importante: precisa do wrapper sidebar-inset pra ocupar o espaço flex depois da sidebar
@@ -3692,13 +3710,19 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
 
   // ─── View VENDEDOR (só clientes dele) ───
   async function renderMcVendedorView(content, perms) {
-    const meus = await mcLoadClientes(state.empresa, perms.profileId, null, 1000);
-    const totalFat = meus.reduce((s, c) => s + Number(c.total_gasto || 0), 0);
-    const totalPedidos = meus.reduce((s, c) => s + Number(c.total_pedidos || 0), 0);
-    const vips = meus.filter(c => c.segmento === 'VIP').length;
-    const ativos = meus.filter(c => (c.dias_sem_compra || 999) <= 180 && c.segmento !== 'Inativo' && c.segmento !== 'Perdido' && c.segmento !== 'Sem histórico').length;
-    const emRisco = meus.filter(c => c.segmento === 'Em Risco').length;
+    const filtros = state.mcVendedorFiltros || {};
+    const meus = await mcLoadClientes(state.empresa, perms.profileId, filtros.busca || null, 1000, filtros);
+    // KPIs gerais (da carteira inteira, nao filtrada) — chamada separada sem filtros
+    const todos = (filtros.busca || filtros.segmento || filtros.pedidosMin != null || filtros.pedidosMax != null || filtros.gastoMin != null || filtros.gastoMax != null)
+      ? await mcLoadClientes(state.empresa, perms.profileId, null, 1000, null)
+      : meus;
+    const totalFat = todos.reduce((s, c) => s + Number(c.total_gasto || 0), 0);
+    const totalPedidos = todos.reduce((s, c) => s + Number(c.total_pedidos || 0), 0);
+    const vips = todos.filter(c => c.segmento === 'VIP').length;
+    const ativos = todos.filter(c => (c.dias_sem_compra || 999) <= 180 && c.segmento !== 'Inativo' && c.segmento !== 'Perdido' && c.segmento !== 'Sem histórico').length;
+    const emRisco = todos.filter(c => c.segmento === 'Em Risco').length;
     const ticket = totalPedidos > 0 ? totalFat / totalPedidos : 0;
+    const temFiltroAtivo = !!(filtros.busca || filtros.segmento || filtros.pedidosMin != null || filtros.pedidosMax != null || filtros.gastoMin != null || filtros.gastoMax != null);
 
     content.innerHTML = `
       <div style="padding:24px;max-width:1400px;margin:0 auto">
@@ -3711,7 +3735,7 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
         </div>
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px">
-          ${mcKpiCard('Clientes', fmtNum(meus.length), '#94a3b8')}
+          ${mcKpiCard('Clientes', fmtNum(todos.length), '#94a3b8')}
           ${mcKpiCard('VIPs', fmtNum(vips), '#fbbf24')}
           ${mcKpiCard('Ativos', fmtNum(ativos), '#22c55e')}
           ${mcKpiCard('Em Risco', fmtNum(emRisco), '#fb923c')}
@@ -3719,7 +3743,11 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
           ${mcKpiCard('Ticket médio', fmtBRL(ticket), '#60a5fa')}
         </div>
 
-        ${meus.length === 0 ? mcEmptyCarteira(perms) : mcTabelaClientes(meus, perms)}
+        ${mcRenderFiltrosBar(filtros, true)}
+
+        <div id="mc-tabela-wrap" style="margin-top:14px">
+          ${meus.length === 0 && !temFiltroAtivo ? mcEmptyCarteira(perms) : (meus.length === 0 ? mcSemResultados() : mcTabelaClientes(meus, perms))}
+        </div>
       </div>
     `;
     mcWireTable(content);
@@ -3727,11 +3755,12 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
 
   // ─── View ADMIN / GERENTE (ranking + global) ───
   async function renderMcAdminView(content, perms) {
+    const filtros = state.mcAdminFiltros || {};
     // Aggregates server-side (nao limitados a 1000)
     const [totais, ranking, clientesPreview] = await Promise.all([
       mcLoadTotais(state.empresa),
       mcLoadRanking(state.empresa),
-      mcLoadClientes(state.empresa, null, null, 500),
+      mcLoadClientes(state.empresa, filtros.vendedor || null, filtros.busca || null, 500, filtros),
     ]);
 
     const t = totais || { total_clientes: 0, com_vendedor: 0, sem_vendedor: 0, vendedores_ativos: 0, faturamento_total: 0 };
@@ -3772,16 +3801,8 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
 
         <div>
           <h2 style="margin:0 0 12px;font-size:16px;font-weight:600;color:#e2e8f0">Clientes</h2>
-          <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <label style="color:#94a3b8;font-size:12px">Filtrar vendedor:</label>
-            <select id="mc-filter-vend" onchange="window.c360McFilter()" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px">
-              <option value="">Todos</option>
-              <option value="__none__">Sem vendedor</option>
-              ${state.mcAdminVendedores.map(r => `<option value="${r.vendedor_profile_id}">${escapeHtml(r.vendedor_nome || '(sem nome)')}</option>`).join('')}
-            </select>
-            <input id="mc-search" placeholder="Buscar nome..." oninput="window.c360McDebouncedFilter()" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;min-width:200px"/>
-          </div>
-          <div id="mc-tabela-wrap">${mcTabelaClientes(clientesPreview, perms)}</div>
+          ${mcRenderFiltrosBar(state.mcAdminFiltros || {}, false, state.mcAdminVendedores)}
+          <div id="mc-tabela-wrap" style="margin-top:14px">${clientesPreview.length === 0 ? mcSemResultados() : mcTabelaClientes(clientesPreview, perms)}</div>
         </div>
       </div>
     `;
@@ -3807,6 +3828,110 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       </div>
     `;
   }
+
+  function mcSemResultados() {
+    return `
+      <div style="background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.1);border-radius:12px;padding:30px;text-align:center">
+        <div style="font-size:24px;margin-bottom:6px">🔍</div>
+        <div style="color:#94a3b8;font-size:13px">Nenhum cliente bate com os filtros aplicados</div>
+      </div>
+    `;
+  }
+
+  // Barra de filtros (compartilhada entre vendedor e admin)
+  // ehVendedor=true → usa c360McVendedorFilter; false → c360McAdminFilter
+  function mcRenderFiltrosBar(f, ehVendedor, vendedoresList) {
+    const fnFilter = ehVendedor ? 'c360McVendedorFilter' : 'c360McAdminFilter';
+    const fnClear = ehVendedor ? 'c360McVendedorLimparFiltros' : 'c360McAdminLimparFiltros';
+    const temFiltro = !!(f.busca || f.segmento || f.pedidosMin != null || f.pedidosMax != null || f.gastoMin != null || f.gastoMax != null || f.vendedor);
+    const vendedorSelect = (!ehVendedor && vendedoresList) ? `
+      <div style="display:flex;flex-direction:column;gap:3px;min-width:160px">
+        <label style="color:#64748b;font-size:10.5px;text-transform:uppercase;letter-spacing:0.3px">Vendedor</label>
+        <select onchange="window.${fnFilter}()" id="mc-filtro-vendedor" style="padding:7px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:12.5px">
+          <option value="">Todos</option>
+          <option value="__none__" ${f.vendedor==='__none__'?'selected':''}>Sem vendedor</option>
+          ${vendedoresList.map(r => `<option value="${r.vendedor_profile_id}" ${f.vendedor===r.vendedor_profile_id?'selected':''}>${escapeHtml(r.vendedor_nome || '(sem nome)')}</option>`).join('')}
+        </select>
+      </div>` : '';
+    return `
+      <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:240px">
+          <label style="color:#64748b;font-size:10.5px;text-transform:uppercase;letter-spacing:0.3px">Buscar nome</label>
+          <input type="text" id="mc-filtro-busca" value="${escapeHtml(f.busca || '')}" placeholder="Ex: Natália, Clínica..." oninput="window.${fnFilter}Debounced()" style="padding:7px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:12.5px">
+        </div>
+        ${vendedorSelect}
+        <div style="display:flex;flex-direction:column;gap:3px;min-width:140px">
+          <label style="color:#64748b;font-size:10.5px;text-transform:uppercase;letter-spacing:0.3px">Segmento</label>
+          <select id="mc-filtro-segmento" onchange="window.${fnFilter}()" style="padding:7px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:12.5px">
+            <option value="">Todos</option>
+            <option value="VIP" ${f.segmento==='VIP'?'selected':''}>VIP</option>
+            <option value="Frequente" ${f.segmento==='Frequente'?'selected':''}>Frequente</option>
+            <option value="Ocasional" ${f.segmento==='Ocasional'?'selected':''}>Ocasional</option>
+            <option value="Em Risco" ${f.segmento==='Em Risco'?'selected':''}>Em Risco</option>
+            <option value="Inativo" ${f.segmento==='Inativo'?'selected':''}>Inativo</option>
+            <option value="Novo" ${f.segmento==='Novo'?'selected':''}>Novo</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;min-width:170px">
+          <label style="color:#64748b;font-size:10.5px;text-transform:uppercase;letter-spacing:0.3px">Pedidos (min — max)</label>
+          <div style="display:flex;gap:4px">
+            <input type="number" min="0" id="mc-filtro-ped-min" value="${f.pedidosMin != null ? f.pedidosMin : ''}" placeholder="min" oninput="window.${fnFilter}Debounced()" style="width:70px;padding:7px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:12.5px">
+            <input type="number" min="0" id="mc-filtro-ped-max" value="${f.pedidosMax != null ? f.pedidosMax : ''}" placeholder="max" oninput="window.${fnFilter}Debounced()" style="width:70px;padding:7px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:12.5px">
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;min-width:200px">
+          <label style="color:#64748b;font-size:10.5px;text-transform:uppercase;letter-spacing:0.3px">Total gasto R$ (min — max)</label>
+          <div style="display:flex;gap:4px">
+            <input type="number" min="0" step="100" id="mc-filtro-gasto-min" value="${f.gastoMin != null ? f.gastoMin : ''}" placeholder="min" oninput="window.${fnFilter}Debounced()" style="width:90px;padding:7px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:12.5px">
+            <input type="number" min="0" step="100" id="mc-filtro-gasto-max" value="${f.gastoMax != null ? f.gastoMax : ''}" placeholder="max" oninput="window.${fnFilter}Debounced()" style="width:90px;padding:7px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:12.5px">
+          </div>
+        </div>
+        ${temFiltro ? `<button onclick="window.${fnClear}()" style="padding:7px 14px;border-radius:6px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.1);color:#f87171;cursor:pointer;font-size:12px">Limpar filtros</button>` : ''}
+      </div>
+    `;
+  }
+
+  // Le filtros do DOM
+  function mcLerFiltrosDOM() {
+    const toNum = (v) => { const n = parseFloat(v); return isFinite(n) ? n : null; };
+    return {
+      busca: (document.getElementById('mc-filtro-busca')?.value || '').trim() || null,
+      segmento: document.getElementById('mc-filtro-segmento')?.value || null,
+      pedidosMin: toNum(document.getElementById('mc-filtro-ped-min')?.value),
+      pedidosMax: toNum(document.getElementById('mc-filtro-ped-max')?.value),
+      gastoMin: toNum(document.getElementById('mc-filtro-gasto-min')?.value),
+      gastoMax: toNum(document.getElementById('mc-filtro-gasto-max')?.value),
+      vendedor: document.getElementById('mc-filtro-vendedor')?.value || null,
+    };
+  }
+
+  // Handlers vendedor
+  window.c360McVendedorFilter = async function() {
+    state.mcVendedorFiltros = mcLerFiltrosDOM();
+    await renderMeusClientesPage();
+  };
+  window.c360McVendedorFilterDebounced = function() {
+    clearTimeout(state.mcVendedorFilterTimer);
+    state.mcVendedorFilterTimer = setTimeout(window.c360McVendedorFilter, 400);
+  };
+  window.c360McVendedorLimparFiltros = async function() {
+    state.mcVendedorFiltros = {};
+    await renderMeusClientesPage();
+  };
+
+  // Handlers admin
+  window.c360McAdminFilter = async function() {
+    state.mcAdminFiltros = mcLerFiltrosDOM();
+    await renderMeusClientesPage();
+  };
+  window.c360McAdminFilterDebounced = function() {
+    clearTimeout(state.mcAdminFilterTimer);
+    state.mcAdminFilterTimer = setTimeout(window.c360McAdminFilter, 400);
+  };
+  window.c360McAdminLimparFiltros = async function() {
+    state.mcAdminFiltros = {};
+    await renderMeusClientesPage();
+  };
 
   function mcEmptyMapping() {
     return `
@@ -3953,25 +4078,7 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     }
   }
 
-  // ─── Filtro server-side na admin view ───
-  window.c360McFilter = async function() {
-    const vendSel = document.getElementById('mc-filter-vend');
-    const search = document.getElementById('mc-search');
-    const wrap = document.getElementById('mc-tabela-wrap');
-    if (!wrap) return;
-    const vendFilter = vendSel?.value || null;
-    const q = (search?.value || '').trim();
-    wrap.innerHTML = '<div style="padding:20px;color:#64748b;text-align:center;font-size:13px">⏳ Buscando...</div>';
-    const lista = await mcLoadClientes(state.empresa, vendFilter, q || null, 500);
-    const perms = state.mcPerms || {};
-    wrap.innerHTML = mcTabelaClientes(lista, perms);
-    mcWireTable(wrap);
-  };
-
-  window.c360McDebouncedFilter = function() {
-    clearTimeout(state.mcFilterTimer);
-    state.mcFilterTimer = setTimeout(window.c360McFilter, 350);
-  };
+  // (Filtros unificados: ver c360McVendedorFilter / c360McAdminFilter acima)
 
   window.c360McReload = async function() {
     mcInvalidateCache();
