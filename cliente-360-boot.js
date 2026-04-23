@@ -366,6 +366,19 @@
     // 1) Input de busca
     const searchInput = document.querySelector('#page-clientes input[placeholder*="Buscar"]');
     if (searchInput) {
+      // Anti-autofill do Chrome (parava de preencher email do login automaticamente)
+      // Combinacao que funciona: type=search + autocomplete=off + name aleatorio
+      searchInput.setAttribute('type', 'search');
+      searchInput.setAttribute('autocomplete', 'off');
+      searchInput.setAttribute('autocorrect', 'off');
+      searchInput.setAttribute('autocapitalize', 'off');
+      searchInput.setAttribute('spellcheck', 'false');
+      searchInput.setAttribute('name', 'c360-q-' + Math.random().toString(36).slice(2, 10));
+      // Limpa qualquer valor que o browser pode ter pre-preenchido antes desta funcao rodar
+      if (searchInput.value && /@/.test(searchInput.value)) {
+        searchInput.value = '';
+      }
+
       searchInput.addEventListener('input', (e) => {
         state.searchQuery = e.target.value || '';
         applyFilters();
