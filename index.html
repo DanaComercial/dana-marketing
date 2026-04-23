@@ -2787,24 +2787,14 @@ select.input { cursor: pointer; }
         <div class="chip rev">Revisão</div>
       </div>
 
-      <!-- Tarefas da semana -->
+      <!-- Tarefas desta semana (dinamico: puxa da tabela tarefas) -->
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-        <div style="font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Tarefas desta semana</div>
-        <div class="check-item" onclick="toggleCheck(this)">
-          <div class="check-box">✓</div>
-          <div class="check-label">Publicar reels Scrub Comfy — @danajalecoos</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--text3)" id="dash-tarefas-semana-label">Minhas tarefas desta semana</div>
+          <a onclick="event.preventDefault();go(null,'tarefas')" style="font-size:10.5px;color:var(--text3);cursor:pointer;text-decoration:none">ver todas →</a>
         </div>
-        <div class="check-item done" onclick="toggleCheck(this)">
-          <div class="check-box">✓</div>
-          <div class="check-label">Briefing influenciadora @dra.caroll</div>
-        </div>
-        <div class="check-item" onclick="toggleCheck(this)">
-          <div class="check-box">✓</div>
-          <div class="check-label">Revisar copy campanha Estudante</div>
-        </div>
-        <div class="check-item" onclick="toggleCheck(this)">
-          <div class="check-box">✓</div>
-          <div class="check-label">Aprovar 14 depoimentos UGC pendentes</div>
+        <div id="dash-tarefas-semana-box">
+          <div style="font-size:12px;color:var(--text4);padding:8px 0">Carregando...</div>
         </div>
       </div>
     </div>
@@ -9202,6 +9192,7 @@ function go(el, viewId) {
   if (viewId === 'personas' || viewId === 'construtor') { if (typeof loadPersonasStats === 'function') loadPersonasStats(); }
   if (viewId === 'calendario') { if (typeof loadCalendario==='function') loadCalendario(); if (typeof loadTarefas==='function' && !_tarefasCache?.length) loadTarefas(); else if (typeof renderCalendario==='function') setTimeout(renderCalendario, 100); }
   if (viewId === 'cliente360') loadCliente360();
+  if (viewId === 'home') { if (typeof loadMinhasTarefasSemana === 'function') loadMinhasTarefasSemana(); }
 }
 
 // ── CLIENTE 360 · lazy-load do iframe (filtro de empresa é gerenciado internamente pelo iframe) ──
@@ -11324,6 +11315,10 @@ window.addEventListener('load', async () => {
   if (typeof loadAlertas === 'function' && currentUser?.id) {
     loadAlertas().catch(e => console.warn('loadAlertas (init):', e));
   }
+  // Tarefas da semana no dashboard (puxa da tabela tarefas, filtradas por responsavel)
+  if (typeof loadMinhasTarefasSemana === 'function' && currentUser?.id) {
+    loadMinhasTarefasSemana().catch(e => console.warn('loadMinhasTarefasSemana (init):', e));
+  }
   // Carregar dados do Supabase
   if (typeof loadSupabaseData === 'function') loadSupabaseData();
   // Carregar features upgrade
@@ -11573,6 +11568,88 @@ function renderAlertasContainer() {
       <div class="notif-time">${tempo}</div>
     </div>`;
   }).join('');
+}
+
+// ── TAREFAS DESTA SEMANA (dashboard) ──
+// Popula a caixa #dash-tarefas-semana-box com tarefas reais do responsavel
+// atual, prazo entre hoje e +7 dias, nao concluidas. Fallback: tarefas
+// da equipe se nada estiver atribuido ao user logado.
+async function loadMinhasTarefasSemana() {
+  const box = document.getElementById('dash-tarefas-semana-box');
+  if (!box) return;
+  try {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const d7 = new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0, 10);
+    const { data, error } = await sb.from('tarefas')
+      .select('id, titulo, responsavel, prazo, prioridade, coluna, concluido')
+      .eq('concluido', false)
+      .gte('prazo', hoje).lte('prazo', d7)
+      .order('prazo').limit(30);
+    if (error) throw error;
+
+    const meuNome = String(currentProfile?.nome || '').toLowerCase();
+    const minhas = meuNome
+      ? (data || []).filter(t => t.responsavel && String(t.responsavel).toLowerCase().includes(meuNome))
+      : [];
+    const lista = minhas.length > 0 ? minhas : (data || []);
+
+    const label = document.getElementById('dash-tarefas-semana-label');
+    if (label) label.textContent = minhas.length > 0
+      ? 'Minhas tarefas desta semana'
+      : (lista.length > 0 ? 'Próximas da equipe' : 'Tarefas desta semana');
+
+    if (lista.length === 0) {
+      box.innerHTML = '<div style="font-size:12px;color:var(--text4);padding:10px 0;text-align:center">✨ Sem tarefas desta semana</div>';
+      return;
+    }
+
+    const hoje0 = new Date(); hoje0.setHours(0,0,0,0);
+    const fmtPrazo = (p) => {
+      const d = new Date(p + 'T12:00:00');
+      const diff = Math.floor((d - hoje0) / (24*60*60*1000));
+      if (diff < 0) return { txt: '⚠ atrasada', cor: 'var(--red)' };
+      if (diff === 0) return { txt: '🚨 hoje', cor: 'var(--red)' };
+      if (diff === 1) return { txt: 'amanhã', cor: 'var(--amber)' };
+      return { txt: `em ${diff}d`, cor: 'var(--text4)' };
+    };
+
+    box.innerHTML = lista.slice(0, 6).map(t => {
+      const p = fmtPrazo(t.prazo);
+      return `
+        <div class="check-item" style="align-items:flex-start;cursor:default" id="dash-task-${t.id}">
+          <div class="check-box" onclick="event.stopPropagation();marcarTarefaConcluida('${t.id}', this)" style="flex-shrink:0;cursor:pointer" title="Marcar concluída"></div>
+          <div style="flex:1;min-width:0;cursor:pointer" onclick="openTarefa('${t.id}')">
+            <div class="check-label" style="margin-bottom:2px">${esc(t.titulo)}</div>
+            <div style="font-size:10px;font-weight:600;color:${p.cor}">${p.txt}${t.responsavel ? ' · ' + esc(t.responsavel) : ''}</div>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    console.warn('[tarefas-semana]', e);
+    box.innerHTML = '<div style="font-size:12px;color:var(--text4);padding:8px 0">—</div>';
+  }
+}
+
+async function marcarTarefaConcluida(id, el) {
+  const item = el.closest('.check-item');
+  if (!item || item.classList.contains('done')) return;
+  const { error } = await sb.from('tarefas').update({
+    concluido: true, concluido_em: new Date().toISOString()
+  }).eq('id', id);
+  if (error) {
+    if (typeof showToast === 'function') showToast('Erro: ' + error.message);
+    return;
+  }
+  item.classList.add('done');
+  el.textContent = '✓';
+  if (typeof showToast === 'function') showToast('Tarefa concluída ✓');
+  logActivity('concluiu_tarefa', id, 'tarefas');
+  // Fade out depois de 1s e recarrega a lista
+  setTimeout(() => {
+    item.style.transition = 'opacity 0.3s';
+    item.style.opacity = '0';
+    setTimeout(() => { item.remove(); loadMinhasTarefasSemana(); }, 300);
+  }, 1000);
 }
 
 async function marcarAlertaLido(id, el) {
