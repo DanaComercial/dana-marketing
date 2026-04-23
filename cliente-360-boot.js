@@ -118,6 +118,10 @@
     if (typeof window.c360ReRenderCampanhasIfActive === 'function') {
       await window.c360ReRenderCampanhasIfActive();
     }
+    // Re-renderiza meus clientes se for a aba ativa
+    if (typeof window.c360McReRenderIfActive === 'function') {
+      await window.c360McReRenderIfActive();
+    }
   };
 
   // Segmento -> badge style
@@ -2019,6 +2023,7 @@
       if (id === 'sincronizacao') renderSincronizacaoPage();
       if (id === 'configuracoes') renderConfiguracoesPage();
       if (id === 'logs') renderLogsPage();
+      if (id === 'meus-clientes') renderMeusClientesPage();
     };
   }
 
@@ -3411,6 +3416,636 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     if (active?.id === 'page-logs') await renderLogsPage();
   };
 
+  // ══════════════════════════════════════════════════════════
+  // MEUS CLIENTES (Fase 8) — carteira por vendedor
+  // ══════════════════════════════════════════════════════════
+
+  // Caches simples
+  state.mcPerms = null;           // { meus_clientes: bool, cargo: str, profileId: uuid, nome: str }
+  state.mcProfiles = null;        // lista de profiles (pra ranking/reatribuir)
+  state.mcScoringCache = null;    // { empresa, data, ts }
+
+  async function mcLoadPerms() {
+    if (state.mcPerms) return state.mcPerms;
+    const { data: { user } } = await state.sb.auth.getUser();
+    if (!user) return { meus_clientes: false };
+    const { data: profile } = await state.sb.from('profiles').select('id, nome, cargo').eq('id', user.id).maybeSingle();
+    if (!profile) return { meus_clientes: false };
+    const { data: perm } = await state.sb.from('cargo_permissoes')
+      .select('permitido').eq('cargo', profile.cargo).eq('secao', 'meus_clientes').maybeSingle();
+    state.mcPerms = {
+      meus_clientes: !!(perm?.permitido),
+      cargo: profile.cargo,
+      profileId: profile.id,
+      nome: profile.nome,
+      podeReatribuir: (profile.cargo === 'admin' || profile.cargo === 'gerente_comercial'),
+      eVendedor: (profile.cargo === 'vendedor'),
+      eAdminOuGerente: ['admin','gerente_comercial','gerente_marketing'].includes(profile.cargo),
+    };
+    return state.mcPerms;
+  }
+
+  async function mcLoadProfiles() {
+    if (state.mcProfiles) return state.mcProfiles;
+    const { data } = await state.sb.from('profiles').select('id, nome, cargo').order('nome');
+    state.mcProfiles = data || [];
+    return state.mcProfiles;
+  }
+
+  async function mcLoadScoring(empresa) {
+    if (state.mcScoringCache && state.mcScoringCache.empresa === empresa && (Date.now() - state.mcScoringCache.ts) < 5*60*1000) {
+      return state.mcScoringCache.data;
+    }
+    const { data, error } = await state.sb.from('cliente_scoring_vendedor')
+      .select('*').eq('empresa', empresa).order('score', { ascending: false }).limit(2000);
+    if (error) { console.error('[mc] scoring error', error); return []; }
+    state.mcScoringCache = { empresa, data: data || [], ts: Date.now() };
+    return state.mcScoringCache.data;
+  }
+
+  function mcInvalidateCache() { state.mcScoringCache = null; }
+
+  // Injeta nav "Meus Clientes" no sidebar + cria div da pagina
+  async function mcSetupNav() {
+    const perms = await mcLoadPerms();
+    if (!perms.meus_clientes) return;
+
+    // 1) Cria page container se ainda nao existe
+    if (!document.getElementById('page-meus-clientes')) {
+      const root = document.getElementById('root') || document.body;
+      const page = document.createElement('div');
+      page.id = 'page-meus-clientes';
+      page.className = 'page-section';
+      page.innerHTML = '<div style="padding:40px;color:#94a3b8;text-align:center">Carregando...</div>';
+      root.appendChild(page);
+    }
+
+    // 2) Injeta nav button (clona o botao de "logs" e adapta)
+    if (document.querySelector('[data-nav-page="meus-clientes"]')) return; // ja injetado
+    const logsBtn = document.querySelector('[data-nav-page="logs"]');
+    if (!logsBtn) { console.warn('[mc] logs nav nao achada, sem nav'); return; }
+    const parentLi = logsBtn.closest('li') || logsBtn.parentElement;
+    if (!parentLi) return;
+
+    const newLi = parentLi.cloneNode(true);
+    const newBtn = newLi.querySelector('[data-nav-page]');
+    if (!newBtn) return;
+    newBtn.setAttribute('data-nav-page', 'meus-clientes');
+    newBtn.setAttribute('onclick', "showPage('meus-clientes')");
+    // Troca icone + texto
+    const svg = newBtn.querySelector('svg');
+    if (svg) {
+      svg.outerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg>';
+    }
+    const label = newBtn.querySelector('span');
+    if (label) label.textContent = 'Meus Clientes';
+    // Tira estado ativo herdado
+    newBtn.setAttribute('data-active', 'false');
+    newBtn.setAttribute('data-state', 'closed');
+
+    // Insere depois de Clientes (ou antes de Segmentacao). Prefere depois da nav "clientes".
+    const clientesBtn = document.querySelector('[data-nav-page="clientes"]');
+    const targetLi = clientesBtn ? (clientesBtn.closest('li') || clientesBtn.parentElement) : parentLi;
+    if (targetLi && targetLi.parentNode) {
+      targetLi.parentNode.insertBefore(newLi, targetLi.nextSibling);
+    }
+  }
+
+  // ─── Render principal ───
+  async function renderMeusClientesPage() {
+    const page = document.getElementById('page-meus-clientes');
+    if (!page) return;
+    const perms = await mcLoadPerms();
+    if (!perms.meus_clientes) {
+      page.innerHTML = '<div style="padding:40px;color:#94a3b8;text-align:center">Sem permissão.</div>';
+      return;
+    }
+    page.innerHTML = '<div style="padding:30px;color:#94a3b8;text-align:center">⏳ Carregando...</div>';
+    const [scoring] = await Promise.all([mcLoadScoring(state.empresa)]);
+
+    if (perms.eAdminOuGerente) {
+      await renderMcAdminView(page, perms, scoring);
+    } else {
+      renderMcVendedorView(page, perms, scoring);
+    }
+  }
+
+  // ─── View VENDEDOR (só clientes dele) ───
+  function renderMcVendedorView(page, perms, scoring) {
+    const meus = scoring.filter(c => c.vendedor_profile_id === perms.profileId);
+    const totalFat = meus.reduce((s, c) => s + Number(c.total_gasto || 0), 0);
+    const vips = meus.filter(c => c.segmento === 'VIP').length;
+    const ativos = meus.filter(c => (c.dias_sem_compra || 999) <= 180 && c.segmento !== 'Inativo' && c.segmento !== 'Perdido').length;
+    const emRisco = meus.filter(c => c.segmento === 'Em Risco').length;
+    const ticket = meus.length ? totalFat / meus.reduce((s,c) => s + Number(c.total_pedidos||0), 1) : 0;
+
+    page.innerHTML = `
+      <main class="bg-background flex-1 p-6 md:p-8">
+        <div class="space-y-6">
+          <div class="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h1 style="margin:0 0 4px;font-size:28px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">Meus Clientes</h1>
+              <p style="color:#94a3b8;margin:0;font-size:14px">Olá ${escapeHtml(perms.nome)} — sua carteira · ${EMPRESA_LABELS[state.empresa]}</p>
+            </div>
+            <button onclick="window.c360McReload()" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:#e2e8f0;cursor:pointer;font-size:13px">🔄 Atualizar</button>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+            ${mcKpiCard('Clientes', fmtNum(meus.length), '#94a3b8')}
+            ${mcKpiCard('VIPs', fmtNum(vips), '#fbbf24')}
+            ${mcKpiCard('Ativos', fmtNum(ativos), '#22c55e')}
+            ${mcKpiCard('Em Risco', fmtNum(emRisco), '#fb923c')}
+            ${mcKpiCard('Faturamento', fmtBRL(totalFat), '#a78bfa')}
+            ${mcKpiCard('Ticket médio', fmtBRL(ticket), '#60a5fa')}
+          </div>
+
+          ${meus.length === 0 ? mcEmptyCarteira(perms) : mcTabelaClientes(meus, perms)}
+        </div>
+      </main>
+    `;
+    mcWireTable(page);
+  }
+
+  // ─── View ADMIN / GERENTE (ranking + global) ───
+  async function renderMcAdminView(page, perms, scoring) {
+    const profiles = await mcLoadProfiles();
+    // Agrupa por vendedor_profile_id
+    const byVend = new Map();
+    for (const c of scoring) {
+      const k = c.vendedor_profile_id || '__none__';
+      if (!byVend.has(k)) byVend.set(k, { profile_id: c.vendedor_profile_id, nome: c.vendedor_nome, fonte: c.vendedor_fonte, clientes: 0, fat: 0, vips: 0, ativos: 0, risco: 0, pedidos: 0 });
+      const r = byVend.get(k);
+      r.clientes++;
+      r.fat += Number(c.total_gasto || 0);
+      r.pedidos += Number(c.total_pedidos || 0);
+      if (c.segmento === 'VIP') r.vips++;
+      if ((c.dias_sem_compra || 999) <= 180 && c.segmento !== 'Inativo' && c.segmento !== 'Perdido') r.ativos++;
+      if (c.segmento === 'Em Risco') r.risco++;
+    }
+    const ranking = Array.from(byVend.values()).sort((a,b) => b.fat - a.fat);
+    const naoAtribuidos = byVend.get('__none__') || { clientes: 0, fat: 0 };
+
+    const totalClientes = scoring.length;
+    const totalFat = scoring.reduce((s,c) => s + Number(c.total_gasto||0), 0);
+    const comVendedor = totalClientes - naoAtribuidos.clientes;
+    const pctAtribuido = totalClientes ? (comVendedor / totalClientes * 100).toFixed(1) : '0.0';
+
+    page.innerHTML = `
+      <main class="bg-background flex-1 p-6 md:p-8">
+        <div class="space-y-6">
+          <div class="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h1 style="margin:0 0 4px;font-size:28px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">Meus Clientes</h1>
+              <p style="color:#94a3b8;margin:0;font-size:14px">Performance por vendedor · ${EMPRESA_LABELS[state.empresa]}</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button onclick="window.c360McOpenMapear()" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(167,139,250,0.4);background:rgba(167,139,250,0.1);color:#c4b5fd;cursor:pointer;font-size:13px">⚙ Mapear vendedores Bling</button>
+              <button onclick="window.c360McReload()" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:#e2e8f0;cursor:pointer;font-size:13px">🔄 Atualizar</button>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+            ${mcKpiCard('Clientes total', fmtNum(totalClientes), '#94a3b8')}
+            ${mcKpiCard('Com vendedor', fmtNum(comVendedor) + ' <span style="font-size:11px;color:#64748b">(' + pctAtribuido + '%)</span>', '#22c55e')}
+            ${mcKpiCard('Sem vendedor', fmtNum(naoAtribuidos.clientes), naoAtribuidos.clientes > 0 ? '#fb923c' : '#94a3b8')}
+            ${mcKpiCard('Faturamento total', fmtBRL(totalFat), '#a78bfa')}
+            ${mcKpiCard('Vendedores ativos', fmtNum(ranking.filter(r => r.profile_id).length), '#60a5fa')}
+          </div>
+
+          ${ranking.filter(r => r.profile_id).length === 0 ? mcEmptyMapping() : ''}
+
+          <div>
+            <h2 style="margin:0 0 12px;font-size:16px;font-weight:600;color:#e2e8f0">🏆 Ranking por vendedor</h2>
+            ${mcRankingTable(ranking, totalFat)}
+          </div>
+
+          <div>
+            <h2 style="margin:12px 0;font-size:16px;font-weight:600;color:#e2e8f0">Todos os clientes</h2>
+            <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <label style="color:#94a3b8;font-size:12px">Filtrar vendedor:</label>
+              <select id="mc-filter-vend" onchange="window.c360McFilter()" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px">
+                <option value="">Todos</option>
+                <option value="__none__">Sem vendedor</option>
+                ${ranking.filter(r => r.profile_id).map(r => `<option value="${r.profile_id}">${escapeHtml(r.nome || '(sem nome)')}</option>`).join('')}
+              </select>
+              <input id="mc-search" placeholder="Buscar nome..." oninput="window.c360McFilter()" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;min-width:200px"/>
+            </div>
+            <div id="mc-tabela-wrap">${mcTabelaClientes(scoring.slice(0, 500), perms)}</div>
+          </div>
+        </div>
+      </main>
+    `;
+    mcWireTable(page);
+  }
+
+  // ─── Helpers de UI ───
+  function mcKpiCard(label, valor, cor) {
+    return `
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:4px">${escapeHtml(label)}</div>
+        <div style="font-size:22px;font-weight:700;color:${cor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${valor}</div>
+      </div>
+    `;
+  }
+
+  function mcEmptyCarteira(perms) {
+    return `
+      <div style="background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.1);border-radius:12px;padding:40px;text-align:center">
+        <div style="font-size:28px;margin-bottom:10px">👥</div>
+        <div style="color:#e2e8f0;font-size:15px;font-weight:600;margin-bottom:4px">Sua carteira está vazia</div>
+        <div style="color:#94a3b8;font-size:13px;max-width:480px;margin:0 auto">Ainda não há clientes atribuídos a você no ${EMPRESA_LABELS[state.empresa]}. Fale com um gerente pra atribuir clientes ou mapear o seu ID de vendedor do Bling.</div>
+      </div>
+    `;
+  }
+
+  function mcEmptyMapping() {
+    return `
+      <div style="background:rgba(251,146,60,0.08);border:1px solid rgba(251,146,60,0.25);border-radius:10px;padding:14px;display:flex;gap:12px;align-items:flex-start">
+        <div style="font-size:20px">⚠️</div>
+        <div style="flex:1">
+          <div style="color:#fdba74;font-weight:600;font-size:13.5px;margin-bottom:3px">Nenhum vendedor mapeado ainda</div>
+          <div style="color:#94a3b8;font-size:12.5px">O Bling não expõe o nome dos vendedores, só o ID. Use o botão <strong>⚙ Mapear vendedores Bling</strong> pra relacionar cada ID aos profiles do DMS.</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function mcRankingTable(ranking, totalFat) {
+    const rows = ranking.map((r, idx) => {
+      const pct = totalFat ? (r.fat / totalFat * 100).toFixed(1) : '0.0';
+      const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx+1}`;
+      const nome = r.profile_id ? escapeHtml(r.nome || '(sem nome)') : '<span style="color:#fb923c">⚠ Sem vendedor</span>';
+      const fonteBadge = r.fonte === 'manual' ? '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);margin-left:6px">Manual</span>' : (r.fonte === 'bling' ? '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(96,165,250,0.15);color:#60a5fa;border:1px solid rgba(96,165,250,0.3);margin-left:6px">Bling</span>' : '');
+      return `
+        <tr style="border-top:1px solid rgba(255,255,255,0.06)">
+          <td style="padding:10px 14px;color:#94a3b8;font-variant-numeric:tabular-nums">${medal}</td>
+          <td style="padding:10px 14px;color:#e2e8f0;font-weight:500">${nome}${fonteBadge}</td>
+          <td style="padding:10px 14px;color:#e2e8f0;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(r.clientes)}</td>
+          <td style="padding:10px 14px;color:#fbbf24;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(r.vips)}</td>
+          <td style="padding:10px 14px;color:#22c55e;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(r.ativos)}</td>
+          <td style="padding:10px 14px;color:#fb923c;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(r.risco)}</td>
+          <td style="padding:10px 14px;color:#a78bfa;text-align:right;font-variant-numeric:tabular-nums;font-weight:600">${fmtBRL(r.fat)}</td>
+          <td style="padding:10px 14px;color:#64748b;text-align:right;font-variant-numeric:tabular-nums;font-size:12px">${pct}%</td>
+        </tr>
+      `;
+    }).join('');
+    return `
+      <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;min-width:720px">
+          <thead>
+            <tr style="background:rgba(255,255,255,0.03)">
+              <th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b">#</th>
+              <th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b">Vendedor</th>
+              <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b">Clientes</th>
+              <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b">VIPs</th>
+              <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b">Ativos</th>
+              <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b">Risco</th>
+              <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b">Faturamento</th>
+              <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b">Share</th>
+            </tr>
+          </thead>
+          <tbody>${rows || '<tr><td colspan="8" style="padding:30px;text-align:center;color:#64748b">Nenhum dado ainda</td></tr>'}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function mcTabelaClientes(lista, perms) {
+    const rows = lista.slice(0, 500).map(c => {
+      const s = SEGMENT_STYLES[c.segmento] || SEGMENT_STYLES['Sem histórico'];
+      const diasTxt = c.dias_sem_compra == null ? '-' : (c.dias_sem_compra + 'd');
+      const vendedor = c.vendedor_nome
+        ? escapeHtml(c.vendedor_nome) + (c.vendedor_fonte === 'manual' ? ' <span style="font-size:10px;color:#4ade80">●</span>' : '')
+        : '<span style="color:#fb923c">—</span>';
+      const reatribuirBtn = perms.podeReatribuir
+        ? `<button onclick="event.stopPropagation();window.c360McReatribuir(${c.contato_id || 0}, '${escapeHtml(c.empresa)}', '${escapeHtml(c.contato_nome).replace(/'/g,'&#39;')}', '${c.vendedor_profile_id || ''}')" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(167,139,250,0.35);background:rgba(167,139,250,0.08);color:#c4b5fd;cursor:pointer;font-size:11px">🔀</button>`
+        : '';
+      return `
+        <tr data-cliente="${escapeHtml(c.contato_nome)}" style="border-top:1px solid rgba(255,255,255,0.06);cursor:pointer">
+          <td style="padding:10px 14px;color:#e2e8f0;font-weight:500">${escapeHtml(c.contato_nome)}</td>
+          <td style="padding:10px 14px"><span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${s.bg.replace('bg-','').replace('/15','')};color:#e2e8f0;border:1px solid rgba(255,255,255,0.1)" class="${s.bg} ${s.fg} ${s.border}">${escapeHtml(c.segmento || '-')}</span></td>
+          <td style="padding:10px 14px;color:#e2e8f0;text-align:right;font-variant-numeric:tabular-nums">${c.score || 0}</td>
+          <td style="padding:10px 14px;color:#e2e8f0;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(c.total_pedidos || 0)}</td>
+          <td style="padding:10px 14px;color:#a78bfa;text-align:right;font-variant-numeric:tabular-nums">${fmtBRL(c.total_gasto || 0)}</td>
+          <td style="padding:10px 14px;color:#94a3b8;text-align:right;font-variant-numeric:tabular-nums">${diasTxt}</td>
+          <td style="padding:10px 14px;color:#e2e8f0">${vendedor}</td>
+          <td style="padding:10px 14px;text-align:right">${reatribuirBtn}</td>
+        </tr>
+      `;
+    }).join('');
+    const maisDe500 = lista.length > 500 ? `<div style="padding:10px 14px;color:#64748b;font-size:12px;text-align:center">Mostrando os 500 primeiros de ${fmtNum(lista.length)}. Use o filtro pra refinar.</div>` : '';
+    return `
+      <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;min-width:900px">
+          <thead>
+            <tr style="background:rgba(255,255,255,0.03)">
+              <th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#64748b">Nome</th>
+              <th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#64748b">Segmento</th>
+              <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;color:#64748b">Score</th>
+              <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;color:#64748b">Pedidos</th>
+              <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;color:#64748b">Gasto</th>
+              <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;color:#64748b">Dias</th>
+              <th style="padding:10px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#64748b">Vendedor</th>
+              <th style="padding:10px 14px;text-align:right;font-size:11px;text-transform:uppercase;color:#64748b"></th>
+            </tr>
+          </thead>
+          <tbody>${rows || '<tr><td colspan="8" style="padding:30px;text-align:center;color:#64748b">Nenhum cliente</td></tr>'}</tbody>
+        </table>
+        ${maisDe500}
+      </div>
+    `;
+  }
+
+  function mcWireTable(page) {
+    const tbody = page.querySelectorAll('tbody tr[data-cliente]');
+    tbody.forEach(tr => {
+      tr.addEventListener('click', () => {
+        const nome = tr.getAttribute('data-cliente');
+        if (nome && typeof window.abrirClienteDetalhe === 'function') {
+          window.abrirClienteDetalhe(nome);
+        } else if (nome && typeof window.c360OpenCliente === 'function') {
+          window.c360OpenCliente(nome);
+        } else {
+          // fallback: scroll pro detalhe via cache filtrado
+          const found = state.clientes?.find(c => c.contato_nome === nome);
+          if (found && typeof openClienteByName === 'function') openClienteByName(nome);
+        }
+      });
+    });
+  }
+
+  // ─── Filtro cliente-side na admin view ───
+  window.c360McFilter = function() {
+    const vendSel = document.getElementById('mc-filter-vend');
+    const search = document.getElementById('mc-search');
+    const wrap = document.getElementById('mc-tabela-wrap');
+    if (!wrap || !state.mcScoringCache) return;
+    const vendFilter = vendSel?.value || '';
+    const q = (search?.value || '').trim().toLowerCase();
+    let lista = state.mcScoringCache.data;
+    if (vendFilter === '__none__') lista = lista.filter(c => !c.vendedor_profile_id);
+    else if (vendFilter) lista = lista.filter(c => c.vendedor_profile_id === vendFilter);
+    if (q) lista = lista.filter(c => (c.contato_nome || '').toLowerCase().includes(q));
+    const perms = state.mcPerms || {};
+    wrap.innerHTML = mcTabelaClientes(lista, perms);
+    mcWireTable(wrap);
+  };
+
+  window.c360McReload = async function() {
+    mcInvalidateCache();
+    await renderMeusClientesPage();
+  };
+
+  // ─── Modal: Reatribuir cliente ───
+  window.c360McReatribuir = async function(contatoId, empresa, contatoNome, vendedorAtualId) {
+    const perms = await mcLoadPerms();
+    if (!perms.podeReatribuir) {
+      if (typeof showToast === 'function') showToast('Sem permissão', 'error');
+      return;
+    }
+    if (!contatoId || contatoId === 0) {
+      if (typeof showToast === 'function') showToast('Cliente sem contato_id — não é possível reatribuir', 'error');
+      return;
+    }
+    const profiles = await mcLoadProfiles();
+    // Modal
+    const existing = document.getElementById('mc-reatribuir-modal');
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = 'mc-reatribuir-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+    modal.innerHTML = `
+      <div style="background:#0b0f17;border:1px solid rgba(255,255,255,0.1);border-radius:14px;max-width:480px;width:100%;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,0.5)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+          <div>
+            <div style="font-size:18px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">🔀 Reatribuir cliente</div>
+            <div style="font-size:13px;color:#94a3b8;margin-top:2px">${escapeHtml(contatoNome)}</div>
+          </div>
+          <button onclick="document.getElementById('mc-reatribuir-modal').remove()" style="background:transparent;border:0;color:#94a3b8;cursor:pointer;font-size:22px;line-height:1;padding:0 4px">×</button>
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="display:block;font-size:12px;color:#94a3b8;margin-bottom:6px">Novo vendedor</label>
+          <select id="mc-reatribuir-profile" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13.5px;outline:none">
+            <option value="">— Selecione —</option>
+            ${profiles.map(p => `<option value="${p.id}" ${p.id === vendedorAtualId ? 'selected' : ''}>${escapeHtml(p.nome)} · ${escapeHtml(p.cargo || '')}</option>`).join('')}
+          </select>
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="display:block;font-size:12px;color:#94a3b8;margin-bottom:6px">Motivo (opcional)</label>
+          <textarea id="mc-reatribuir-motivo" rows="2" placeholder="Ex: cliente passou a comprar pela BC..." style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button onclick="document.getElementById('mc-reatribuir-modal').remove()" style="padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:#e2e8f0;cursor:pointer;font-size:13px">Cancelar</button>
+          <button id="mc-reatribuir-confirmar" onclick="window.c360McConfirmarReatribuir(${contatoId}, '${escapeHtml(empresa)}', '${escapeHtml(contatoNome).replace(/'/g,'&#39;')}', '${vendedorAtualId || ''}')" style="padding:8px 16px;border-radius:8px;border:1px solid rgba(167,139,250,0.4);background:rgba(167,139,250,0.2);color:#c4b5fd;cursor:pointer;font-size:13px;font-weight:600">Confirmar</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  };
+
+  window.c360McConfirmarReatribuir = async function(contatoId, empresa, contatoNome, vendedorAtualId) {
+    const selectEl = document.getElementById('mc-reatribuir-profile');
+    const motivoEl = document.getElementById('mc-reatribuir-motivo');
+    const btn = document.getElementById('mc-reatribuir-confirmar');
+    const novoProfileId = selectEl?.value;
+    const motivo = (motivoEl?.value || '').trim() || null;
+    if (!novoProfileId) {
+      if (typeof showToast === 'function') showToast('Selecione um vendedor', 'error');
+      return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+    try {
+      const perms = await mcLoadPerms();
+      const profiles = await mcLoadProfiles();
+      const novoProf = profiles.find(p => p.id === novoProfileId);
+      const atualProf = vendedorAtualId ? profiles.find(p => p.id === vendedorAtualId) : null;
+
+      // Upsert em cliente_vendedor_manual
+      const { error: errUps } = await state.sb.from('cliente_vendedor_manual').upsert({
+        contato_id: contatoId,
+        empresa,
+        profile_id: novoProfileId,
+        atribuido_por: perms.profileId,
+        atribuido_por_nome: perms.nome,
+        motivo,
+      }, { onConflict: 'contato_id,empresa' });
+      if (errUps) throw errUps;
+
+      // Insere no historico (nao bloqueia se falhar)
+      await state.sb.from('cliente_vendedor_historico').insert({
+        contato_id: contatoId,
+        contato_nome: contatoNome,
+        empresa,
+        profile_id_anterior: vendedorAtualId || null,
+        profile_id_novo: novoProfileId,
+        profile_nome_anterior: atualProf?.nome || null,
+        profile_nome_novo: novoProf?.nome || null,
+        fonte_anterior: vendedorAtualId ? 'manual_ou_bling' : 'nao_atribuido',
+        alterado_por: perms.profileId,
+        alterado_por_nome: perms.nome,
+        motivo,
+      });
+
+      if (typeof showToast === 'function') showToast('Cliente reatribuído a ' + (novoProf?.nome || ''), 'success');
+      document.getElementById('mc-reatribuir-modal')?.remove();
+      mcInvalidateCache();
+      await renderMeusClientesPage();
+    } catch (e) {
+      console.error('[mc] reatribuir falhou', e);
+      if (typeof showToast === 'function') showToast('Erro: ' + (e.message || e), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirmar'; }
+    }
+  };
+
+  // ─── Modal: Mapear vendedores Bling ───
+  window.c360McOpenMapear = async function() {
+    const perms = await mcLoadPerms();
+    if (!(perms.cargo === 'admin' || perms.cargo === 'gerente_comercial')) {
+      if (typeof showToast === 'function') showToast('Sem permissão', 'error');
+      return;
+    }
+    // Lista todos bling_vendedor_ids distintos com contagem
+    const { data: blingIds } = await state.sb.rpc('__dummy__rpc__nao_existe__').catch(() => ({ data: null }));
+    // Query direta via PostgREST (rollup de pedidos)
+    const { data: pedidosAgr } = await state.sb.from('pedidos').select('vendedor_id').eq('empresa', state.empresa).not('vendedor_id', 'is', null).limit(10000);
+    const countsById = new Map();
+    (pedidosAgr || []).forEach(p => {
+      if (!p.vendedor_id || p.vendedor_id === 0) return;
+      countsById.set(p.vendedor_id, (countsById.get(p.vendedor_id) || 0) + 1);
+    });
+    const bling = Array.from(countsById.entries()).map(([id, count]) => ({ id, count })).sort((a,b) => b.count - a.count).slice(0, 50);
+
+    const { data: mappings } = await state.sb.from('vendedor_mapping').select('*').eq('empresa', state.empresa);
+    const mapByBling = new Map((mappings || []).map(m => [String(m.bling_vendedor_id), m]));
+    const profiles = await mcLoadProfiles();
+
+    const existing = document.getElementById('mc-mapear-modal');
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = 'mc-mapear-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+
+    const rows = bling.map(b => {
+      const m = mapByBling.get(String(b.id));
+      const selected = m?.profile_id || '';
+      return `
+        <tr style="border-top:1px solid rgba(255,255,255,0.06)">
+          <td style="padding:8px 12px;color:#94a3b8;font-variant-numeric:tabular-nums;font-family:monospace;font-size:12px">${b.id}</td>
+          <td style="padding:8px 12px;color:#e2e8f0;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(b.count)}</td>
+          <td style="padding:6px 12px">
+            <select data-bling="${b.id}" class="mc-map-profile" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:12px">
+              <option value="">— Não mapeado —</option>
+              ${profiles.map(p => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${escapeHtml(p.nome)}</option>`).join('')}
+            </select>
+          </td>
+          <td style="padding:6px 12px">
+            <input data-bling="${b.id}" class="mc-map-name" value="${escapeHtml(m?.display_name || '')}" placeholder="apelido (opcional)" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:12px"/>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    modal.innerHTML = `
+      <div style="background:#0b0f17;border:1px solid rgba(255,255,255,0.1);border-radius:14px;max-width:780px;width:100%;max-height:90vh;display:flex;flex-direction:column;padding:20px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+          <div>
+            <div style="font-size:18px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">⚙ Mapear vendedores Bling</div>
+            <div style="font-size:12px;color:#94a3b8;margin-top:2px">${EMPRESA_LABELS[state.empresa]} · top 50 por pedidos</div>
+          </div>
+          <button onclick="document.getElementById('mc-mapear-modal').remove()" style="background:transparent;border:0;color:#94a3b8;cursor:pointer;font-size:22px;line-height:1;padding:0 4px">×</button>
+        </div>
+        <div style="flex:1;overflow-y:auto;border:1px solid rgba(255,255,255,0.06);border-radius:8px">
+          <table style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr style="background:rgba(255,255,255,0.03);position:sticky;top:0">
+                <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase">Bling ID</th>
+                <th style="padding:8px 12px;text-align:right;font-size:11px;color:#64748b;text-transform:uppercase">Pedidos</th>
+                <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase">Profile DMS</th>
+                <th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;text-transform:uppercase">Apelido</th>
+              </tr>
+            </thead>
+            <tbody>${rows || '<tr><td colspan="4" style="padding:30px;text-align:center;color:#64748b">Nenhum vendedor nos pedidos</td></tr>'}</tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+          <button onclick="document.getElementById('mc-mapear-modal').remove()" style="padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:#e2e8f0;cursor:pointer;font-size:13px">Cancelar</button>
+          <button id="mc-mapear-salvar" onclick="window.c360McSalvarMapeamento()" style="padding:8px 16px;border-radius:8px;border:1px solid rgba(167,139,250,0.4);background:rgba(167,139,250,0.2);color:#c4b5fd;cursor:pointer;font-size:13px;font-weight:600">Salvar mudanças</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  };
+
+  window.c360McSalvarMapeamento = async function() {
+    const btn = document.getElementById('mc-mapear-salvar');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+    try {
+      const rows = document.querySelectorAll('#mc-mapear-modal tbody tr');
+      const upserts = [];
+      const deletes = [];
+      rows.forEach(tr => {
+        const sel = tr.querySelector('.mc-map-profile');
+        const inp = tr.querySelector('.mc-map-name');
+        if (!sel) return;
+        const blingId = Number(sel.getAttribute('data-bling'));
+        const pid = sel.value || null;
+        const nm = (inp?.value || '').trim();
+        if (pid) {
+          upserts.push({
+            bling_vendedor_id: blingId,
+            empresa: state.empresa,
+            profile_id: pid,
+            display_name: nm || null,
+            ativo: true,
+          });
+        } else {
+          deletes.push({ bling_vendedor_id: blingId });
+        }
+      });
+      if (upserts.length) {
+        const { error } = await state.sb.from('vendedor_mapping').upsert(upserts, { onConflict: 'bling_vendedor_id,empresa' });
+        if (error) throw error;
+      }
+      if (deletes.length) {
+        for (const d of deletes) {
+          await state.sb.from('vendedor_mapping').delete().eq('bling_vendedor_id', d.bling_vendedor_id).eq('empresa', state.empresa);
+        }
+      }
+      if (typeof showToast === 'function') showToast(`Mapeamento salvo (${upserts.length} ativos)`, 'success');
+      document.getElementById('mc-mapear-modal')?.remove();
+      mcInvalidateCache();
+      await renderMeusClientesPage();
+    } catch (e) {
+      console.error('[mc] mapeamento falhou', e);
+      if (typeof showToast === 'function') showToast('Erro: ' + (e.message || e), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Salvar mudanças'; }
+    }
+  };
+
+  // Helper: abre cliente no detalhe (integrado com existente)
+  function openClienteByName(nome) {
+    // Busca no cache existente de clientes (state.clientes) — senao, apenas alterna aba
+    const cli = state.clientes?.find(c => c.contato_nome === nome);
+    if (cli && typeof renderList === 'function') {
+      // Fallback: alterna pra aba Clientes com filtro
+      state.searchQuery = nome;
+      state.page = 0;
+      renderList();
+      if (typeof window.showPage === 'function') window.showPage('clientes');
+    }
+  }
+
+  // Re-render ao trocar empresa
+  window.c360McReRenderIfActive = async function() {
+    const active = document.querySelector('.page-section.active');
+    if (active?.id === 'page-meus-clientes') {
+      mcInvalidateCache();
+      await renderMeusClientesPage();
+    }
+  };
+
   // ─── Boot ───
   async function boot() {
     try {
@@ -3426,6 +4061,8 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       subscribeRealtimeSegmentos();
       subscribeRealtimeCampanhas();
       subscribeRealtimeSync();
+      // Setup Meus Clientes (nav + page) se tiver permissao
+      await mcSetupNav();
       // Se veio deep-link via sessionStorage, abre o cliente/aba certa
       await checkDeepLink();
     } catch (e) {
