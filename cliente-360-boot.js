@@ -2061,6 +2061,49 @@
       .replace(/\{\{\s*uf\s*\}\}/gi, uf);
   }
 
+  // Sincroniza a campanha com um evento no calendario DMS.
+  // Recebe o row COMPLETO (do select apos save).
+  // - Com data_envio + sem evento → cria evento, salva FK
+  // - Com data_envio + com evento → atualiza evento
+  // - Sem data_envio + com evento → deleta evento, clear FK
+  // - Sem data_envio + sem evento → no-op
+  async function syncCampanhaToCalendario(camp) {
+    if (!camp || !camp.id) return;
+    const hasDate = !!camp.data_envio;
+    const hasEvent = !!camp.calendario_evento_id;
+    if (!hasDate && !hasEvent) return;
+
+    try {
+      const dateStr = hasDate ? String(camp.data_envio).slice(0, 10) : null;
+      const titulo = `${camp.nome} · Cliente 360`;
+      const totalInfo = camp.total_alvo > 0 ? `${camp.total_alvo} clientes alvo · ` : '';
+      const descricao = `${totalInfo}${CANAL_LABELS[camp.canal] || camp.canal} · Segmento: ${camp.segmento_nome_cache || '—'}${camp.mensagem ? '\n\n' + camp.mensagem : ''}`;
+
+      if (hasDate && hasEvent) {
+        const { error } = await state.sb.from('calendario')
+          .update({ titulo, data_inicio: dateStr, descricao, tipo: 'campanha_c360' })
+          .eq('id', camp.calendario_evento_id);
+        if (error) throw error;
+      } else if (hasDate && !hasEvent) {
+        const { data: newEvt, error } = await state.sb.from('calendario')
+          .insert({ titulo, tipo: 'campanha_c360', data_inicio: dateStr, descricao })
+          .select('id').single();
+        if (error) throw error;
+        await state.sb.from('cliente_campanhas')
+          .update({ calendario_evento_id: newEvt.id })
+          .eq('id', camp.id);
+      } else if (!hasDate && hasEvent) {
+        await state.sb.from('calendario').delete().eq('id', camp.calendario_evento_id);
+        await state.sb.from('cliente_campanhas')
+          .update({ calendario_evento_id: null })
+          .eq('id', camp.id);
+      }
+    } catch (e) {
+      console.warn('[c360 camp] sync calendario falhou:', e);
+      if (typeof showToast === 'function') showToast('Campanha salva, mas nao integrou com calendario: ' + e.message, 'warn');
+    }
+  }
+
   function getClientesAlvoCampanha(campanha) {
     if (!campanha) return [];
     if (campanha.segmento_tipo === 'custom' && campanha.segmento_id) {
@@ -2345,17 +2388,25 @@
       observacoes: (document.getElementById('camp-obs')?.value || '').trim() || null,
     };
     try {
+      let campRow;
       if (id) {
-        const { error } = await state.sb.from('cliente_campanhas').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', id);
+        const { data, error } = await state.sb.from('cliente_campanhas')
+          .update({ ...payload, updated_at: new Date().toISOString() })
+          .eq('id', id).select('*').single();
         if (error) throw error;
+        campRow = data;
       } else {
         const { data: { user } } = await state.sb.auth.getUser();
         const { data: profile } = await state.sb.from('profiles').select('nome').eq('id', user.id).single();
-        const { error } = await state.sb.from('cliente_campanhas').insert({
+        const { data, error } = await state.sb.from('cliente_campanhas').insert({
           ...payload, criado_por: user.id, criado_por_nome: profile?.nome || user.email,
-        });
+        }).select('*').single();
         if (error) throw error;
+        campRow = data;
       }
+      // Integra com calendario DMS (cria/atualiza/deleta evento conforme data_envio)
+      await syncCampanhaToCalendario(campRow);
+
       document.getElementById('c360-camp-modal')?.remove();
       if (typeof showToast === 'function') showToast('Campanha ' + (id ? 'atualizada' : 'criada'), 'success');
       await renderCampanhasPage();
@@ -2367,8 +2418,18 @@
   window.c360DeleteCampanha = async function(id) {
     const c = state.campanhas.find(x => x.id === id);
     if (!c) return;
-    const ok = await c360Confirm(`Apagar a campanha "${c.nome}"?\n\nIsso remove também todos os envios vinculados.`, { danger: true, okLabel: 'Apagar campanha' });
+    const ok = await c360Confirm(`Apagar a campanha "${c.nome}"?\n\nIsso remove também todos os envios vinculados${c.calendario_evento_id ? ' e o evento no calendário' : ''}.`, { danger: true, okLabel: 'Apagar campanha' });
     if (!ok) return;
+
+    // Apaga evento de calendario primeiro (se existir)
+    if (c.calendario_evento_id) {
+      try {
+        await state.sb.from('calendario').delete().eq('id', c.calendario_evento_id);
+      } catch (e) {
+        console.warn('[c360 camp] falha ao apagar evento calendario:', e);
+      }
+    }
+
     const { error } = await state.sb.from('cliente_campanhas').delete().eq('id', id);
     if (error) { if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error'); return; }
     if (typeof showToast === 'function') showToast('Campanha apagada', 'success');

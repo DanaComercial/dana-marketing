@@ -8390,6 +8390,7 @@ updateDynamicField('foto');
       <div><label class="label">Tipo</label>
         <select class="input" id="evt-tipo">
           <option value="campanha">📣 Campanha</option>
+          <option value="campanha_c360">📢 Campanha Cliente 360</option>
           <option value="promocao">🎁 Promoção</option>
           <option value="lancamento">🚀 Lançamento</option>
           <option value="evento">🎪 Evento</option>
@@ -13687,7 +13688,7 @@ function renderCalendario() {
     const eventos = _eventosCache.filter(e => e.data_inicio <= dateStr && (e.data_fim ? e.data_fim >= dateStr : e.data_inicio === dateStr));
     const tarefas = tarefasPorDia[dateStr] || [];
     const todayStyle = isToday ? 'font-weight:800;color:var(--green)' : '';
-    const tiposCor = { campanha:'var(--black)', promocao:'var(--green)', lancamento:'var(--blue)', evento:'var(--amber)', deadline:'var(--red)', feriado:'#999' };
+    const tiposCor = { campanha:'var(--black)', campanha_c360:'var(--blue)', promocao:'var(--green)', lancamento:'var(--blue)', evento:'var(--amber)', deadline:'var(--red)', feriado:'#999' };
 
     // Combinar eventos e tarefas para mostrar (cor custom do evento > cor do tipo)
     const items = [
@@ -13722,12 +13723,13 @@ function editarEvento(id) {
   _viewingEventoId = id;
 
   const tiposConfig = {
-    campanha:  { icon: '📣', cor: '#0a0a0a', bg: '#f3f4f6', label: 'Campanha' },
-    promocao:  { icon: '🎁', cor: '#15803d', bg: '#dcfce7', label: 'Promoção' },
-    lancamento:{ icon: '🚀', cor: '#1d4ed8', bg: '#dbeafe', label: 'Lançamento' },
-    evento:    { icon: '🎪', cor: '#b45309', bg: '#fef3c7', label: 'Evento' },
-    deadline:  { icon: '⏰', cor: '#dc2626', bg: '#fee2e2', label: 'Deadline' },
-    feriado:   { icon: '🎉', cor: '#6b7280', bg: '#f3f4f6', label: 'Feriado' },
+    campanha:      { icon: '📣', cor: '#0a0a0a', bg: '#f3f4f6', label: 'Campanha' },
+    campanha_c360: { icon: '📢', cor: '#1d4ed8', bg: '#dbeafe', label: 'Campanha Cliente 360' },
+    promocao:      { icon: '🎁', cor: '#15803d', bg: '#dcfce7', label: 'Promoção' },
+    lancamento:    { icon: '🚀', cor: '#1d4ed8', bg: '#dbeafe', label: 'Lançamento' },
+    evento:        { icon: '🎪', cor: '#b45309', bg: '#fef3c7', label: 'Evento' },
+    deadline:      { icon: '⏰', cor: '#dc2626', bg: '#fee2e2', label: 'Deadline' },
+    feriado:       { icon: '🎉', cor: '#6b7280', bg: '#f3f4f6', label: 'Feriado' },
   };
   const cfg = tiposConfig[evt.tipo] || tiposConfig.evento;
 
