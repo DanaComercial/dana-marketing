@@ -3552,9 +3552,16 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     }
 
     // 2) Injeta nav button (clona o botao de "logs" e adapta)
+    // Retry ate 10x com 200ms entre tentativas — sidebar pode nao estar no DOM ainda apos cache clear
     if (document.querySelector('[data-nav-page="meus-clientes"]')) return; // ja injetado
-    const logsBtn = document.querySelector('[data-nav-page="logs"]');
-    if (!logsBtn) { console.warn('[mc] logs nav nao achada, sem nav'); return; }
+    let logsBtn = null;
+    for (let tries = 0; tries < 15; tries++) {
+      logsBtn = document.querySelector('[data-nav-page="logs"]');
+      if (logsBtn) break;
+      await new Promise(r => setTimeout(r, 200));
+      if (document.querySelector('[data-nav-page="meus-clientes"]')) return; // injetado em paralelo
+    }
+    if (!logsBtn) { console.warn('[mc] logs nav nao achada apos retries — nav nao injetada'); return; }
     const parentLi = logsBtn.closest('li') || logsBtn.parentElement;
     if (!parentLi) return;
 
