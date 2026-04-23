@@ -3452,15 +3452,30 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     return state.mcProfiles;
   }
 
-  async function mcLoadScoring(empresa) {
-    if (state.mcScoringCache && state.mcScoringCache.empresa === empresa && (Date.now() - state.mcScoringCache.ts) < 5*60*1000) {
-      return state.mcScoringCache.data;
-    }
-    const { data, error } = await state.sb.from('cliente_scoring_vendedor')
-      .select('*').eq('empresa', empresa).order('score', { ascending: false }).limit(2000);
-    if (error) { console.error('[mc] scoring error', error); return []; }
-    state.mcScoringCache = { empresa, data: data || [], ts: Date.now() };
-    return state.mcScoringCache.data;
+  // Totais agregados (1 row por empresa) - evita limite 1000
+  async function mcLoadTotais(empresa) {
+    const { data, error } = await state.sb.from('meus_clientes_totais').select('*').eq('empresa', empresa).maybeSingle();
+    if (error) { console.error('[mc] totais error', error); return null; }
+    return data;
+  }
+
+  // Ranking por vendedor (agregado server-side)
+  async function mcLoadRanking(empresa) {
+    const { data, error } = await state.sb.from('vendedor_performance').select('*').eq('empresa', empresa).order('faturamento', { ascending: false });
+    if (error) { console.error('[mc] ranking error', error); return []; }
+    return data || [];
+  }
+
+  // Lista de clientes - filtrada server-side por vendedor quando aplicavel
+  async function mcLoadClientes(empresa, vendedorId, busca, limit) {
+    let q = state.sb.from('cliente_scoring_vendedor').select('*').eq('empresa', empresa);
+    if (vendedorId === '__none__') q = q.is('vendedor_profile_id', null);
+    else if (vendedorId) q = q.eq('vendedor_profile_id', vendedorId);
+    if (busca) q = q.ilike('contato_nome', '%' + busca.replace(/%/g,'') + '%');
+    q = q.order('score', { ascending: false }).limit(limit || 500);
+    const { data, error } = await q;
+    if (error) { console.error('[mc] clientes error', error); return []; }
+    return data || [];
   }
 
   function mcInvalidateCache() { state.mcScoringCache = null; }
@@ -3521,119 +3536,108 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       return;
     }
     page.innerHTML = '<div style="padding:30px;color:#94a3b8;text-align:center">⏳ Carregando...</div>';
-    const [scoring] = await Promise.all([mcLoadScoring(state.empresa)]);
 
     if (perms.eAdminOuGerente) {
-      await renderMcAdminView(page, perms, scoring);
+      await renderMcAdminView(page, perms);
     } else {
-      renderMcVendedorView(page, perms, scoring);
+      await renderMcVendedorView(page, perms);
     }
   }
 
   // ─── View VENDEDOR (só clientes dele) ───
-  function renderMcVendedorView(page, perms, scoring) {
-    const meus = scoring.filter(c => c.vendedor_profile_id === perms.profileId);
+  async function renderMcVendedorView(page, perms) {
+    const meus = await mcLoadClientes(state.empresa, perms.profileId, null, 1000);
     const totalFat = meus.reduce((s, c) => s + Number(c.total_gasto || 0), 0);
+    const totalPedidos = meus.reduce((s, c) => s + Number(c.total_pedidos || 0), 0);
     const vips = meus.filter(c => c.segmento === 'VIP').length;
-    const ativos = meus.filter(c => (c.dias_sem_compra || 999) <= 180 && c.segmento !== 'Inativo' && c.segmento !== 'Perdido').length;
+    const ativos = meus.filter(c => (c.dias_sem_compra || 999) <= 180 && c.segmento !== 'Inativo' && c.segmento !== 'Perdido' && c.segmento !== 'Sem histórico').length;
     const emRisco = meus.filter(c => c.segmento === 'Em Risco').length;
-    const ticket = meus.length ? totalFat / meus.reduce((s,c) => s + Number(c.total_pedidos||0), 1) : 0;
+    const ticket = totalPedidos > 0 ? totalFat / totalPedidos : 0;
 
     page.innerHTML = `
-      <main class="bg-background flex-1 p-6 md:p-8">
-        <div class="space-y-6">
-          <div class="flex items-center justify-between flex-wrap gap-3">
-            <div>
-              <h1 style="margin:0 0 4px;font-size:28px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">Meus Clientes</h1>
-              <p style="color:#94a3b8;margin:0;font-size:14px">Olá ${escapeHtml(perms.nome)} — sua carteira · ${EMPRESA_LABELS[state.empresa]}</p>
-            </div>
-            <button onclick="window.c360McReload()" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:#e2e8f0;cursor:pointer;font-size:13px">🔄 Atualizar</button>
+      <div style="padding:24px;max-width:1400px;margin:0 auto">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+          <div>
+            <h1 style="margin:0 0 6px;font-size:28px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">Meus Clientes</h1>
+            <div style="font-size:13px;color:#94a3b8">Olá ${escapeHtml(perms.nome)} — sua carteira · ${EMPRESA_LABELS[state.empresa]}</div>
           </div>
-
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
-            ${mcKpiCard('Clientes', fmtNum(meus.length), '#94a3b8')}
-            ${mcKpiCard('VIPs', fmtNum(vips), '#fbbf24')}
-            ${mcKpiCard('Ativos', fmtNum(ativos), '#22c55e')}
-            ${mcKpiCard('Em Risco', fmtNum(emRisco), '#fb923c')}
-            ${mcKpiCard('Faturamento', fmtBRL(totalFat), '#a78bfa')}
-            ${mcKpiCard('Ticket médio', fmtBRL(ticket), '#60a5fa')}
-          </div>
-
-          ${meus.length === 0 ? mcEmptyCarteira(perms) : mcTabelaClientes(meus, perms)}
+          <button onclick="window.c360McReload()" style="padding:10px 18px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:#e2e8f0;cursor:pointer;font-size:13px;font-weight:600">🔄 Atualizar</button>
         </div>
-      </main>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px">
+          ${mcKpiCard('Clientes', fmtNum(meus.length), '#94a3b8')}
+          ${mcKpiCard('VIPs', fmtNum(vips), '#fbbf24')}
+          ${mcKpiCard('Ativos', fmtNum(ativos), '#22c55e')}
+          ${mcKpiCard('Em Risco', fmtNum(emRisco), '#fb923c')}
+          ${mcKpiCard('Faturamento', fmtBRL(totalFat), '#a78bfa')}
+          ${mcKpiCard('Ticket médio', fmtBRL(ticket), '#60a5fa')}
+        </div>
+
+        ${meus.length === 0 ? mcEmptyCarteira(perms) : mcTabelaClientes(meus, perms)}
+      </div>
     `;
     mcWireTable(page);
   }
 
   // ─── View ADMIN / GERENTE (ranking + global) ───
-  async function renderMcAdminView(page, perms, scoring) {
-    const profiles = await mcLoadProfiles();
-    // Agrupa por vendedor_profile_id
-    const byVend = new Map();
-    for (const c of scoring) {
-      const k = c.vendedor_profile_id || '__none__';
-      if (!byVend.has(k)) byVend.set(k, { profile_id: c.vendedor_profile_id, nome: c.vendedor_nome, fonte: c.vendedor_fonte, clientes: 0, fat: 0, vips: 0, ativos: 0, risco: 0, pedidos: 0 });
-      const r = byVend.get(k);
-      r.clientes++;
-      r.fat += Number(c.total_gasto || 0);
-      r.pedidos += Number(c.total_pedidos || 0);
-      if (c.segmento === 'VIP') r.vips++;
-      if ((c.dias_sem_compra || 999) <= 180 && c.segmento !== 'Inativo' && c.segmento !== 'Perdido') r.ativos++;
-      if (c.segmento === 'Em Risco') r.risco++;
-    }
-    const ranking = Array.from(byVend.values()).sort((a,b) => b.fat - a.fat);
-    const naoAtribuidos = byVend.get('__none__') || { clientes: 0, fat: 0 };
+  async function renderMcAdminView(page, perms) {
+    // Aggregates server-side (nao limitados a 1000)
+    const [totais, ranking, clientesPreview] = await Promise.all([
+      mcLoadTotais(state.empresa),
+      mcLoadRanking(state.empresa),
+      mcLoadClientes(state.empresa, null, null, 500),
+    ]);
 
-    const totalClientes = scoring.length;
-    const totalFat = scoring.reduce((s,c) => s + Number(c.total_gasto||0), 0);
-    const comVendedor = totalClientes - naoAtribuidos.clientes;
-    const pctAtribuido = totalClientes ? (comVendedor / totalClientes * 100).toFixed(1) : '0.0';
+    const t = totais || { total_clientes: 0, com_vendedor: 0, sem_vendedor: 0, vendedores_ativos: 0, faturamento_total: 0 };
+    const pctAtribuido = t.total_clientes > 0 ? (t.com_vendedor / t.total_clientes * 100).toFixed(1) : '0.0';
+    const totalFat = Number(t.faturamento_total || 0);
+
+    // state pro filtro
+    state.mcAdminRanking = ranking;
+    state.mcAdminVendedores = ranking.filter(r => r.vendedor_profile_id);
 
     page.innerHTML = `
-      <main class="bg-background flex-1 p-6 md:p-8">
-        <div class="space-y-6">
-          <div class="flex items-center justify-between flex-wrap gap-3">
-            <div>
-              <h1 style="margin:0 0 4px;font-size:28px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">Meus Clientes</h1>
-              <p style="color:#94a3b8;margin:0;font-size:14px">Performance por vendedor · ${EMPRESA_LABELS[state.empresa]}</p>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button onclick="window.c360McOpenMapear()" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(167,139,250,0.4);background:rgba(167,139,250,0.1);color:#c4b5fd;cursor:pointer;font-size:13px">⚙ Mapear vendedores Bling</button>
-              <button onclick="window.c360McReload()" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:#e2e8f0;cursor:pointer;font-size:13px">🔄 Atualizar</button>
-            </div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
-            ${mcKpiCard('Clientes total', fmtNum(totalClientes), '#94a3b8')}
-            ${mcKpiCard('Com vendedor', fmtNum(comVendedor) + ' <span style="font-size:11px;color:#64748b">(' + pctAtribuido + '%)</span>', '#22c55e')}
-            ${mcKpiCard('Sem vendedor', fmtNum(naoAtribuidos.clientes), naoAtribuidos.clientes > 0 ? '#fb923c' : '#94a3b8')}
-            ${mcKpiCard('Faturamento total', fmtBRL(totalFat), '#a78bfa')}
-            ${mcKpiCard('Vendedores ativos', fmtNum(ranking.filter(r => r.profile_id).length), '#60a5fa')}
-          </div>
-
-          ${ranking.filter(r => r.profile_id).length === 0 ? mcEmptyMapping() : ''}
-
+      <div style="padding:24px;max-width:1400px;margin:0 auto">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px">
           <div>
-            <h2 style="margin:0 0 12px;font-size:16px;font-weight:600;color:#e2e8f0">🏆 Ranking por vendedor</h2>
-            ${mcRankingTable(ranking, totalFat)}
+            <h1 style="margin:0 0 6px;font-size:28px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">Meus Clientes</h1>
+            <div style="font-size:13px;color:#94a3b8">Performance por vendedor · ${EMPRESA_LABELS[state.empresa]}</div>
           </div>
-
-          <div>
-            <h2 style="margin:12px 0;font-size:16px;font-weight:600;color:#e2e8f0">Todos os clientes</h2>
-            <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-              <label style="color:#94a3b8;font-size:12px">Filtrar vendedor:</label>
-              <select id="mc-filter-vend" onchange="window.c360McFilter()" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px">
-                <option value="">Todos</option>
-                <option value="__none__">Sem vendedor</option>
-                ${ranking.filter(r => r.profile_id).map(r => `<option value="${r.profile_id}">${escapeHtml(r.nome || '(sem nome)')}</option>`).join('')}
-              </select>
-              <input id="mc-search" placeholder="Buscar nome..." oninput="window.c360McFilter()" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;min-width:200px"/>
-            </div>
-            <div id="mc-tabela-wrap">${mcTabelaClientes(scoring.slice(0, 500), perms)}</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button onclick="window.c360McOpenMapear()" style="padding:10px 18px;border-radius:8px;border:1px solid rgba(167,139,250,0.4);background:rgba(167,139,250,0.12);color:#c4b5fd;cursor:pointer;font-size:13px;font-weight:600">⚙ Mapear vendedores Bling</button>
+            <button onclick="window.c360McReload()" style="padding:10px 18px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:#e2e8f0;cursor:pointer;font-size:13px;font-weight:600">🔄 Atualizar</button>
           </div>
         </div>
-      </main>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px">
+          ${mcKpiCard('Clientes total', fmtNum(t.total_clientes), '#94a3b8')}
+          ${mcKpiCard('Com vendedor', fmtNum(t.com_vendedor) + ' <span style="font-size:11px;color:#64748b">(' + pctAtribuido + '%)</span>', '#22c55e')}
+          ${mcKpiCard('Sem vendedor', fmtNum(t.sem_vendedor), t.sem_vendedor > 0 ? '#fb923c' : '#94a3b8')}
+          ${mcKpiCard('Faturamento total', fmtBRL(totalFat), '#a78bfa')}
+          ${mcKpiCard('Vendedores ativos', fmtNum(t.vendedores_ativos), '#60a5fa')}
+        </div>
+
+        ${state.mcAdminVendedores.length === 0 ? mcEmptyMapping() : ''}
+
+        <div style="margin-bottom:24px">
+          <h2 style="margin:0 0 12px;font-size:16px;font-weight:600;color:#e2e8f0">🏆 Ranking por vendedor</h2>
+          ${mcRankingTable(ranking, totalFat)}
+        </div>
+
+        <div>
+          <h2 style="margin:0 0 12px;font-size:16px;font-weight:600;color:#e2e8f0">Clientes</h2>
+          <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <label style="color:#94a3b8;font-size:12px">Filtrar vendedor:</label>
+            <select id="mc-filter-vend" onchange="window.c360McFilter()" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px">
+              <option value="">Todos</option>
+              <option value="__none__">Sem vendedor</option>
+              ${state.mcAdminVendedores.map(r => `<option value="${r.vendedor_profile_id}">${escapeHtml(r.vendedor_nome || '(sem nome)')}</option>`).join('')}
+            </select>
+            <input id="mc-search" placeholder="Buscar nome..." oninput="window.c360McDebouncedFilter()" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;min-width:200px"/>
+          </div>
+          <div id="mc-tabela-wrap">${mcTabelaClientes(clientesPreview, perms)}</div>
+        </div>
+      </div>
     `;
     mcWireTable(page);
   }
@@ -3672,19 +3676,22 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
 
   function mcRankingTable(ranking, totalFat) {
     const rows = ranking.map((r, idx) => {
-      const pct = totalFat ? (r.fat / totalFat * 100).toFixed(1) : '0.0';
+      const fat = Number(r.faturamento || r.fat || 0);
+      const pct = totalFat ? (fat / totalFat * 100).toFixed(1) : '0.0';
       const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx+1}`;
-      const nome = r.profile_id ? escapeHtml(r.nome || '(sem nome)') : '<span style="color:#fb923c">⚠ Sem vendedor</span>';
-      const fonteBadge = r.fonte === 'manual' ? '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);margin-left:6px">Manual</span>' : (r.fonte === 'bling' ? '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(96,165,250,0.15);color:#60a5fa;border:1px solid rgba(96,165,250,0.3);margin-left:6px">Bling</span>' : '');
+      const profileId = r.vendedor_profile_id || r.profile_id;
+      const nome = profileId ? escapeHtml(r.vendedor_nome || r.nome || '(sem nome)') : '<span style="color:#fb923c">⚠ Sem vendedor</span>';
+      const fonte = r.vendedor_fonte || r.fonte;
+      const fonteBadge = fonte === 'manual' ? '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);margin-left:6px">Manual</span>' : (fonte === 'bling' ? '<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(96,165,250,0.15);color:#60a5fa;border:1px solid rgba(96,165,250,0.3);margin-left:6px">Bling</span>' : '');
       return `
         <tr style="border-top:1px solid rgba(255,255,255,0.06)">
           <td style="padding:10px 14px;color:#94a3b8;font-variant-numeric:tabular-nums">${medal}</td>
           <td style="padding:10px 14px;color:#e2e8f0;font-weight:500">${nome}${fonteBadge}</td>
-          <td style="padding:10px 14px;color:#e2e8f0;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(r.clientes)}</td>
-          <td style="padding:10px 14px;color:#fbbf24;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(r.vips)}</td>
-          <td style="padding:10px 14px;color:#22c55e;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(r.ativos)}</td>
-          <td style="padding:10px 14px;color:#fb923c;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(r.risco)}</td>
-          <td style="padding:10px 14px;color:#a78bfa;text-align:right;font-variant-numeric:tabular-nums;font-weight:600">${fmtBRL(r.fat)}</td>
+          <td style="padding:10px 14px;color:#e2e8f0;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(r.clientes || 0)}</td>
+          <td style="padding:10px 14px;color:#fbbf24;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(r.vips || 0)}</td>
+          <td style="padding:10px 14px;color:#22c55e;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(r.ativos || 0)}</td>
+          <td style="padding:10px 14px;color:#fb923c;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(r.em_risco || r.risco || 0)}</td>
+          <td style="padding:10px 14px;color:#a78bfa;text-align:right;font-variant-numeric:tabular-nums;font-weight:600">${fmtBRL(fat)}</td>
           <td style="padding:10px 14px;color:#64748b;text-align:right;font-variant-numeric:tabular-nums;font-size:12px">${pct}%</td>
         </tr>
       `;
@@ -3774,21 +3781,24 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     });
   }
 
-  // ─── Filtro cliente-side na admin view ───
-  window.c360McFilter = function() {
+  // ─── Filtro server-side na admin view ───
+  window.c360McFilter = async function() {
     const vendSel = document.getElementById('mc-filter-vend');
     const search = document.getElementById('mc-search');
     const wrap = document.getElementById('mc-tabela-wrap');
-    if (!wrap || !state.mcScoringCache) return;
-    const vendFilter = vendSel?.value || '';
-    const q = (search?.value || '').trim().toLowerCase();
-    let lista = state.mcScoringCache.data;
-    if (vendFilter === '__none__') lista = lista.filter(c => !c.vendedor_profile_id);
-    else if (vendFilter) lista = lista.filter(c => c.vendedor_profile_id === vendFilter);
-    if (q) lista = lista.filter(c => (c.contato_nome || '').toLowerCase().includes(q));
+    if (!wrap) return;
+    const vendFilter = vendSel?.value || null;
+    const q = (search?.value || '').trim();
+    wrap.innerHTML = '<div style="padding:20px;color:#64748b;text-align:center;font-size:13px">⏳ Buscando...</div>';
+    const lista = await mcLoadClientes(state.empresa, vendFilter, q || null, 500);
     const perms = state.mcPerms || {};
     wrap.innerHTML = mcTabelaClientes(lista, perms);
     mcWireTable(wrap);
+  };
+
+  window.c360McDebouncedFilter = function() {
+    clearTimeout(state.mcFilterTimer);
+    state.mcFilterTimer = setTimeout(window.c360McFilter, 350);
   };
 
   window.c360McReload = async function() {
