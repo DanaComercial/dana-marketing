@@ -238,6 +238,23 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'minha_carteira',
+      description: 'Retorna APENAS os clientes vinculados ao VENDEDOR LOGADO (via vendedor_mapping do Bling ou cliente_vendedor_manual). Use SEMPRE que o usuário for um vendedor e perguntar sobre "meus clientes", "minha carteira", "meu top cliente", "qual meu melhor cliente", "meus VIPs", "clientes que atendo", "quem está em risco na minha carteira", etc. Não use pra perguntas sobre a base inteira.',
+      parameters: {
+        type: 'object',
+        properties: {
+          empresa: { type: 'string', enum: ['matriz', 'bc', 'ambas'], description: 'Padrão: ambas' },
+          ordenar_por: { type: 'string', enum: ['score', 'total_gasto', 'ultima_compra', 'dias_sem_compra', 'total_pedidos'], description: 'Padrão: score (decrescente). Use "dias_sem_compra" crescente pra achar quem sumiu.' },
+          segmento: { type: 'string', description: 'Opcional. Valores: VIP, Frequente, Ocasional, Em Risco, Inativo, Novo' },
+          limite: { type: 'number', description: 'Padrão 10, máx 50' }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'buscar_notas_c360',
       description: 'Lista notas internas deixadas em clientes. Use pra "notas recentes do CRM", "o que a Dana comentou", "notas sobre cliente X", "últimas anotações".',
       parameters: {
@@ -310,6 +327,7 @@ const TOOL_SECOES: Record<string, string[]> = {
   listar_campanhas_c360:          ['cliente360'],
   detalhe_cliente_c360:           ['cliente360'],
   buscar_notas_c360:              ['cliente360'],
+  minha_carteira:                 ['meus_clientes'],
   // Internas
   listar_schema:                  [], // disponível pra todos
   consultar_tabela:               ['admin'], // só admins
@@ -388,7 +406,7 @@ function resolverPeriodo(periodo: string): { inicio: string, fim: string, label:
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-async function executarFerramenta(nome: string, args: any, contextoUsuario: { cargo: string, secoes: Set<string> }): Promise<any> {
+async function executarFerramenta(nome: string, args: any, contextoUsuario: { cargo: string, secoes: Set<string>, profileId?: string, nome?: string }): Promise<any> {
   try {
     // Gate de permissão antes de tocar em qualquer tabela
     const secoesExigidas = TOOL_SECOES[nome] || []
@@ -743,6 +761,41 @@ async function executarFerramenta(nome: string, args: any, contextoUsuario: { ca
       }
     }
 
+    if (nome === 'minha_carteira') {
+      if (!contextoUsuario.profileId) return { erro: 'Usuário sem profile identificado' }
+      const empresa = args.empresa || 'ambas'
+      let q = supabaseAdmin.from('cliente_scoring_vendedor')
+        .select('contato_nome, empresa, segmento, score, total_pedidos, total_gasto, ticket_medio, ultima_compra, dias_sem_compra, vendedor_fonte')
+        .eq('vendedor_profile_id', contextoUsuario.profileId)
+      if (empresa !== 'ambas') q = q.eq('empresa', empresa)
+      if (args.segmento) q = q.eq('segmento', args.segmento)
+      const ord = args.ordenar_por || 'score'
+      const asc = (ord === 'dias_sem_compra') ? true : false
+      q = q.order(ord, { ascending: asc }).limit(Math.min(+args.limite || 10, 50))
+      const { data, error } = await q
+      if (error) return { erro: error.message }
+      // Resumo agregado
+      const total = data?.length || 0
+      const fat = (data || []).reduce((s: number, c: any) => s + (+c.total_gasto || 0), 0)
+      return {
+        vendedor: contextoUsuario.nome || 'voce',
+        filtros: { empresa, segmento: args.segmento || 'todos', ordenar_por: ord },
+        total_retornado: total,
+        faturamento_dos_retornados: Math.round(fat),
+        clientes: (data || []).map((c: any) => ({
+          nome: c.contato_nome,
+          empresa: c.empresa,
+          segmento: c.segmento,
+          score: c.score,
+          pedidos: c.total_pedidos,
+          total_gasto: Math.round(+c.total_gasto || 0),
+          ticket_medio: Math.round(+c.ticket_medio || 0),
+          ultima_compra: c.ultima_compra,
+          dias_sem_compra: c.dias_sem_compra,
+        }))
+      }
+    }
+
     if (nome === 'buscar_notas_c360') {
       const dias = Math.min(+args.dias_recentes || 30, 180)
       const limite = Math.min(+args.limite || 10, 50)
@@ -895,6 +948,9 @@ Ferramentas específicas (use primeiro pra perguntas comuns):
 - resumo_kanban: panorama geral
 - buscar_contato: cliente por nome + histórico
 - info_produto: estoque, preço, busca por código/nome
+- minha_carteira: APENAS pros clientes vinculados ao vendedor logado. Use SEMPRE que a pergunta for sobre "meus clientes", "minha carteira", "meu top", "meus VIPs", etc. Se o usuário for vendedor, essa é a ferramenta primária pra qualquer pergunta sobre clientes dele.
+
+IMPORTANTE: se o usuário for cargo=vendedor, ele SÓ tem acesso à própria carteira. Quando ele perguntar genericamente sobre "clientes" (ex: "qual cliente tem melhor score", "meus VIPs", "quem sumiu"), assuma que se refere à carteira dele e use minha_carteira. Não use resumo_cliente360, listar_segmentos_c360 ou buscar_contato pra perguntas de vendedor — essas retornam dados globais que ele não deve ver.
 
 Ferramentas genéricas (fallback — use quando as específicas não cobrem):
 - listar_schema: mostra TODAS as tabelas/views disponíveis e suas colunas
@@ -1027,10 +1083,11 @@ async function comRetry<T>(fn: () => Promise<T>, tentativas = 2, delayMs = 1500)
 }
 
 // ═════════ LOOP PRINCIPAL (chat completion com tool-calling) ═════════
-async function rodarAgente(messages: any[], contextoUsuario: { cargo: string, secoes: Set<string> }): Promise<{ resposta: string, modelo: string, tools: string[], tokens: number }> {
+async function rodarAgente(messages: any[], contextoUsuario: { cargo: string, secoes: Set<string>, profileId?: string, nome?: string }): Promise<{ resposta: string, modelo: string, tools: string[], tokens: number }> {
   // System prompt personalizado com info de permissões do usuário
   const secoesLista = Array.from(contextoUsuario.secoes).sort().join(', ')
-  const contextoExtra = `\n\nCONTEXTO DO USUÁRIO ATUAL:\n- Cargo: ${contextoUsuario.cargo}\n- Seções com acesso: ${secoesLista || '(nenhuma)'}\n\nRESTRIÇÕES POR CARGO (REGRA OBRIGATÓRIA):\n- Você SÓ pode responder sobre tópicos cujas seções o usuário tem acesso.\n- Se a pergunta exigir dados de seção que ele não tem, responda educadamente: "Essa informação está em [nome da seção], que você não tem acesso. Fale com o admin (Dana ou Juan) se precisar."\n- Tool que retornar "erro_permissao" → explique ao usuário que ele não tem acesso, sem revelar os valores ou detalhes dos dados.\n- Usuários com cargo "designer", "vendedor", "expedicao", "producao_conteudo", "analista_marketplace" tipicamente NÃO veem financeiro/vendas.`
+  const ehVendedor = contextoUsuario.cargo === 'vendedor'
+  const contextoExtra = `\n\nCONTEXTO DO USUÁRIO ATUAL:\n- Nome: ${contextoUsuario.nome || '(desconhecido)'}\n- Cargo: ${contextoUsuario.cargo}\n- Seções com acesso: ${secoesLista || '(nenhuma)'}${ehVendedor ? '\n\n⚠ ESTE USUÁRIO É UM VENDEDOR: ele só pode ver/perguntar sobre clientes DA CARTEIRA DELE. Quando ele perguntar genericamente sobre "cliente", "meu cliente", "top", "VIP", etc — SEMPRE use minha_carteira (NUNCA resumo_cliente360, listar_segmentos_c360, alertas_cliente360, top_clientes, buscar_contato, pois esses retornam dados globais que ele não tem permissão de ver). Responda se dirigindo pessoalmente ("sua carteira tem X clientes", "seu top cliente é Y").' : ''}\n\nRESTRIÇÕES POR CARGO (REGRA OBRIGATÓRIA):\n- Você SÓ pode responder sobre tópicos cujas seções o usuário tem acesso.\n- Se a pergunta exigir dados de seção que ele não tem, responda educadamente: "Essa informação está em [nome da seção], que você não tem acesso. Fale com o admin (Dana ou Juan) se precisar."\n- Tool que retornar "erro_permissao" → explique ao usuário que ele não tem acesso, sem revelar os valores ou detalhes dos dados.\n- Usuários com cargo "designer", "vendedor", "expedicao", "producao_conteudo", "analista_marketplace" tipicamente NÃO veem financeiro/vendas.`
   const msgs = [{ role: 'system', content: SYSTEM_PROMPT + contextoExtra }, ...messages]
   const toolsUsadas: string[] = []
   let usouFallback = false
@@ -1140,7 +1197,7 @@ Deno.serve(async (req) => {
     const { data: perms } = await supabaseAdmin.from('cargo_permissoes')
       .select('secao').eq('cargo', cargo).eq('permitido', true)
     const secoes = new Set<string>((perms || []).map((p: any) => p.secao))
-    const contextoUsuario = { cargo, secoes }
+    const contextoUsuario = { cargo, secoes, profileId: userId || undefined, nome: userNome || undefined }
 
     // Rate limit: 50/hora
     const umaHoraAtras = new Date(Date.now() - 3600_000).toISOString()
