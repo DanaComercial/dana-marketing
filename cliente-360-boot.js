@@ -2016,6 +2016,7 @@
       origShowPage(id);
       if (id === 'segmentos') renderSegmentosPage();
       if (id === 'campanhas') renderCampanhasPage();
+      if (id === 'sincronizacao') renderSincronizacaoPage();
     };
   }
 
@@ -2880,6 +2881,197 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       .subscribe();
   }
 
+  // ══════════════════════════════════════════════════════════
+  // SINCRONIZAÇÃO (Fase 7.1) · status dos crons Bling
+  // ══════════════════════════════════════════════════════════
+
+  const SYNC_TABELA_META = {
+    pedidos:         { icon: '🛒', label: 'Pedidos' },
+    pedidos_itens:   { icon: '📦', label: 'Itens' },
+    contatos:        { icon: '👥', label: 'Contatos' },
+    produtos:        { icon: '🏷️', label: 'Produtos' },
+    contas_receber:  { icon: '💰', label: 'Contas a Receber' },
+    contas_pagar:    { icon: '💳', label: 'Contas a Pagar' },
+  };
+  const SYNC_STATUS_CORES = {
+    ok: '#10b981', parcial: '#f59e0b', erro: '#ef4444',
+  };
+  state.syncLog = [];
+  state.syncEmpresaFilter = 'todas';
+  state.syncChannel = null;
+  state.syncReRenderTimer = null;
+
+  // Deriva empresa pelo campo 'tipo' do sync_log
+  // tipo='sync_bc' → bc; tudo mais → matriz
+  function empresaFromSyncTipo(tipo) {
+    return tipo === 'sync_bc' ? 'bc' : 'matriz';
+  }
+
+  function tempoAtras(dateStr) {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    const secs = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (secs < 60) return 'agora';
+    if (secs < 3600) return `${Math.floor(secs/60)} min atrás`;
+    if (secs < 86400) return `${Math.floor(secs/3600)} h atrás`;
+    if (secs < 604800) return `${Math.floor(secs/86400)} d atrás`;
+    return d.toLocaleDateString('pt-BR');
+  }
+
+  async function loadSyncLog() {
+    const { data, error } = await state.sb
+      .from('sync_log').select('*')
+      .order('created_at', { ascending: false }).limit(200);
+    if (error) { console.warn('[c360 sync] load:', error); return []; }
+    state.syncLog = data || [];
+    return state.syncLog;
+  }
+
+  async function renderSincronizacaoPage() {
+    const page = document.getElementById('page-sincronizacao');
+    if (!page) return;
+    page.innerHTML = '<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.5)">⏳ Carregando status de sincronização...</div>';
+
+    await loadSyncLog();
+
+    // Última sync por (tabela, empresa) — o primeiro que aparece é o mais recente
+    const ultimas = {};
+    for (const row of state.syncLog) {
+      const emp = empresaFromSyncTipo(row.tipo);
+      const key = `${row.tabela}::${emp}`;
+      if (!ultimas[key]) ultimas[key] = row;
+    }
+
+    const kpiTabs = ['pedidos', 'contatos', 'produtos', 'contas_receber'];
+    const kpiCards = kpiTabs.map(tab => {
+      const meta = SYNC_TABELA_META[tab] || { icon: '📄', label: tab };
+      const m = ultimas[`${tab}::matriz`];
+      const b = ultimas[`${tab}::bc`];
+      const cell = (row, emp) => {
+        if (!row) return '<div style="font-size:11px;color:#64748b;margin-top:2px">—</div>';
+        const corS = SYNC_STATUS_CORES[row.status] || '#94a3b8';
+        return `
+          <div style="font-size:12.5px;color:#e2e8f0;margin-top:2px">${tempoAtras(row.created_at)}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:3px">
+            <span style="width:6px;height:6px;border-radius:50%;background:${corS};display:inline-block"></span>
+            <span style="font-size:10.5px;color:#94a3b8">${fmtNum(row.registros || 0)} registros</span>
+          </div>`;
+      };
+      return `
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <span style="font-size:18px">${meta.icon}</span>
+            <span style="font-size:13px;font-weight:700;color:#f1f5f9">${meta.label}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div>
+              <div style="font-size:9.5px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Matriz</div>
+              ${cell(m, 'matriz')}
+            </div>
+            <div>
+              <div style="font-size:9.5px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">BC</div>
+              ${cell(b, 'bc')}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+
+    // Tabela detalhada com filtro
+    const filtro = state.syncEmpresaFilter;
+    const filtered = state.syncLog.filter(r => {
+      if (filtro === 'todas') return true;
+      return empresaFromSyncTipo(r.tipo) === filtro;
+    }).slice(0, 50);
+
+    const tableRow = (r) => {
+      const meta = SYNC_TABELA_META[r.tabela] || { icon: '📄', label: r.tabela };
+      const emp = empresaFromSyncTipo(r.tipo);
+      const empLabel = emp === 'matriz' ? 'Matriz' : 'BC';
+      const corStatus = SYNC_STATUS_CORES[r.status] || '#94a3b8';
+      const detalhes = r.detalhes || r.erro || '—';
+      return `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+          <td style="padding:8px 10px;font-size:12px;color:#e2e8f0"><span style="font-size:14px;margin-right:6px">${meta.icon}</span>${meta.label}</td>
+          <td style="padding:8px 10px;font-size:11px;color:#94a3b8">${empLabel}</td>
+          <td style="padding:8px 10px"><span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:${corStatus}22;color:${corStatus};font-weight:600;text-transform:uppercase">${escapeHtml(r.status || '?')}</span></td>
+          <td style="padding:8px 10px;font-size:12px;color:#e2e8f0;text-align:right">${fmtNum(r.registros || 0)}</td>
+          <td style="padding:8px 10px;font-size:11px;color:#64748b;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(detalhes)}">${escapeHtml(detalhes)}</td>
+          <td style="padding:8px 10px;font-size:11px;color:#94a3b8;white-space:nowrap;text-align:right">${tempoAtras(r.created_at)}</td>
+        </tr>`;
+    };
+
+    page.innerHTML = `
+<div style="padding:24px;max-width:1400px;margin:0 auto">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+    <div>
+      <h1 style="margin:0 0 6px;font-size:28px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">Sincronização</h1>
+      <div style="font-size:13px;color:#94a3b8">Status dos crons Bling que alimentam o Cliente 360 · atualiza em tempo real</div>
+    </div>
+    <button onclick="c360ReloadSync()" style="padding:10px 18px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:#e2e8f0;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit">🔄 Atualizar</button>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:24px">
+    ${kpiCards}
+  </div>
+
+  <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.06);gap:10px;flex-wrap:wrap">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.5)">Últimas Execuções (${filtered.length})</div>
+      <select id="sync-emp-filter" onchange="c360FilterSync(this.value)" style="padding:6px 26px 6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(20,20,25,1);color:#f1f5f9;font-size:11.5px;font-family:inherit;cursor:pointer;appearance:none;-webkit-appearance:none;color-scheme:dark;background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2214%22 height=%2214%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22rgb(161,161,170)%22 stroke-width=%222%22><polyline points=%226 9 12 15 18 9%22/></svg>');background-repeat:no-repeat;background-position:right 6px center">
+        <option value="todas" ${filtro==='todas'?'selected':''}>Todas as empresas</option>
+        <option value="matriz" ${filtro==='matriz'?'selected':''}>Matriz</option>
+        <option value="bc" ${filtro==='bc'?'selected':''}>Balneário (BC)</option>
+      </select>
+    </div>
+    <div style="max-height:600px;overflow-y:auto">
+      ${filtered.length === 0
+        ? '<div style="padding:40px;text-align:center;color:#64748b"><div style="font-size:24px;margin-bottom:8px">📭</div>Nenhuma execução encontrada pra este filtro</div>'
+        : `<table style="width:100%;border-collapse:collapse">
+            <thead style="position:sticky;top:0;background:#0b0f17;z-index:1"><tr>
+              <th style="padding:10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;border-bottom:1px solid rgba(255,255,255,0.08)">Tabela</th>
+              <th style="padding:10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;border-bottom:1px solid rgba(255,255,255,0.08)">Empresa</th>
+              <th style="padding:10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;border-bottom:1px solid rgba(255,255,255,0.08)">Status</th>
+              <th style="padding:10px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;border-bottom:1px solid rgba(255,255,255,0.08)">Registros</th>
+              <th style="padding:10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;border-bottom:1px solid rgba(255,255,255,0.08)">Detalhes</th>
+              <th style="padding:10px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;border-bottom:1px solid rgba(255,255,255,0.08)">Quando</th>
+            </tr></thead>
+            <tbody>${filtered.map(tableRow).join('')}</tbody>
+          </table>`}
+    </div>
+  </div>
+</div>`;
+  }
+
+  window.c360ReloadSync = async function() {
+    await renderSincronizacaoPage();
+    if (typeof showToast === 'function') showToast('Atualizado', 'success');
+  };
+
+  window.c360FilterSync = async function(emp) {
+    state.syncEmpresaFilter = emp;
+    await renderSincronizacaoPage();
+  };
+
+  window.c360ReRenderSincronizacaoIfActive = async function() {
+    const active = document.querySelector('.page-section.active');
+    if (active?.id === 'page-sincronizacao') await renderSincronizacaoPage();
+  };
+
+  function subscribeRealtimeSync() {
+    if (state.syncChannel) return;
+    state.syncChannel = state.sb
+      .channel('realtime-sync-log')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sync_log' }, () => {
+        const active = document.querySelector('.page-section.active');
+        if (active?.id === 'page-sincronizacao') {
+          // debounce pra nao rerender varias vezes se chegar burst
+          clearTimeout(state.syncReRenderTimer);
+          state.syncReRenderTimer = setTimeout(() => renderSincronizacaoPage(), 800);
+        }
+      })
+      .subscribe();
+  }
+
   // ─── Boot ───
   async function boot() {
     try {
@@ -2894,6 +3086,7 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       subscribeRealtimeNotas();
       subscribeRealtimeSegmentos();
       subscribeRealtimeCampanhas();
+      subscribeRealtimeSync();
       // Se veio deep-link via sessionStorage, abre o cliente/aba certa
       await checkDeepLink();
     } catch (e) {
