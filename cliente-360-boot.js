@@ -3983,20 +3983,15 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       if (typeof showToast === 'function') showToast('Sem permissão', 'error');
       return;
     }
-    // Lista todos bling_vendedor_ids distintos com contagem (rollup de pedidos)
-    const { data: pedidosAgr, error: errAgr } = await state.sb.from('pedidos')
-      .select('vendedor_id').eq('empresa', state.empresa).not('vendedor_id', 'is', null).limit(10000);
+    // Lista todos bling_vendedor_ids distintos com contagem (via view agregada no banco)
+    const { data: blingRows, error: errAgr } = await state.sb.from('bling_vendedor_counts')
+      .select('*').eq('empresa', state.empresa).order('pedidos_count', { ascending: false }).limit(50);
     if (errAgr) {
       console.error('[mc] erro ao listar vendedores do bling', errAgr);
       if (typeof showToast === 'function') showToast('Erro: ' + errAgr.message, 'error');
       return;
     }
-    const countsById = new Map();
-    (pedidosAgr || []).forEach(p => {
-      if (!p.vendedor_id || p.vendedor_id === 0) return;
-      countsById.set(p.vendedor_id, (countsById.get(p.vendedor_id) || 0) + 1);
-    });
-    const bling = Array.from(countsById.entries()).map(([id, count]) => ({ id, count })).sort((a,b) => b.count - a.count).slice(0, 50);
+    const bling = (blingRows || []).map(r => ({ id: r.bling_vendedor_id, count: r.pedidos_count, ultimo: r.ultimo_pedido }));
 
     const { data: mappings } = await state.sb.from('vendedor_mapping').select('*').eq('empresa', state.empresa);
     const mapByBling = new Map((mappings || []).map(m => [String(m.bling_vendedor_id), m]));
