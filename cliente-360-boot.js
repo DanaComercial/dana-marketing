@@ -2375,9 +2375,22 @@
   }
 
   window.c360SaveCampanha = async function(idStr) {
+    // Previne double-submit (click duplo ou evento disparado 2x)
+    if (state.savingCampanha) return;
+    state.savingCampanha = true;
+
     const id = idStr === 'null' ? null : idStr;
     const nome = (document.getElementById('camp-nome')?.value || '').trim();
-    if (!nome) { if (typeof showToast === 'function') showToast('Nome é obrigatório', 'error'); return; }
+    if (!nome) {
+      state.savingCampanha = false;
+      if (typeof showToast === 'function') showToast('Nome é obrigatório', 'error');
+      return;
+    }
+
+    // Desabilita botao visualmente (fallback visual do guard)
+    const saveBtn = document.querySelector(`#c360-camp-modal button[onclick^="c360SaveCampanha"]`);
+    const origLabel = saveBtn?.textContent || '';
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.style.opacity = '0.6'; saveBtn.textContent = 'Salvando...'; }
     const segVal = document.getElementById('camp-segmento')?.value || 'auto::VIP';
     const [segTipo, segIdent] = segVal.split('::');
     let segmento_id = null; let segmento_nome_cache = '';
@@ -2428,6 +2441,10 @@
       await renderCampanhasPage();
     } catch (e) {
       if (typeof showToast === 'function') showToast('Erro: ' + e.message, 'error');
+      // Restaura botao pra permitir retry
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = ''; saveBtn.textContent = origLabel; }
+    } finally {
+      state.savingCampanha = false;
     }
   };
 
