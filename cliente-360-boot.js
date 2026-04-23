@@ -3512,6 +3512,53 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       .subscribe();
   }
 
+  // Se cargo=vendedor: esconde todas abas do C360 exceto "Meus Clientes"
+  // e intercepta showPage pra impedir navegacao direta pra outras.
+  async function mcApplyVendedorScope() {
+    const perms = await mcLoadPerms();
+    if (!perms.eVendedor) return;
+    // Esconde CSS-only pra nao quebrar eventos (retry tambem, pq sidebar pode renderizar depois)
+    const hideOtherNavs = () => {
+      const navs = document.querySelectorAll('[data-nav-page]');
+      let hidden = 0;
+      navs.forEach(btn => {
+        const pageId = btn.getAttribute('data-nav-page');
+        if (pageId !== 'meus-clientes') {
+          const li = btn.closest('li') || btn.parentElement;
+          if (li && li.style.display !== 'none') { li.style.display = 'none'; hidden++; }
+        }
+      });
+      return hidden;
+    };
+    // Tenta varias vezes (sidebar pode hidratar tardiamente)
+    for (let i = 0; i < 15; i++) {
+      if (hideOtherNavs() > 0 || document.querySelector('[data-nav-page="meus-clientes"]')) break;
+      await new Promise(r => setTimeout(r, 200));
+    }
+    // Loop periodico (caso algum script re-renderize a sidebar)
+    if (!state.mcHideNavInterval) {
+      state.mcHideNavInterval = setInterval(() => { if (state.mcPerms?.eVendedor) hideOtherNavs(); }, 1500);
+    }
+    // Intercepta showPage pra bloquear outras abas
+    if (!state.mcShowPageWrapped) {
+      state.mcShowPageWrapped = true;
+      const orig = window.showPage;
+      if (typeof orig === 'function') {
+        window.showPage = function(id) {
+          if (state.mcPerms?.eVendedor && id !== 'meus-clientes') {
+            id = 'meus-clientes';
+          }
+          return orig(id);
+        };
+      }
+    }
+    // Se entrou em qualquer outra aba, redireciona
+    const active = document.querySelector('.page-section.active');
+    if (active && active.id !== 'page-meus-clientes' && typeof window.showPage === 'function') {
+      window.showPage('meus-clientes');
+    }
+  }
+
   // Injeta nav "Meus Clientes" no sidebar + cria div da pagina
   async function mcSetupNav() {
     const perms = await mcLoadPerms();
@@ -3831,22 +3878,48 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     `;
   }
 
-  function mcWireTable(page) {
-    const tbody = page.querySelectorAll('tbody tr[data-cliente]');
-    tbody.forEach(tr => {
+  function mcWireTable(content) {
+    const rows = content.querySelectorAll('tbody tr[data-cliente]');
+    rows.forEach(tr => {
       tr.addEventListener('click', () => {
         const nome = tr.getAttribute('data-cliente');
-        if (nome && typeof window.abrirClienteDetalhe === 'function') {
-          window.abrirClienteDetalhe(nome);
-        } else if (nome && typeof window.c360OpenCliente === 'function') {
-          window.c360OpenCliente(nome);
-        } else {
-          // fallback: scroll pro detalhe via cache filtrado
-          const found = state.clientes?.find(c => c.contato_nome === nome);
-          if (found && typeof openClienteByName === 'function') openClienteByName(nome);
-        }
+        if (nome) mcOpenClienteDetalhe(nome);
       });
     });
+  }
+
+  // Abre o detalhe do cliente dentro do C360 (page-cliente-1) mas remembra
+  // que o usuario veio de "Meus Clientes" pra poder voltar pra ca.
+  async function mcOpenClienteDetalhe(nome) {
+    if (!nome) return;
+    // Garante que o cliente esta em state.clientes (senao showClientDetail nao acha)
+    if (!state.clientes || !state.clientes.find(c => c.contato_nome === nome)) {
+      // Busca na cliente_scoring_full pra popular
+      const { data } = await state.sb.from('cliente_scoring_full').select('*').eq('empresa', state.empresa).eq('contato_nome', nome).limit(1);
+      if (data && data[0]) {
+        state.clientes = state.clientes || [];
+        state.clientes.push(data[0]);
+      }
+    }
+    state.c360ReturnTo = 'meus-clientes';
+    if (typeof window.showClientDetail === 'function') {
+      await window.showClientDetail(encodeURIComponent(nome));
+      // Troca o botao "Voltar" pra ir de volta pra Meus Clientes
+      setTimeout(() => {
+        try {
+          const page = document.getElementById('page-cliente-1');
+          if (!page) return;
+          const buttons = page.querySelectorAll('button');
+          buttons.forEach(btn => {
+            const onc = btn.getAttribute('onclick') || '';
+            if (onc.includes("showPage('clientes')")) {
+              btn.setAttribute('onclick', "showPage('meus-clientes')");
+              btn.innerHTML = btn.innerHTML.replace(/Voltar para Clientes/g, 'Voltar para Meus Clientes');
+            }
+          });
+        } catch(e) { console.warn('[mc] fix voltar btn:', e); }
+      }, 50);
+    }
   }
 
   // ─── Filtro server-side na admin view ───
@@ -4141,6 +4214,8 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       // Setup Meus Clientes (nav + page) se tiver permissao
       await mcSetupNav();
       mcSubscribeRealtime();
+      // Se for cargo vendedor, esconde outras abas e forca escopo
+      await mcApplyVendedorScope();
       // Se veio deep-link via sessionStorage, abre o cliente/aba certa
       await checkDeepLink();
     } catch (e) {
