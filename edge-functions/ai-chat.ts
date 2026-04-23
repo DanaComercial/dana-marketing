@@ -1004,6 +1004,28 @@ async function chamarGemini(messages: any[]): Promise<any> {
   }
 }
 
+// ═════════ RETRY UTIL pra erros transientes (503, 429, sobrecarga) ═════════
+function ehTransiente(msg: string): boolean {
+  return /\b503\b|\b429\b|UNAVAILABLE|overloaded|high demand|rate.?limit|ECONN|timeout/i.test(msg || '')
+}
+async function comRetry<T>(fn: () => Promise<T>, tentativas = 2, delayMs = 1500): Promise<T> {
+  let ultimoErro: any
+  for (let i = 0; i <= tentativas; i++) {
+    try {
+      return await fn()
+    } catch (e: any) {
+      ultimoErro = e
+      const msg = String(e?.message || '')
+      if (i < tentativas && ehTransiente(msg)) {
+        await new Promise(r => setTimeout(r, delayMs * (i + 1)))
+        continue
+      }
+      throw e
+    }
+  }
+  throw ultimoErro
+}
+
 // ═════════ LOOP PRINCIPAL (chat completion com tool-calling) ═════════
 async function rodarAgente(messages: any[], contextoUsuario: { cargo: string, secoes: Set<string> }): Promise<{ resposta: string, modelo: string, tools: string[], tokens: number }> {
   // System prompt personalizado com info de permissões do usuário
@@ -1017,13 +1039,36 @@ async function rodarAgente(messages: any[], contextoUsuario: { cargo: string, se
   for (let i = 0; i < MAX_TOOL_ROUNDS; i++) {
     let resp: any
     try {
-      resp = usouFallback ? await chamarGemini(msgs) : await chamarGroq(msgs)
+      // Se ja caiu no fallback (Gemini) em loops anteriores, continua no Gemini COM retry
+      // Senao, tenta Groq (sem retry — mais rapido cair no Gemini)
+      resp = usouFallback ? await comRetry(() => chamarGemini(msgs), 1, 1500) : await chamarGroq(msgs)
     } catch (e: any) {
+      const msg = String(e?.message || '')
       if (!usouFallback) {
-        console.warn('Groq falhou, tentando Gemini:', e.message)
+        // Groq falhou → tenta Gemini com retry
+        console.warn('Groq falhou, tentando Gemini:', msg)
         usouFallback = true
-        resp = await chamarGemini(msgs)
+        try {
+          resp = await comRetry(() => chamarGemini(msgs), 1, 1500)
+        } catch (e2: any) {
+          // Gemini tambem falhou — ultima tentativa: Groq de novo (rate limit pode ter passado)
+          console.warn('Gemini tambem falhou, ultima tentativa Groq:', e2?.message)
+          try {
+            resp = await chamarGroq(msgs)
+            usouFallback = false
+          } catch (e3: any) {
+            // Tudo falhou — erro amigavel
+            if (ehTransiente(msg) || ehTransiente(String(e2?.message || '')) || ehTransiente(String(e3?.message || ''))) {
+              throw new Error('O assistente IA esta temporariamente sobrecarregado (Groq/Gemini). Tenta de novo em 30-60 segundos.')
+            }
+            throw e3
+          }
+        }
       } else {
+        // Ja era fallback e mesmo com retry falhou
+        if (ehTransiente(msg)) {
+          throw new Error('O assistente IA esta temporariamente sobrecarregado (Gemini). Tenta de novo em 30-60 segundos.')
+        }
         throw e
       }
     }
@@ -1133,15 +1178,18 @@ Deno.serve(async (req) => {
   } catch (e: any) {
     const duracao = Date.now() - t0
     console.error('ai-chat error:', e)
+    const msg = String(e?.message || 'Erro desconhecido')
+    const transiente = ehTransiente(msg) || /temporariamente sobrecarregado/i.test(msg)
     if (userId) {
       try {
         await supabaseAdmin.from('ai_chat_log').insert({
           user_id: userId, user_nome: userNome, pergunta: '',
-          erro: e.message, duracao_ms: duracao
+          erro: msg, duracao_ms: duracao
         })
       } catch {}
     }
-    return json({ error: e.message }, 500)
+    // 503 pra transientes, 500 pra resto
+    return json({ error: msg }, transiente ? 503 : 500)
   }
 })
 
