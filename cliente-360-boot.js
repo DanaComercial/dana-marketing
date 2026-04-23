@@ -94,6 +94,10 @@
     if (typeof window.c360ReRenderSegmentosIfActive === 'function') {
       await window.c360ReRenderSegmentosIfActive();
     }
+    // Re-renderiza campanhas se for a aba ativa
+    if (typeof window.c360ReRenderCampanhasIfActive === 'function') {
+      await window.c360ReRenderCampanhasIfActive();
+    }
   };
 
   // Segmento -> badge style
@@ -1931,6 +1935,7 @@
     window.showPage = function(id) {
       origShowPage(id);
       if (id === 'segmentos') renderSegmentosPage();
+      if (id === 'campanhas') renderCampanhasPage();
     };
   }
 
@@ -1939,6 +1944,725 @@
     const active = document.querySelector('.page-section.active');
     if (active?.id === 'page-segmentos') await renderSegmentosPage();
   };
+
+  // ══════════════════════════════════════════════════════════
+  // CAMPANHAS (Fase 6) · listagem, modal, envios, PDF/CSV
+  // ══════════════════════════════════════════════════════════
+
+  const CANAL_LABELS = { whatsapp:'WhatsApp', email:'Email', sms:'SMS', outro:'Outro' };
+  const STATUS_CAMP_LABELS = { rascunho:'Rascunho', agendada:'Agendada', enviada:'Enviada', concluida:'Concluída', cancelada:'Cancelada' };
+  const STATUS_CAMP_CORES = { rascunho:'#94a3b8', agendada:'#60a5fa', enviada:'#a78bfa', concluida:'#10b981', cancelada:'#ef4444' };
+  const STATUS_ENVIO_LABELS = { pendente:'Pendente', enviado:'Enviado', entregue:'Entregue', lido:'Lido', respondido:'Respondido', falhou:'Falhou' };
+  const STATUS_ENVIO_CORES = { pendente:'#94a3b8', enviado:'#60a5fa', entregue:'#a78bfa', lido:'#c084fc', respondido:'#10b981', falhou:'#ef4444' };
+
+  state.campanhas = [];
+  state.canaisAquisicao = [];
+  state.campanhasChannel = null;
+
+  async function loadCanaisAquisicao() {
+    const { data, error } = await state.sb
+      .from('canais_aquisicao').select('id,nome,tipo,status')
+      .eq('status','ativo').order('nome');
+    if (error) { console.warn('[c360 camp] canais:', error); return []; }
+    state.canaisAquisicao = data || [];
+    return state.canaisAquisicao;
+  }
+
+  async function loadCampanhas() {
+    const { data, error } = await state.sb
+      .from('cliente_campanhas').select('*')
+      .in('empresa', [state.empresa, 'ambas'])
+      .order('created_at', { ascending: false });
+    if (error) { console.warn('[c360 camp] load:', error); return []; }
+    state.campanhas = data || [];
+    return state.campanhas;
+  }
+
+  function renderMensagemComPlaceholders(template, cliente, campanha) {
+    const nome = String(cliente?.contato_nome || '').trim();
+    const primeiro = nome.split(/\s+/)[0] || nome;
+    const cupom = String(campanha?.cupom_codigo || '').trim();
+    const link  = String(campanha?.link_cta || '').trim();
+    const cidade = String(cliente?.cidade || '').trim();
+    const uf = String(cliente?.uf || '').trim();
+    return String(template || '')
+      .replace(/\{\{\s*nome\s*\}\}/gi, nome)
+      .replace(/\{\{\s*primeiro_nome\s*\}\}/gi, primeiro)
+      .replace(/\{\{\s*cupom\s*\}\}/gi, cupom)
+      .replace(/\{\{\s*link\s*\}\}/gi, link)
+      .replace(/\{\{\s*cidade\s*\}\}/gi, cidade)
+      .replace(/\{\{\s*uf\s*\}\}/gi, uf);
+  }
+
+  function getClientesAlvoCampanha(campanha) {
+    if (!campanha) return [];
+    if (campanha.segmento_tipo === 'custom' && campanha.segmento_id) {
+      const seg = (state.segmentosCustom || []).find(s => String(s.id) === String(campanha.segmento_id));
+      if (!seg) return [];
+      return aplicarFiltrosSegmento(state.clientes, seg.filtros || {});
+    }
+    const alvo = String(campanha.segmento_nome_cache || '').trim();
+    if (!alvo || alvo === 'todos') return state.clientes.slice();
+    return state.clientes.filter(c => c.segmento === alvo);
+  }
+
+  async function renderCampanhasPage() {
+    const page = document.getElementById('page-campanhas');
+    if (!page) return;
+    page.innerHTML = '<div style="padding:40px;text-align:center;color:rgba(255,255,255,0.5)">⏳ Carregando campanhas...</div>';
+
+    await Promise.all([
+      loadCampanhas(),
+      loadSegmentosCustom().then(r => { state.segmentosCustom = r; }),
+      loadCanaisAquisicao(),
+    ]);
+
+    const canalEmoji = { whatsapp:'💬', email:'✉️', sms:'📱', outro:'📤' };
+
+    const cardCampanha = (c) => {
+      const corStatus = STATUS_CAMP_CORES[c.status] || '#94a3b8';
+      const pct = c.total_alvo > 0 ? Math.round((c.total_enviados / c.total_alvo) * 100) : 0;
+      const dataStr = c.data_envio ? new Date(c.data_envio).toLocaleDateString('pt-BR') : '—';
+      return `
+      <div style="background:rgba(255,255,255,0.03);border:1px solid ${corStatus}44;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px;font-family:inherit">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+          <div style="min-width:0;flex:1">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-size:14px">${canalEmoji[c.canal] || '📤'}</span>
+              <span style="font-size:15px;font-weight:700;color:#f1f5f9">${escapeHtml(c.nome)}</span>
+            </div>
+            ${c.descricao ? `<div style="font-size:11.5px;color:#94a3b8;margin-top:4px">${escapeHtml(c.descricao)}</div>` : ''}
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+              <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:${corStatus}22;color:${corStatus};font-weight:600">${STATUS_CAMP_LABELS[c.status] || c.status}</span>
+              <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(255,255,255,0.06);color:#cbd5e1">${CANAL_LABELS[c.canal] || c.canal}</span>
+              <span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:rgba(255,255,255,0.06);color:#cbd5e1">${escapeHtml(c.segmento_nome_cache || 'Sem segmento')}</span>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:22px;font-weight:700;color:#f1f5f9;line-height:1">${fmtNum(c.total_alvo || 0)}</div>
+            <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">alvo</div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:10.5px;color:#94a3b8;margin-bottom:4px">
+            <span>${c.total_enviados || 0} enviados · ${c.total_respondidos || 0} resp · ${c.total_falhados || 0} falhas</span>
+            <span>${pct}%</span>
+          </div>
+          <div style="height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${corStatus};border-radius:2px;transition:width 0.3s"></div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#64748b;display:flex;justify-content:space-between;gap:6px">
+          <span>${escapeHtml(c.criado_por_nome || '—')}</span>
+          <span>${c.data_envio ? 'Envio: ' + dataStr : 'Criada em ' + new Date(c.created_at).toLocaleDateString('pt-BR')}</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:2px">
+          <button onclick="c360VerEnvios('${c.id}')" title="Ver envios" style="flex:1;min-width:100px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:#e2e8f0;cursor:pointer;font-size:11.5px">👁 Envios</button>
+          <button onclick="c360GerarEnvios('${c.id}')" title="Gerar/atualizar lista" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(167,139,250,0.3);background:rgba(167,139,250,0.1);color:#a78bfa;cursor:pointer;font-size:11.5px">📋 Gerar</button>
+          <button onclick="c360ExportPdfCampanha('${c.id}')" title="PDF" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:#e2e8f0;cursor:pointer;font-size:11.5px">📄 PDF</button>
+          <button onclick="c360ExportCsvCampanha('${c.id}')" title="CSV" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:#e2e8f0;cursor:pointer;font-size:11.5px">⬇ CSV</button>
+          <button onclick="c360CopiarMensagens('${c.id}')" title="Copiar mensagens" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:#e2e8f0;cursor:pointer;font-size:11.5px">📋 Copiar</button>
+          <button onclick="c360EditCampanha('${c.id}')" title="Editar" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:#e2e8f0;cursor:pointer;font-size:11.5px">✏</button>
+          <button onclick="c360DeleteCampanha('${c.id}')" title="Apagar" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(239,68,68,0.25);background:transparent;color:#ef4444;cursor:pointer;font-size:11.5px">🗑</button>
+        </div>
+      </div>`;
+    };
+
+    page.innerHTML = `
+<div style="padding:24px;max-width:1400px;margin:0 auto">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+    <div>
+      <h1 style="margin:0 0 6px;font-size:28px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">Campanhas</h1>
+      <div style="font-size:13px;color:#94a3b8">Dispare mensagens segmentadas · ${EMPRESA_LABELS[state.empresa] || state.empresa}</div>
+    </div>
+    <button onclick="c360NovaCampanha()" style="padding:10px 18px;border-radius:8px;border:1px solid oklch(88% 0.018 80 / 0.5);background:oklch(88% 0.018 80 / 0.12);color:oklch(88% 0.018 80);cursor:pointer;font-size:13px;font-weight:600">+ Nova Campanha</button>
+  </div>
+  <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:10px;padding:12px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px;font-size:12px;color:#cbd5e1">
+    <div style="font-size:18px">ℹ️</div>
+    <div><strong style="color:#f1f5f9">Disparo manual.</strong> Esta versão registra campanhas e rastreia envios manualmente. Pra disparo automático via WhatsApp Business ou SendGrid, é necessário contratar API paga e configurar depois. Por enquanto: <strong>gere a lista</strong>, exporte PDF/CSV ou copie as mensagens personalizadas, envie manualmente e marque como enviado aqui.</div>
+  </div>
+  <div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(255,255,255,0.5)">Campanhas (${state.campanhas.length})</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">
+      ${state.campanhas.length === 0
+        ? '<div style="grid-column:1/-1;padding:40px;text-align:center;color:#64748b;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.1);border-radius:12px"><div style="font-size:24px;margin-bottom:8px">📣</div><div style="font-size:13px;color:#e2e8f0">Nenhuma campanha</div><div style="font-size:11.5px;margin-top:4px">Clique em "+ Nova Campanha" pra começar.</div></div>'
+        : state.campanhas.map(cardCampanha).join('')}
+    </div>
+  </div>
+</div>`;
+  }
+
+  window.c360ReRenderCampanhasIfActive = async function() {
+    const active = document.querySelector('.page-section.active');
+    if (active?.id === 'page-campanhas') await renderCampanhasPage();
+  };
+
+  // ─── Modal Nova/Editar Campanha ───
+  window.c360NovaCampanha = async function() { openCampanhaModal(null); };
+  window.c360EditCampanha = async function(id) {
+    const c = state.campanhas.find(x => x.id === id);
+    if (c) openCampanhaModal(c);
+  };
+
+  async function openCampanhaModal(camp) {
+    if (!state.segmentosCustom) state.segmentosCustom = await loadSegmentosCustom();
+    if (!state.canaisAquisicao || state.canaisAquisicao.length === 0) await loadCanaisAquisicao();
+
+    document.getElementById('c360-camp-modal')?.remove();
+
+    const isEdit = !!camp;
+    const c = camp || {
+      nome: '', descricao: '', empresa: state.empresa,
+      segmento_tipo: 'auto', segmento_id: null, segmento_nome_cache: 'VIP',
+      canal: 'whatsapp', canal_aquisicao_id: null,
+      mensagem: '', cupom_codigo: '', link_cta: '',
+      data_envio: null, status: 'rascunho', observacoes: '',
+    };
+
+    const segAutos = ['VIP','Frequente','Ocasional','Em Risco','Inativo','todos'];
+    const segAutoOpts = segAutos.map(s => `<option value="auto::${s}" ${c.segmento_tipo==='auto' && c.segmento_nome_cache===s ? 'selected':''}>Auto · ${s === 'todos' ? 'Todos os clientes' : s}</option>`).join('');
+    const segCustomOpts = (state.segmentosCustom || [])
+      .filter(s => s.empresa === state.empresa || s.empresa === 'ambas')
+      .map(s => `<option value="custom::${s.id}" ${c.segmento_tipo==='custom' && String(c.segmento_id)===String(s.id) ? 'selected':''}>Custom · ${escapeHtml(s.nome)}</option>`).join('');
+
+    const canalOpts = ['<option value="">— Sem canal vinculado —</option>']
+      .concat((state.canaisAquisicao || []).map(ca => `<option value="${ca.id}" ${c.canal_aquisicao_id===ca.id ? 'selected':''}>${escapeHtml(ca.nome)} (${ca.tipo})</option>`)).join('');
+
+    const dataEnvioStr = c.data_envio ? String(c.data_envio).substring(0,16) : '';
+
+    const html = `
+    <div id="c360-camp-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Inter,sans-serif">
+      <div style="background:#0b0f17;border:1px solid rgba(255,255,255,0.12);border-radius:14px;width:100%;max-width:720px;max-height:90vh;overflow-y:auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);position:sticky;top:0;background:#0b0f17;z-index:2">
+          <h3 style="margin:0;font-size:16px;font-weight:700;color:#f1f5f9">${isEdit ? 'Editar' : 'Nova'} Campanha</h3>
+          <button onclick="document.getElementById('c360-camp-modal').remove()" style="background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:22px;line-height:1">&times;</button>
+        </div>
+        <div style="padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+          <div>
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Nome *</label>
+            <input id="camp-nome" type="text" value="${escapeHtml(c.nome)}" placeholder="Ex: Reengajamento VIPs inativos" style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#f1f5f9;font-size:13px;font-family:inherit">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Descrição</label>
+            <input id="camp-desc" type="text" value="${escapeHtml(c.descricao || '')}" placeholder="Objetivo (opcional)" style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#f1f5f9;font-size:13px;font-family:inherit">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Segmento-alvo *</label>
+              <select id="camp-segmento" style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#f1f5f9;font-size:13px;font-family:inherit">
+                <optgroup label="Automáticos (RFM)">${segAutoOpts}</optgroup>
+                ${segCustomOpts ? `<optgroup label="Customizados">${segCustomOpts}</optgroup>` : ''}
+              </select>
+              <div id="camp-seg-preview" style="font-size:11px;color:#64748b;margin-top:4px"></div>
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Canal de Envio</label>
+              <select id="camp-canal" style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#f1f5f9;font-size:13px;font-family:inherit">
+                <option value="whatsapp" ${c.canal==='whatsapp'?'selected':''}>💬 WhatsApp</option>
+                <option value="email" ${c.canal==='email'?'selected':''}>✉️ Email</option>
+                <option value="sms" ${c.canal==='sms'?'selected':''}>📱 SMS</option>
+                <option value="outro" ${c.canal==='outro'?'selected':''}>📤 Outro</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Canal de Aquisição (opcional)</label>
+              <select id="camp-canalaq" style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#f1f5f9;font-size:13px;font-family:inherit">${canalOpts}</select>
+              <div style="font-size:10.5px;color:#64748b;margin-top:4px">Vincula ao canal do DMS pra análise de ROI</div>
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Data prevista</label>
+              <input id="camp-data" type="datetime-local" value="${dataEnvioStr}" style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#f1f5f9;font-size:13px;font-family:inherit">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Cupom <span style="color:#64748b;font-size:10px;text-transform:none">(substitui {{cupom}})</span></label>
+              <input id="camp-cupom" type="text" value="${escapeHtml(c.cupom_codigo || '')}" placeholder="Ex: VIP20" style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#f1f5f9;font-size:13px;font-family:inherit">
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Link CTA <span style="color:#64748b;font-size:10px;text-transform:none">(substitui {{link}})</span></label>
+              <input id="camp-link" type="url" value="${escapeHtml(c.link_cta || '')}" placeholder="https://..." style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#f1f5f9;font-size:13px;font-family:inherit">
+            </div>
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Mensagem (template)</label>
+            <textarea id="camp-msg" rows="5" placeholder="Olá {{primeiro_nome}}! ..." style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#f1f5f9;font-size:13px;font-family:inherit;resize:vertical">${escapeHtml(c.mensagem || '')}</textarea>
+            <div style="font-size:10.5px;color:#64748b;margin-top:4px">Placeholders: <code>{{nome}}</code> <code>{{primeiro_nome}}</code> <code>{{cupom}}</code> <code>{{link}}</code> <code>{{cidade}}</code> <code>{{uf}}</code></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Status</label>
+              <select id="camp-status" style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#f1f5f9;font-size:13px;font-family:inherit">
+                <option value="rascunho" ${c.status==='rascunho'?'selected':''}>Rascunho</option>
+                <option value="agendada" ${c.status==='agendada'?'selected':''}>Agendada</option>
+                <option value="enviada" ${c.status==='enviada'?'selected':''}>Enviada</option>
+                <option value="concluida" ${c.status==='concluida'?'selected':''}>Concluída</option>
+                <option value="cancelada" ${c.status==='cancelada'?'selected':''}>Cancelada</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Empresa</label>
+              <select id="camp-empresa" style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#f1f5f9;font-size:13px;font-family:inherit">
+                <option value="matriz" ${c.empresa==='matriz'?'selected':''}>Matriz</option>
+                <option value="bc" ${c.empresa==='bc'?'selected':''}>BC</option>
+                <option value="ambas" ${c.empresa==='ambas'?'selected':''}>Ambas</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px">Observações</label>
+            <textarea id="camp-obs" rows="2" placeholder="Notas internas" style="width:100%;padding:9px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#f1f5f9;font-size:13px;font-family:inherit;resize:vertical">${escapeHtml(c.observacoes || '')}</textarea>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid rgba(255,255,255,0.08);position:sticky;bottom:0;background:#0b0f17">
+          <button onclick="document.getElementById('c360-camp-modal').remove()" style="padding:9px 18px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:#e2e8f0;cursor:pointer;font-size:13px;font-family:inherit">Cancelar</button>
+          <button onclick="c360SaveCampanha('${isEdit ? c.id : 'null'}')" style="padding:9px 22px;border-radius:6px;border:none;background:oklch(88% 0.018 80);color:oklch(9% 0.008 260);cursor:pointer;font-size:13px;font-weight:600;font-family:inherit">${isEdit ? 'Atualizar' : 'Criar'}</button>
+        </div>
+      </div>
+    </div>`;
+
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    document.body.appendChild(div.firstElementChild);
+
+    const updateSegPreview = () => {
+      const val = document.getElementById('camp-segmento')?.value || '';
+      const [tipo, ident] = val.split('::');
+      let count = 0;
+      if (tipo === 'auto') {
+        if (ident === 'todos') count = state.clientes.length;
+        else count = state.clientes.filter(c => c.segmento === ident).length;
+      } else if (tipo === 'custom') {
+        const seg = (state.segmentosCustom || []).find(s => String(s.id) === ident);
+        if (seg) count = aplicarFiltrosSegmento(state.clientes, seg.filtros || {}).length;
+      }
+      const el = document.getElementById('camp-seg-preview');
+      if (el) el.textContent = `≈ ${fmtNum(count)} clientes (empresa atual)`;
+    };
+    document.getElementById('camp-segmento')?.addEventListener('change', updateSegPreview);
+    updateSegPreview();
+  }
+
+  window.c360SaveCampanha = async function(idStr) {
+    const id = idStr === 'null' ? null : idStr;
+    const nome = (document.getElementById('camp-nome')?.value || '').trim();
+    if (!nome) { if (typeof showToast === 'function') showToast('Nome é obrigatório', 'error'); return; }
+    const segVal = document.getElementById('camp-segmento')?.value || 'auto::VIP';
+    const [segTipo, segIdent] = segVal.split('::');
+    let segmento_id = null; let segmento_nome_cache = '';
+    if (segTipo === 'auto') {
+      segmento_nome_cache = segIdent;
+    } else if (segTipo === 'custom') {
+      const seg = (state.segmentosCustom || []).find(s => String(s.id) === segIdent);
+      if (seg) { segmento_id = seg.id; segmento_nome_cache = seg.nome; }
+    }
+    const canalAqVal = document.getElementById('camp-canalaq')?.value || '';
+    const dataVal = document.getElementById('camp-data')?.value || '';
+    const payload = {
+      empresa: document.getElementById('camp-empresa')?.value || state.empresa,
+      nome,
+      descricao: (document.getElementById('camp-desc')?.value || '').trim() || null,
+      segmento_tipo: segTipo, segmento_id, segmento_nome_cache,
+      canal: document.getElementById('camp-canal')?.value || 'whatsapp',
+      canal_aquisicao_id: canalAqVal || null,
+      mensagem: (document.getElementById('camp-msg')?.value || '').trim() || null,
+      cupom_codigo: (document.getElementById('camp-cupom')?.value || '').trim() || null,
+      link_cta: (document.getElementById('camp-link')?.value || '').trim() || null,
+      data_envio: dataVal ? new Date(dataVal).toISOString() : null,
+      status: document.getElementById('camp-status')?.value || 'rascunho',
+      observacoes: (document.getElementById('camp-obs')?.value || '').trim() || null,
+    };
+    try {
+      if (id) {
+        const { error } = await state.sb.from('cliente_campanhas').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', id);
+        if (error) throw error;
+      } else {
+        const { data: { user } } = await state.sb.auth.getUser();
+        const { data: profile } = await state.sb.from('profiles').select('nome').eq('id', user.id).single();
+        const { error } = await state.sb.from('cliente_campanhas').insert({
+          ...payload, criado_por: user.id, criado_por_nome: profile?.nome || user.email,
+        });
+        if (error) throw error;
+      }
+      document.getElementById('c360-camp-modal')?.remove();
+      if (typeof showToast === 'function') showToast('Campanha ' + (id ? 'atualizada' : 'criada'), 'success');
+      await renderCampanhasPage();
+    } catch (e) {
+      if (typeof showToast === 'function') showToast('Erro: ' + e.message, 'error');
+    }
+  };
+
+  window.c360DeleteCampanha = async function(id) {
+    const c = state.campanhas.find(x => x.id === id);
+    if (!c) return;
+    if (!confirm(`Apagar a campanha "${c.nome}"? Isso remove também todos os envios vinculados.`)) return;
+    const { error } = await state.sb.from('cliente_campanhas').delete().eq('id', id);
+    if (error) { if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error'); return; }
+    if (typeof showToast === 'function') showToast('Campanha apagada', 'success');
+    await renderCampanhasPage();
+  };
+
+  // ─── Gerar lista de envios a partir do segmento ───
+  window.c360GerarEnvios = async function(id) {
+    const c = state.campanhas.find(x => x.id === id);
+    if (!c) return;
+    if (!state.segmentosCustom) state.segmentosCustom = await loadSegmentosCustom();
+
+    const alvos = getClientesAlvoCampanha(c);
+    if (alvos.length === 0) {
+      if (typeof showToast === 'function') showToast('Segmento vazio — nenhum cliente corresponde', 'warn');
+      return;
+    }
+
+    const { data: existentes, error: e1 } = await state.sb
+      .from('cliente_campanha_envios').select('contato_id')
+      .eq('campanha_id', id);
+    if (e1) { if (typeof showToast === 'function') showToast('Erro: ' + e1.message, 'error'); return; }
+
+    const jaIn = new Set((existentes || []).filter(r => r.contato_id).map(r => String(r.contato_id)));
+    const novos = alvos.filter(a => a.contato_id && !jaIn.has(String(a.contato_id)));
+    const semContato = alvos.filter(a => !a.contato_id).length;
+
+    if (novos.length === 0) {
+      const msg = `Todos os ${alvos.length - semContato} clientes com contato_id ja estao na lista.${semContato > 0 ? ' (' + semContato + ' sem contato_id ignorados)' : ''}`;
+      if (typeof showToast === 'function') showToast(msg, 'warn');
+      return;
+    }
+    const msgConfirm = `Adicionar ${novos.length} novos clientes a lista de envios?${jaIn.size > 0 ? ' (' + jaIn.size + ' ja existem e nao serao duplicados)' : ''}${semContato > 0 ? ' · ' + semContato + ' sem contato_id serao ignorados' : ''}`;
+    if (!confirm(msgConfirm)) return;
+
+    const rowsInserir = novos.map(cliente => ({
+      campanha_id: id,
+      empresa: c.empresa === 'ambas' ? state.empresa : c.empresa,
+      contato_id: cliente.contato_id || null,
+      contato_nome: cliente.contato_nome || 'Sem nome',
+      contato_telefone: cliente.telefone || null,
+      contato_celular: cliente.celular || null,
+      contato_email: null,
+      contato_cidade: null,
+      contato_uf: cliente.uf || null,
+      status: 'pendente',
+      mensagem_renderizada: renderMensagemComPlaceholders(c.mensagem || '', cliente, c),
+    }));
+
+    const CHUNK = 500;
+    for (let i = 0; i < rowsInserir.length; i += CHUNK) {
+      const chunk = rowsInserir.slice(i, i + CHUNK);
+      const { error } = await state.sb.from('cliente_campanha_envios').insert(chunk);
+      if (error) {
+        if (typeof showToast === 'function') showToast('Erro no chunk: ' + error.message, 'error');
+        return;
+      }
+    }
+
+    if (typeof showToast === 'function') showToast(`${rowsInserir.length} envios adicionados`, 'success');
+    await renderCampanhasPage();
+  };
+
+  // ─── Modal ver envios ───
+  window.c360VerEnvios = async function(id) {
+    const c = state.campanhas.find(x => x.id === id);
+    if (!c) return;
+    const { data: envios, error } = await state.sb
+      .from('cliente_campanha_envios').select('*')
+      .eq('campanha_id', id)
+      .order('status').order('contato_nome').limit(5000);
+    if (error) { if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error'); return; }
+
+    document.getElementById('c360-envios-modal')?.remove();
+    const porStatus = {};
+    for (const e of (envios || [])) porStatus[e.status] = (porStatus[e.status] || 0) + 1;
+
+    const fmtFone = (f) => {
+      if (!f) return '—';
+      const d = String(f).replace(/\D/g,'');
+      if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+      if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+      return f;
+    };
+
+    const row = (e) => `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+        <td style="padding:8px 10px;font-size:12px;color:#e2e8f0">${escapeHtml(e.contato_nome)}</td>
+        <td style="padding:8px 10px;font-size:12px;color:#94a3b8;white-space:nowrap">${escapeHtml(fmtFone(e.contato_celular || e.contato_telefone))}</td>
+        <td style="padding:8px 10px"><span style="font-size:10.5px;padding:2px 8px;border-radius:10px;background:${STATUS_ENVIO_CORES[e.status]}22;color:${STATUS_ENVIO_CORES[e.status]};font-weight:600">${STATUS_ENVIO_LABELS[e.status] || e.status}</span></td>
+        <td style="padding:8px 10px;text-align:right;white-space:nowrap">
+          <select onchange="c360MarkEnvio('${e.id}', this.value)" style="padding:4px 6px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#e2e8f0;font-size:11px;cursor:pointer">
+            <option value="pendente" ${e.status==='pendente'?'selected':''}>Pendente</option>
+            <option value="enviado" ${e.status==='enviado'?'selected':''}>Enviado</option>
+            <option value="entregue" ${e.status==='entregue'?'selected':''}>Entregue</option>
+            <option value="lido" ${e.status==='lido'?'selected':''}>Lido</option>
+            <option value="respondido" ${e.status==='respondido'?'selected':''}>Respondido</option>
+            <option value="falhou" ${e.status==='falhou'?'selected':''}>Falhou</option>
+          </select>
+        </td>
+      </tr>`;
+
+    const html = `
+    <div id="c360-envios-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Inter,sans-serif">
+      <div style="background:#0b0f17;border:1px solid rgba(255,255,255,0.12);border-radius:14px;width:100%;max-width:860px;max-height:90vh;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.08);gap:12px">
+          <div style="min-width:0">
+            <h3 style="margin:0 0 4px;font-size:16px;font-weight:700;color:#f1f5f9">Envios · ${escapeHtml(c.nome)}</h3>
+            <div style="font-size:11.5px;color:#94a3b8">Total: ${envios.length} · Pendentes: ${porStatus.pendente || 0} · Enviados: ${(porStatus.enviado||0)+(porStatus.entregue||0)+(porStatus.lido||0)+(porStatus.respondido||0)} · Respondidos: ${porStatus.respondido || 0} · Falhas: ${porStatus.falhou || 0}</div>
+          </div>
+          <button onclick="document.getElementById('c360-envios-modal').remove()" style="background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:22px;line-height:1">&times;</button>
+        </div>
+        <div style="padding:12px 20px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="c360MarcarTodosEnviados('${id}')" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(96,165,250,0.3);background:rgba(96,165,250,0.1);color:#60a5fa;cursor:pointer;font-size:12px">📤 Marcar pendentes como enviados</button>
+          <button onclick="c360LimparEnvios('${id}')" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(239,68,68,0.25);background:transparent;color:#ef4444;cursor:pointer;font-size:12px">🗑 Limpar pendentes</button>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:0 4px">
+          ${envios.length === 0
+            ? '<div style="padding:40px;text-align:center;color:#64748b"><div style="font-size:24px;margin-bottom:8px">📭</div>Nenhum envio ainda. Clique em "Gerar" na campanha pra popular a lista.</div>'
+            : `<table style="width:100%;border-collapse:collapse">
+                <thead style="position:sticky;top:0;background:#0b0f17;z-index:1"><tr>
+                  <th style="padding:10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;border-bottom:1px solid rgba(255,255,255,0.08)">Cliente</th>
+                  <th style="padding:10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;border-bottom:1px solid rgba(255,255,255,0.08)">Telefone</th>
+                  <th style="padding:10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;border-bottom:1px solid rgba(255,255,255,0.08)">Status</th>
+                  <th style="padding:10px;text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;border-bottom:1px solid rgba(255,255,255,0.08)">Mudar</th>
+                </tr></thead>
+                <tbody>${envios.map(row).join('')}</tbody>
+              </table>`}
+        </div>
+      </div>
+    </div>`;
+
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    document.body.appendChild(div.firstElementChild);
+  };
+
+  window.c360MarkEnvio = async function(envioId, newStatus) {
+    const patch = { status: newStatus, updated_at: new Date().toISOString() };
+    if (['enviado','entregue','lido'].includes(newStatus)) patch.enviado_em = new Date().toISOString();
+    if (newStatus === 'respondido') patch.respondido_em = new Date().toISOString();
+    const { error } = await state.sb.from('cliente_campanha_envios').update(patch).eq('id', envioId);
+    if (error) { if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error'); return; }
+    if (typeof showToast === 'function') showToast('Status atualizado', 'success');
+    await renderCampanhasPage();
+  };
+
+  window.c360MarcarTodosEnviados = async function(campanhaId) {
+    if (!confirm('Marcar TODOS os envios pendentes como "enviados"?')) return;
+    const { error } = await state.sb.from('cliente_campanha_envios')
+      .update({ status: 'enviado', enviado_em: new Date().toISOString() })
+      .eq('campanha_id', campanhaId).eq('status', 'pendente');
+    if (error) { if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error'); return; }
+    if (typeof showToast === 'function') showToast('Marcados como enviados', 'success');
+    document.getElementById('c360-envios-modal')?.remove();
+    await renderCampanhasPage();
+  };
+
+  window.c360LimparEnvios = async function(campanhaId) {
+    if (!confirm('Remover todos os envios PENDENTES? (Os ja enviados permanecem.)')) return;
+    const { error } = await state.sb.from('cliente_campanha_envios')
+      .delete().eq('campanha_id', campanhaId).eq('status', 'pendente');
+    if (error) { if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error'); return; }
+    if (typeof showToast === 'function') showToast('Pendentes removidos', 'success');
+    document.getElementById('c360-envios-modal')?.remove();
+    await renderCampanhasPage();
+  };
+
+  // ─── Copiar mensagens personalizadas pro clipboard ───
+  window.c360CopiarMensagens = async function(campanhaId) {
+    const c = state.campanhas.find(x => x.id === campanhaId);
+    if (!c) return;
+    if (!c.mensagem) { if (typeof showToast === 'function') showToast('Campanha sem mensagem', 'warn'); return; }
+
+    const { data: envios } = await state.sb
+      .from('cliente_campanha_envios')
+      .select('contato_nome,contato_telefone,contato_celular,contato_uf')
+      .eq('campanha_id', campanhaId).order('contato_nome').limit(2000);
+
+    let lista = envios || [];
+    if (lista.length === 0) {
+      if (!state.segmentosCustom) state.segmentosCustom = await loadSegmentosCustom();
+      const alvos = getClientesAlvoCampanha(c);
+      lista = alvos.map(a => ({ contato_nome: a.contato_nome, contato_celular: a.celular, contato_telefone: a.telefone, contato_uf: a.uf }));
+    }
+    if (lista.length === 0) { if (typeof showToast === 'function') showToast('Nenhum cliente', 'warn'); return; }
+
+    const linhas = lista.map(cli => renderMensagemComPlaceholders(c.mensagem, { contato_nome: cli.contato_nome, uf: cli.contato_uf }, c));
+    const texto = linhas.join('\n\n═══════════════════\n\n');
+    try {
+      await navigator.clipboard.writeText(texto);
+      if (typeof showToast === 'function') showToast(`${linhas.length} mensagens copiadas`, 'success');
+    } catch (e) {
+      const ta = document.createElement('textarea');
+      ta.value = texto;
+      ta.style.cssText = 'position:fixed;top:10%;left:50%;transform:translateX(-50%);width:80vw;height:70vh;z-index:9999';
+      document.body.appendChild(ta); ta.select();
+      if (typeof showToast === 'function') showToast('Selecione e copie manualmente (Ctrl+C)', 'warn');
+      setTimeout(() => ta.remove(), 20000);
+    }
+  };
+
+  // ─── Export CSV ───
+  window.c360ExportCsvCampanha = async function(campanhaId) {
+    const c = state.campanhas.find(x => x.id === campanhaId);
+    if (!c) return;
+    const { data: envios } = await state.sb
+      .from('cliente_campanha_envios').select('*')
+      .eq('campanha_id', campanhaId).order('contato_nome').limit(5000);
+
+    let lista = envios || [];
+    if (lista.length === 0) {
+      if (!state.segmentosCustom) state.segmentosCustom = await loadSegmentosCustom();
+      const alvos = getClientesAlvoCampanha(c);
+      lista = alvos.map(a => ({
+        contato_nome: a.contato_nome, contato_telefone: a.telefone, contato_celular: a.celular,
+        contato_email: null, contato_uf: a.uf, status: 'pendente',
+        mensagem_renderizada: renderMensagemComPlaceholders(c.mensagem || '', a, c),
+      }));
+    }
+    if (lista.length === 0) { if (typeof showToast === 'function') showToast('Nenhum cliente', 'warn'); return; }
+
+    const BOM = '\ufeff';
+    const headers = ['Nome','Telefone','Celular','Email','UF','Status','Mensagem'];
+    const esc = (v) => `"${String(v == null ? '' : v).replace(/"/g,'""').replace(/\r?\n/g,' ')}"`;
+    const csv = BOM + headers.map(esc).join(';') + '\r\n'
+      + lista.map(e => [e.contato_nome, e.contato_telefone, e.contato_celular, e.contato_email, e.contato_uf, e.status, e.mensagem_renderizada].map(esc).join(';')).join('\r\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `campanha_${c.nome.replace(/[^a-z0-9]+/gi,'_')}_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+    if (typeof showToast === 'function') showToast(`CSV com ${lista.length} linhas exportado`, 'success');
+  };
+
+  // ─── Export PDF (janela print-friendly) ───
+  window.c360ExportPdfCampanha = async function(campanhaId) {
+    const c = state.campanhas.find(x => x.id === campanhaId);
+    if (!c) return;
+    const { data: envios } = await state.sb
+      .from('cliente_campanha_envios').select('*')
+      .eq('campanha_id', campanhaId).order('contato_nome').limit(3000);
+
+    let lista = envios || [];
+    if (lista.length === 0) {
+      if (!state.segmentosCustom) state.segmentosCustom = await loadSegmentosCustom();
+      const alvos = getClientesAlvoCampanha(c);
+      lista = alvos.map(a => ({
+        contato_nome: a.contato_nome, contato_telefone: a.telefone, contato_celular: a.celular,
+        contato_email: null, contato_uf: a.uf, segmento: a.segmento, status: 'pendente',
+        mensagem_renderizada: renderMensagemComPlaceholders(c.mensagem || '', a, c),
+      }));
+    }
+    if (lista.length === 0) { if (typeof showToast === 'function') showToast('Nenhum cliente', 'warn'); return; }
+
+    const win = window.open('', '_blank', 'width=900,height=1200');
+    if (!win) { if (typeof showToast === 'function') showToast('Permita popups pra exportar', 'error'); return; }
+
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    const fmtFone = (f) => {
+      if (!f) return '—';
+      const d = String(f).replace(/\D/g,'');
+      if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+      if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+      return f;
+    };
+    const msgExemplo = c.mensagem
+      ? renderMensagemComPlaceholders(c.mensagem, lista[0] ? { contato_nome: lista[0].contato_nome, uf: lista[0].contato_uf } : {}, c)
+      : '';
+
+    const rows = lista.map((e, i) => `
+      <tr>
+        <td style="width:28px;text-align:center;color:#999">${i+1}</td>
+        <td><strong>${escapeHtml(e.contato_nome || '')}</strong>${e.segmento ? ` <span class="chip">${escapeHtml(e.segmento)}</span>` : ''}</td>
+        <td>${escapeHtml(fmtFone(e.contato_celular))}</td>
+        <td>${escapeHtml(fmtFone(e.contato_telefone))}</td>
+        <td>${escapeHtml(e.contato_email || '—')}</td>
+        <td>${escapeHtml(e.contato_uf || '—')}</td>
+        <td class="status-${e.status}">${STATUS_ENVIO_LABELS[e.status] || e.status}</td>
+        <td style="width:20px;text-align:center"><span class="check"></span></td>
+      </tr>`).join('');
+
+    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
+<title>Campanha: ${escapeHtml(c.nome)} · Dana Jalecos · ${hoje}</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --border:#e6e6e6; --muted:#666; }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+  body { font-family:'DM Sans',sans-serif; color:#0a0a0a; max-width:900px; margin:0 auto; padding:26px 32px; line-height:1.5; font-size:12px; background:#fff; }
+  .pdf-header { background:#0a0a0a; color:#fff; border-radius:12px; padding:20px 24px; margin-bottom:18px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .pdf-title { font-family:'Syne',sans-serif; font-weight:800; font-size:19px; }
+  .pdf-sub { font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,255,255,0.55); font-weight:700; }
+  .meta { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
+  .meta-cell { background:#fafafa; border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
+  .meta-label { font-size:9px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); font-weight:700; margin-bottom:2px; }
+  .meta-val { font-family:'Syne',sans-serif; font-weight:700; font-size:13px; color:#0a0a0a; }
+  .msg-box { background:#fafafa; border:1px dashed #ccc; border-radius:8px; padding:12px 14px; margin-bottom:16px; white-space:pre-wrap; font-size:12px; color:#333; }
+  .msg-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:6px; }
+  h2.sec { font-family:'Syne',sans-serif; font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:1.5px; margin:16px 0 10px; padding-bottom:6px; border-bottom:2px solid #0a0a0a; }
+  table { width:100%; border-collapse:collapse; font-size:11px; }
+  th { background:#0a0a0a; color:#fff; text-align:left; font-size:9.5px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; padding:7px 8px; }
+  td { padding:6px 8px; border-bottom:1px solid #eee; }
+  tr:nth-child(even) td { background:#fafafa; }
+  .chip { display:inline-block; padding:1px 6px; border-radius:3px; background:#f0f0f0; font-size:9px; font-weight:700; color:#555; }
+  .check { display:inline-block; width:12px; height:12px; border:1.5px solid #0a0a0a; border-radius:2px; }
+  .status-pendente { color:#666; }
+  .status-enviado, .status-entregue, .status-lido { color:#1a4fa0; font-weight:600; }
+  .status-respondido { color:#1a7a3a; font-weight:700; }
+  .status-falhou { color:#c0392b; font-weight:700; }
+  .pdf-footer { margin-top:24px; padding-top:12px; border-top:1px solid var(--border); text-align:center; font-size:10px; color:#999; }
+  @media print {
+    body { padding:18px; font-size:10.5px; }
+    table { page-break-inside:auto; }
+    tr { page-break-inside:avoid; page-break-after:auto; }
+    thead { display:table-header-group; }
+  }
+</style></head><body>
+<div class="pdf-header">
+  <div><div class="pdf-sub">Campanha de Marketing</div><div class="pdf-title">${escapeHtml(c.nome)}</div></div>
+  <div class="pdf-sub">${hoje}</div>
+</div>
+<div class="meta">
+  <div class="meta-cell"><div class="meta-label">Segmento</div><div class="meta-val">${escapeHtml(c.segmento_nome_cache || '—')}</div></div>
+  <div class="meta-cell"><div class="meta-label">Canal</div><div class="meta-val">${CANAL_LABELS[c.canal] || c.canal}</div></div>
+  <div class="meta-cell"><div class="meta-label">Status</div><div class="meta-val">${STATUS_CAMP_LABELS[c.status] || c.status}</div></div>
+  <div class="meta-cell"><div class="meta-label">Total Clientes</div><div class="meta-val">${fmtNum(lista.length)}</div></div>
+</div>
+${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo (exemplo com primeiro cliente)</div>${escapeHtml(msgExemplo)}</div>` : ''}
+<h2 class="sec">Lista de Contatos</h2>
+<table>
+  <thead><tr>
+    <th style="width:28px">#</th><th>Nome</th><th>WhatsApp</th><th>Telefone</th><th>Email</th><th>UF</th><th>Status</th><th style="width:20px">✓</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="pdf-footer">
+  Dana Jalecos Exclusivos · Cliente 360 · Gerado em ${hoje} por ${escapeHtml(c.criado_por_nome || '—')}<br>
+  Empresa: ${EMPRESA_LABELS[c.empresa] || c.empresa} · Total de contatos: ${fmtNum(lista.length)}
+</div>
+<script>setTimeout(() => { window.print(); }, 400);<\/script>
+</body></html>`);
+  };
+
+  // ─── Realtime ───
+  function subscribeRealtimeCampanhas() {
+    if (state.campanhasChannel) return;
+    state.campanhasChannel = state.sb
+      .channel('realtime-cliente-campanhas')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cliente_campanhas' }, async () => {
+        const active = document.querySelector('.page-section.active');
+        if (active?.id === 'page-campanhas') await renderCampanhasPage();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cliente_campanha_envios' }, async () => {
+        const active = document.querySelector('.page-section.active');
+        if (active?.id === 'page-campanhas') {
+          setTimeout(async () => { await renderCampanhasPage(); }, 300);
+        }
+      })
+      .subscribe();
+  }
 
   // ─── Boot ───
   async function boot() {
@@ -1949,9 +2673,10 @@
     wireSearchAndFilters();
     // Paralelo: lista + dashboard + mencionaveis (preload)
     await Promise.all([loadClientes(), loadDashboardResumo(), loadMencionaveis()]);
-    // Subscribe realtime pra notas e segmentos
+    // Subscribe realtime pra notas, segmentos e campanhas
     subscribeRealtimeNotas();
     subscribeRealtimeSegmentos();
+    subscribeRealtimeCampanhas();
     // Se veio deep-link via sessionStorage, abre o cliente/aba certa
     await checkDeepLink();
   }
