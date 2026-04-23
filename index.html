@@ -16224,6 +16224,10 @@ const PERM_GROUPS = [
   ['📣 Marketing',   ['canaisaquisicao','campanhas','construtor','criativos','briefingvisual','influenciadores','provasocial']],
   ['🎯 Inteligência',['personas','keywords','mercado','referencias','performance']],
   ['✅ Produtividade',['tarefas','calendario']],
+  ['👤 Cliente 360 · Abas', [
+    'c360_dashboard','c360_clientes','meus_clientes','c360_segmentacao',
+    'c360_campanhas','c360_sincronizacao','c360_configuracoes','c360_logs'
+  ]],
   ['⚙️ Sistema',      ['apis']],
   ['⚡ Ações Específicas', [
     'calendario_criar','calendario_excluir',
@@ -16265,6 +16269,14 @@ async function loadAdminPermissoes() {
     criativo_aprovar: '✅ Aprovar/Reprovar Arte',
     criativo_publicar: '🚀 Marcar como Publicado',
     criativo_excluir: '🗑 Excluir Criativo',
+    c360_dashboard: '🏠 Dashboard (C360)',
+    c360_clientes: '👥 Lista de Clientes',
+    c360_segmentacao: '🎯 Segmentação',
+    c360_campanhas: '📢 Campanhas C360',
+    c360_sincronizacao: '🔄 Sincronização',
+    c360_configuracoes: '⚙ Configurações',
+    c360_logs: '📋 Logs',
+    meus_clientes: '👤 Meus Clientes (carteira por vendedor)',
   };
 
   // State em memoria por cargo (pra nao perder ao trocar no dropdown)

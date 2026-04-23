@@ -3428,19 +3428,36 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
   async function mcLoadPerms() {
     if (state.mcPerms) return state.mcPerms;
     const { data: { user } } = await state.sb.auth.getUser();
-    if (!user) return { meus_clientes: false };
+    if (!user) return { meus_clientes: false, c360Tabs: {} };
     const { data: profile } = await state.sb.from('profiles').select('id, nome, cargo').eq('id', user.id).maybeSingle();
-    if (!profile) return { meus_clientes: false };
-    const { data: perm } = await state.sb.from('cargo_permissoes')
-      .select('permitido').eq('cargo', profile.cargo).eq('secao', 'meus_clientes').maybeSingle();
+    if (!profile) return { meus_clientes: false, c360Tabs: {} };
+    // Busca TODAS permissoes relevantes do cargo de uma vez
+    const { data: perms } = await state.sb.from('cargo_permissoes')
+      .select('secao, permitido').eq('cargo', profile.cargo)
+      .in('secao', ['meus_clientes','c360_dashboard','c360_clientes','c360_segmentacao','c360_campanhas','c360_sincronizacao','c360_configuracoes','c360_logs']);
+    const permMap = {};
+    (perms || []).forEach(p => { permMap[p.secao] = !!p.permitido; });
+    // Mapping entre secao de permissao e id de pagina do C360
+    const c360Tabs = {
+      'dashboard': permMap.c360_dashboard !== false,
+      'clientes': permMap.c360_clientes !== false,
+      'segmentos': permMap.c360_segmentacao !== false,
+      'campanhas': permMap.c360_campanhas !== false,
+      'sincronizacao': permMap.c360_sincronizacao !== false,
+      'configuracoes': permMap.c360_configuracoes !== false,
+      'logs': permMap.c360_logs !== false,
+      'meus-clientes': permMap.meus_clientes !== false,
+    };
     state.mcPerms = {
-      meus_clientes: !!(perm?.permitido),
+      meus_clientes: !!permMap.meus_clientes,
       cargo: profile.cargo,
       profileId: profile.id,
       nome: profile.nome,
       podeReatribuir: (profile.cargo === 'admin' || profile.cargo === 'gerente_comercial'),
       eVendedor: (profile.cargo === 'vendedor'),
       eAdminOuGerente: ['admin','gerente_comercial','gerente_marketing'].includes(profile.cargo),
+      c360Tabs,
+      permMap,
     };
     return state.mcPerms;
   }
@@ -3485,77 +3502,91 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     state.mcAdminVendedores = null;
   }
 
-  // Realtime: escuta mudancas em vendedor_mapping e profiles pra re-renderizar
-  // quando outro admin cria/muda usuario ou mapeia vendedor.
+  // Realtime: escuta mudancas em vendedor_mapping, profiles, cliente_vendedor_manual
+  // e cargo_permissoes (pra reaplicar hide de abas na hora).
   function mcSubscribeRealtime() {
     if (state.mcRealtimeChannel) return;
     state.mcRealtimeChannel = state.sb
       .channel('realtime-meus-clientes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vendedor_mapping' }, async () => {
-        console.log('[mc] vendedor_mapping mudou - invalidando cache');
         mcInvalidateCache();
         const active = document.querySelector('.page-section.active');
         if (active?.id === 'page-meus-clientes') await renderMeusClientesPage();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, async () => {
-        console.log('[mc] profiles mudou - invalidando cache de profiles');
         state.mcProfiles = null;
+        state.mcPerms = null; // pode ter mudado cargo
         const active = document.querySelector('.page-section.active');
         if (active?.id === 'page-meus-clientes') await renderMeusClientesPage();
+        await mcApplyTabPermissions();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cliente_vendedor_manual' }, async () => {
-        console.log('[mc] cliente_vendedor_manual mudou');
         mcInvalidateCache();
         const active = document.querySelector('.page-section.active');
         if (active?.id === 'page-meus-clientes') await renderMeusClientesPage();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cargo_permissoes' }, async () => {
+        state.mcPerms = null; // invalida cache de perms
+        await mcApplyTabPermissions();
+      })
       .subscribe();
   }
 
-  // Se cargo=vendedor: esconde todas abas do C360 exceto "Meus Clientes"
-  // e intercepta showPage pra impedir navegacao direta pra outras.
-  async function mcApplyVendedorScope() {
+  // Esconde as abas do C360 que o usuario NAO tem permissao (configuravel no Admin).
+  // Tambem intercepta showPage pra impedir navegacao direta.
+  async function mcApplyTabPermissions() {
     const perms = await mcLoadPerms();
-    if (!perms.eVendedor) return;
-    // Esconde CSS-only pra nao quebrar eventos (retry tambem, pq sidebar pode renderizar depois)
-    const hideOtherNavs = () => {
+    const tabs = perms.c360Tabs || {};
+    // Determina primeira aba permitida (pra redirect se usuario cair numa bloqueada)
+    const ordem = ['dashboard','clientes','meus-clientes','segmentos','campanhas','sincronizacao','configuracoes','logs'];
+    const primeiraPermitida = ordem.find(id => tabs[id]) || 'dashboard';
+    state.mcPrimeiraAbaPermitida = primeiraPermitida;
+
+    // Esconde CSS-only (retry pra casos onde sidebar renderiza tardiamente)
+    const aplicarHide = () => {
       const navs = document.querySelectorAll('[data-nav-page]');
-      let hidden = 0;
+      let changed = 0;
       navs.forEach(btn => {
         const pageId = btn.getAttribute('data-nav-page');
-        if (pageId !== 'meus-clientes') {
-          const li = btn.closest('li') || btn.parentElement;
-          if (li && li.style.display !== 'none') { li.style.display = 'none'; hidden++; }
-        }
+        const li = btn.closest('li') || btn.parentElement;
+        if (!li) return;
+        const deveEsconder = tabs[pageId] === false;
+        const novoDisplay = deveEsconder ? 'none' : '';
+        if (li.style.display !== novoDisplay) { li.style.display = novoDisplay; changed++; }
       });
-      return hidden;
+      return changed;
     };
-    // Tenta varias vezes (sidebar pode hidratar tardiamente)
+    // Tenta varias vezes
     for (let i = 0; i < 15; i++) {
-      if (hideOtherNavs() > 0 || document.querySelector('[data-nav-page="meus-clientes"]')) break;
+      aplicarHide();
+      if (document.querySelector('[data-nav-page]')) break;
       await new Promise(r => setTimeout(r, 200));
     }
-    // Loop periodico (caso algum script re-renderize a sidebar)
-    if (!state.mcHideNavInterval) {
-      state.mcHideNavInterval = setInterval(() => { if (state.mcPerms?.eVendedor) hideOtherNavs(); }, 1500);
-    }
-    // Intercepta showPage pra bloquear outras abas
+    // Loop periodico (caso algo re-renderize a sidebar)
+    if (state.mcHideNavInterval) { clearInterval(state.mcHideNavInterval); }
+    state.mcHideNavInterval = setInterval(aplicarHide, 1500);
+
+    // Intercepta showPage pra bloquear abas sem permissao
     if (!state.mcShowPageWrapped) {
       state.mcShowPageWrapped = true;
       const orig = window.showPage;
       if (typeof orig === 'function') {
         window.showPage = function(id) {
-          if (state.mcPerms?.eVendedor && id !== 'meus-clientes') {
-            id = 'meus-clientes';
+          const t = state.mcPerms?.c360Tabs || {};
+          if (id in t && t[id] === false) {
+            id = state.mcPrimeiraAbaPermitida || 'dashboard';
           }
           return orig(id);
         };
       }
     }
-    // Se entrou em qualquer outra aba, redireciona
+    // Se ativo atual eh uma aba bloqueada, redireciona
     const active = document.querySelector('.page-section.active');
-    if (active && active.id !== 'page-meus-clientes' && typeof window.showPage === 'function') {
-      window.showPage('meus-clientes');
+    if (active) {
+      const aid = active.id.replace(/^page-/, '');
+      if (tabs[aid] === false && typeof window.showPage === 'function') {
+        window.showPage(primeiraPermitida);
+      }
     }
   }
 
@@ -4214,8 +4245,8 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       // Setup Meus Clientes (nav + page) se tiver permissao
       await mcSetupNav();
       mcSubscribeRealtime();
-      // Se for cargo vendedor, esconde outras abas e forca escopo
-      await mcApplyVendedorScope();
+      // Aplica permissoes granulares (esconde abas sem permissao via cargo_permissoes)
+      await mcApplyTabPermissions();
       // Se veio deep-link via sessionStorage, abre o cliente/aba certa
       await checkDeepLink();
     } catch (e) {
