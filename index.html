@@ -16211,20 +16211,36 @@ async function doLogin() {
   }
 
   currentUser = data.user;
+  // Salva last_login ANTES de loadProfile pra detectar primeiro login.
+  // loadProfile faz UPDATE last_login internamente, entao precisamos saber
+  // se era null ANTES disso.
+  let primeiroLoginDeteccao = false;
+  try {
+    const { data: prof } = await sb.from('profiles').select('last_login').eq('id', currentUser.id).single();
+    primeiroLoginDeteccao = !prof?.last_login;
+  } catch(e) { console.warn('check last_login:', e); }
+
   await loadProfile();
   showApp();
-  // Redireciona pra primeira view permitida pelo cargo.
-  // Sem isso, view-home (hardcoded active no HTML) fica visivel mesmo pra
-  // vendedor que nao tem permissao — e a pessoa cai no Dashboard geral.
+
+  // Redirecionamento pos-login:
+  // - Primeiro login (last_login era null) → manda pra Perfil (trocar senha temp)
+  // - Subsequentes → ultima view visitada (localStorage), com fallback firstAllowedView
   try {
-    const activeEl = document.querySelector('.view.active');
-    const activeView = activeEl ? activeEl.id.replace(/^view-/, '') : null;
-    const naoPode = activeView && activeView !== 'perfil' && userPermissoes[activeView] === false;
-    const adminBloq = activeView && ADMIN_ONLY_VIEWS.includes(activeView) && currentProfile?.cargo !== 'admin';
-    if (!activeView || naoPode || adminBloq || currentProfile?.cargo !== 'admin') {
-      // Sempre redireciona pra firstAllowed — garante que vendedor cai em cliente360
-      // Admin cai em home (firstAllowedView retorna 'home' pra admin)
-      const target = firstAllowedView();
+    if (primeiroLoginDeteccao) {
+      const navEl = document.querySelector('[onclick*="\'perfil\'"]');
+      go(navEl, 'perfil');
+      if (typeof showToast === 'function') {
+        setTimeout(() => showToast('👋 Bem-vinda! Troque sua senha temporaria aqui em Perfil.'), 400);
+      }
+    } else {
+      const salva = localStorage.getItem('dms-active-view');
+      const naoTem = (v) => v && v !== 'perfil' && userPermissoes[v] === false;
+      const adminBloq = (v) => v && ADMIN_ONLY_VIEWS.includes(v) && currentProfile?.cargo !== 'admin';
+      let target = salva;
+      if (!target || naoTem(target) || adminBloq(target)) {
+        target = firstAllowedView();
+      }
       if (target) {
         const navEl = document.querySelector('[onclick*="\''+target+'\'"]');
         go(navEl, target);
