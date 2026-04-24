@@ -13784,7 +13784,7 @@ function renderCalendario() {
     const eventos = _eventosCache.filter(e => e.data_inicio <= dateStr && (e.data_fim ? e.data_fim >= dateStr : e.data_inicio === dateStr));
     const tarefas = tarefasPorDia[dateStr] || [];
     const todayStyle = isToday ? 'font-weight:800;color:var(--green)' : '';
-    const tiposCor = { campanha:'var(--black)', campanha_c360:'#f97316', promocao:'var(--green)', lancamento:'var(--blue)', evento:'var(--amber)', deadline:'var(--red)', feriado:'#999' };
+    const tiposCor = { campanha:'var(--black)', campanha_c360:'#f97316', campanha_interna:'#a855f7', promocao:'var(--green)', lancamento:'var(--blue)', evento:'var(--amber)', deadline:'var(--red)', feriado:'#999' };
 
     // Combinar eventos e tarefas para mostrar (cor custom do evento > cor do tipo)
     const items = [
@@ -13821,6 +13821,7 @@ function editarEvento(id) {
   const tiposConfig = {
     campanha:      { icon: '📣', cor: '#0a0a0a', bg: '#f3f4f6', label: 'Campanha' },
     campanha_c360: { icon: '📢', cor: '#9a3412', bg: '#ffedd5', label: 'Campanha Cliente 360' },
+    campanha_interna: { icon: '🎯', cor: '#6b21a8', bg: '#f3e8ff', label: 'Campanha Interna' },
     promocao:      { icon: '🎁', cor: '#15803d', bg: '#dcfce7', label: 'Promoção' },
     lancamento:    { icon: '🚀', cor: '#1d4ed8', bg: '#dbeafe', label: 'Lançamento' },
     evento:        { icon: '🎪', cor: '#b45309', bg: '#fef3c7', label: 'Evento' },
@@ -13865,21 +13866,53 @@ function editarEvento(id) {
 
   // Campanhas do Cliente 360 sao READ-ONLY aqui — so podem ser editadas/apagadas via Cliente 360
   const isC360 = evt.tipo === 'campanha_c360';
+  const isCI = evt.tipo === 'campanha_interna';
+  const isGerenciada = isC360 || isCI;
   const lockBanner = document.getElementById('ve-c360-lock');
-  if (lockBanner) lockBanner.style.display = isC360 ? 'block' : 'none';
+  if (lockBanner) {
+    lockBanner.style.display = isGerenciada ? 'block' : 'none';
+    const lockText = lockBanner.querySelector('strong') || lockBanner;
+    if (isC360) lockText.textContent = '🔒 Gerenciada pelo Cliente 360';
+    else if (isCI) lockText.textContent = '🔒 Gerenciada pelo módulo Campanhas Internas';
+  }
 
   const c360Btn = document.getElementById('ve-c360-open-btn');
-  if (c360Btn) c360Btn.style.display = isC360 ? '' : 'none';
+  if (c360Btn) {
+    if (isC360) {
+      c360Btn.style.display = '';
+      c360Btn.textContent = '📢 Abrir no Cliente 360';
+      c360Btn.setAttribute('onclick', 'irParaCliente360Campanhas()');
+    } else if (isCI) {
+      c360Btn.style.display = '';
+      c360Btn.textContent = '🎯 Abrir Campanha Interna';
+      c360Btn.setAttribute('onclick', `irParaCampanhaInterna('${evt.id}')`);
+    } else {
+      c360Btn.style.display = 'none';
+    }
+  }
 
-  // Botão excluir só para quem tem permissão E nao for campanha_c360
-  const canDelete = !isC360 && (userPermissoes['calendario_excluir'] !== false || currentProfile?.cargo === 'admin');
+  // Botão excluir só para quem tem permissão E nao for evento gerenciado
+  const canDelete = !isGerenciada && (userPermissoes['calendario_excluir'] !== false || currentProfile?.cargo === 'admin');
   document.getElementById('ve-delete-btn').style.display = canDelete ? '' : 'none';
 
-  // Botão mudar cor — mesma permissão de criar E nao for campanha_c360
-  const canEditCor = !isC360 && (userPermissoes['calendario_criar'] !== false || currentProfile?.cargo === 'admin');
+  // Botão mudar cor — mesma permissão de criar E nao for evento gerenciado
+  const canEditCor = !isGerenciada && (userPermissoes['calendario_criar'] !== false || currentProfile?.cargo === 'admin');
   document.getElementById('ve-cor-btn').style.display = canEditCor ? '' : 'none';
 
   openModal('ver-evento');
+}
+
+// Navega pra Campanhas Internas + abre modal da campanha especifica
+function irParaCampanhaInterna(eventoId) {
+  closeModal('ver-evento');
+  // Busca a campanha vinculada a esse evento
+  sb.from('campanhas_internas').select('id').eq('calendario_evento_id', eventoId).maybeSingle().then(({ data }) => {
+    const navEl = document.querySelector(`[onclick*="go(this,'campanhas-internas')"]`);
+    if (navEl) go(navEl, 'campanhas-internas');
+    if (data?.id) {
+      setTimeout(() => { if (typeof abrirVerCampanhaInterna === 'function') abrirVerCampanhaInterna(data.id); }, 500);
+    }
+  });
 }
 
 // Navega pro Cliente 360 e abre a aba Campanhas (quando user clica num evento campanha_c360)
@@ -18673,6 +18706,9 @@ const aiChatInterval = setInterval(() => {
         if (error) throw error;
         campanhaId = data.id;
       }
+      // Sincroniza com o calendario DMS
+      await ciSyncCalendario(campanhaId, { ...payload, id: campanhaId, calendario_evento_id: id ? ciState.campanhas.find(c => c.id === id)?.calendario_evento_id : null });
+
       showToast(id ? 'Campanha atualizada' : 'Campanha criada');
       logActivity(id ? 'editou_campanha_interna' : 'criou_campanha_interna', nome, 'campanhas-internas');
       fecharModalCI();
@@ -18690,7 +18726,11 @@ const aiChatInterval = setInterval(() => {
   window.ciApagar = async function(id) {
     const c = ciState.campanhas.find(x => x.id === id);
     if (!c || !ciPodeExcluir()) return;
-    if (!confirm(`Apagar a campanha "${c.nome}"?\n\nIsso remove também todas as atribuições de membros.`)) return;
+    if (!confirm(`Apagar a campanha "${c.nome}"?\n\nIsso remove também todas as atribuições de membros e o evento no calendário.`)) return;
+    // Apaga evento do calendario antes (ON DELETE SET NULL nao apaga o evento)
+    if (c.calendario_evento_id) {
+      await sb.from('calendario').delete().eq('id', c.calendario_evento_id).catch(() => {});
+    }
     const { error } = await sb.from('campanhas_internas').delete().eq('id', id);
     if (error) { showToast('Erro: ' + error.message); return; }
     showToast('Campanha apagada');
@@ -18699,6 +18739,47 @@ const aiChatInterval = setInterval(() => {
     document.getElementById('modal-ci-view')?.remove();
     await ciLoad(); ciRender();
   };
+
+  // Sincroniza campanha interna → evento no calendario
+  async function ciSyncCalendario(campanhaId, camp) {
+    try {
+      const temData = !!(camp.data_inicio || camp.data_fim);
+      const eventoExistente = camp.calendario_evento_id;
+
+      // Se removeu datas e tem evento → apaga
+      if (!temData && eventoExistente) {
+        await sb.from('calendario').delete().eq('id', eventoExistente);
+        await sb.from('campanhas_internas').update({ calendario_evento_id: null }).eq('id', campanhaId);
+        return;
+      }
+      if (!temData) return; // sem data, sem evento
+
+      const statusTxt = (CI_STATUS.find(s => s.v === camp.status)?.l || camp.status).replace(/^[^ ]+ /, '');
+      const tipoTxt = (CI_TIPOS.find(t => t.v === camp.tipo)?.l || camp.tipo).replace(/^[^ ]+ /, '');
+      const dadosEvento = {
+        titulo: camp.nome,
+        descricao: `${tipoTxt} · ${statusTxt}` + (camp.objetivo ? `\n\n${camp.objetivo}` : ''),
+        tipo: 'campanha_interna',
+        data_inicio: camp.data_inicio || camp.data_fim,
+        data_fim: camp.data_fim || camp.data_inicio,
+        cor: null, // usa tipoCor default (roxo #a855f7)
+      };
+
+      if (eventoExistente) {
+        // Atualiza evento existente
+        await sb.from('calendario').update(dadosEvento).eq('id', eventoExistente);
+      } else {
+        // Cria evento novo
+        const { data: novo, error } = await sb.from('calendario').insert(dadosEvento).select().single();
+        if (error) { console.warn('[ci] sync calendario falhou:', error.message); return; }
+        if (novo?.id) {
+          await sb.from('campanhas_internas').update({ calendario_evento_id: novo.id }).eq('id', campanhaId);
+        }
+      }
+    } catch (e) {
+      console.warn('[ci] syncCalendario:', e);
+    }
+  }
 
   // ── Modal Ver Campanha + gerenciar membros ──
   window.abrirVerCampanhaInterna = async function(id) {
