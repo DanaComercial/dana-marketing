@@ -583,9 +583,109 @@
       const [pedidos] = await Promise.all([ fetchPedidosCliente(nome, state.empresa) ]);
       const fav = computeFavoritos(pedidos);
       renderClientDetail(c, nome, pedidos, fav);
+      // Injeta painel de metadata (status/tel_alt/observacao) logo abaixo do header
+      if (c?.contato_id) {
+        await injectMetadataPanel(c.contato_id, state.empresa, nome);
+      }
     } catch (e) {
       console.error('[c360] erro detalhe:', e);
       page.innerHTML = '<div style="padding:40px;text-align:center;color:#ef4444">Erro ao carregar: ' + escapeHtml(String(e.message||e)) + '</div>';
+    }
+  };
+
+  // ══════════════════════════════════
+  // METADATA do cliente Bling (status, tel alt, obs rapida)
+  // ══════════════════════════════════
+  const METADATA_STATUS = [
+    { v: 'novo', l: '🆕 Novo contato', cor: '#94a3b8' },
+    { v: 'contatado', l: '💬 Contatado', cor: '#60a5fa' },
+    { v: 'negociando', l: '🤝 Em negociação', cor: '#fbbf24' },
+    { v: 'comprou', l: '✅ Comprou', cor: '#22c55e' },
+    { v: 'perdido', l: '❌ Perdido', cor: '#ef4444' },
+    { v: 'sem_interesse', l: '😐 Sem interesse', cor: '#94a3b8' },
+  ];
+
+  async function injectMetadataPanel(contatoId, empresa, nome) {
+    const page = document.getElementById('page-cliente-1');
+    if (!page) return;
+    // Busca metadata existente
+    const { data: meta } = await state.sb.from('cliente_metadata')
+      .select('*').eq('contato_id', contatoId).eq('empresa', empresa).maybeSingle();
+    const status = meta?.status_relacionamento || 'novo';
+    const tel = meta?.telefone_alternativo || '';
+    const obs = meta?.observacao_rapida || '';
+
+    // Cria card da metadata e injeta no topo do detalhe (depois do breadcrumb "Voltar")
+    const existente = document.getElementById('c360-meta-panel');
+    if (existente) existente.remove();
+    const panel = document.createElement('div');
+    panel.id = 'c360-meta-panel';
+    panel.style.cssText = 'margin:20px auto 20px;padding:14px 16px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;max-width:1200px;width:calc(100% - 40px)';
+    const statusCor = METADATA_STATUS.find(s => s.v === status)?.cor || '#94a3b8';
+
+    panel.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap">
+        <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:600;color:#f1f5f9">📝 Acompanhamento comercial</div>
+        ${meta?.atualizado_em ? `<div style="font-size:10.5px;color:#64748b">${escapeHtml(meta.atualizado_por_nome || '—')} · ${new Date(meta.atualizado_em).toLocaleString('pt-BR')}</div>` : ''}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+        <div>
+          <label style="display:block;font-size:10.5px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Status do relacionamento</label>
+          <select id="c360-meta-status" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:12.5px">
+            ${METADATA_STATUS.map(s => `<option value="${s.v}" ${status===s.v?'selected':''}>${s.l}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:10.5px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Telefone alternativo</label>
+          <input id="c360-meta-tel" type="tel" value="${escapeHtml(tel)}" placeholder="(47) 99999-0000" style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:12.5px">
+        </div>
+        <div style="grid-column:span 2;min-width:0">
+          <label style="display:block;font-size:10.5px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Observação rápida</label>
+          <input id="c360-meta-obs" value="${escapeHtml(obs)}" placeholder="Ex: marcar ligação pra terça / cliente pediu catálogo..." style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:12.5px">
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="font-size:10.5px;color:#64748b">💡 Esses campos são locais do DMS — não mexem no Bling.</div>
+        <button id="c360-meta-save" onclick="c360SaveMetadata(${contatoId}, '${escapeHtml(empresa)}')" style="padding:7px 16px;border-radius:6px;border:1px solid rgba(167,139,250,0.4);background:rgba(167,139,250,0.15);color:#c4b5fd;cursor:pointer;font-size:12px;font-weight:600">💾 Salvar</button>
+      </div>
+    `;
+
+    // Insere DEPOIS do botao "Voltar" (primeiro botao do page)
+    const voltarBtn = page.querySelector('button');
+    if (voltarBtn && voltarBtn.parentNode) {
+      voltarBtn.parentNode.insertBefore(panel, voltarBtn.nextSibling);
+    } else {
+      page.insertBefore(panel, page.firstChild);
+    }
+  }
+
+  window.c360SaveMetadata = async function(contatoId, empresa) {
+    const btn = document.getElementById('c360-meta-save');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+    try {
+      const statusEl = document.getElementById('c360-meta-status');
+      const telEl = document.getElementById('c360-meta-tel');
+      const obsEl = document.getElementById('c360-meta-obs');
+      const { data: { user } } = await state.sb.auth.getUser();
+      const { data: profile } = await state.sb.from('profiles').select('nome').eq('id', user.id).maybeSingle();
+      const payload = {
+        contato_id: contatoId,
+        empresa,
+        status_relacionamento: statusEl?.value || 'novo',
+        telefone_alternativo: (telEl?.value || '').trim() || null,
+        observacao_rapida: (obsEl?.value || '').trim() || null,
+        atualizado_por: user.id,
+        atualizado_por_nome: profile?.nome,
+        atualizado_em: new Date().toISOString(),
+      };
+      const { error } = await state.sb.from('cliente_metadata').upsert(payload, { onConflict: 'contato_id,empresa' });
+      if (error) throw error;
+      if (typeof showToast === 'function') showToast('✓ Acompanhamento salvo');
+      if (btn) { btn.disabled = false; btn.textContent = '✓ Salvo'; setTimeout(() => { if (btn) btn.textContent = '💾 Salvar'; }, 1500); }
+    } catch (e) {
+      console.error('[c360] salvar metadata', e);
+      if (typeof showToast === 'function') showToast('Erro: ' + (e.message || e), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
     }
   };
 

@@ -5120,14 +5120,43 @@ function renderCriativosTodo() {
             ${c.prazo_entrega ? `<span>Prazo: <strong>${fmtData(c.prazo_entrega)}</strong> ${prazoAlerta(c.prazo_entrega)}</span>` : ''}
           </div>
         </div>
-        <div style="display:flex;gap:4px;flex-shrink:0">
+        <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap">
           ${canUpload ? `<button class="btn btn-primary btn-sm" onclick="abrirUploadParaDemanda('${c.id}')" title="Enviar arte pra essa demanda" style="padding:6px 10px;font-size:11px">↑ Enviar arte</button>` : ''}
+          ${(currentProfile?.cargo === 'admin' || userPermissoes['avatares_ia_gerar'] !== false) ? `<button class="btn btn-ghost btn-sm" onclick="criGerarReferenciaIA('${c.id}')" title="Gera imagem de referência IA pra inspirar (~R$ 0,20)" style="padding:6px 8px;font-size:11px">🎨 IA</button>` : ''}
           ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="abrirModalDemanda('${c.id}')" title="Editar" style="padding:6px 8px">✏️</button>` : ''}
           ${canDelete ? `<button class="btn btn-ghost btn-sm" onclick="abrirModalExcluirDemanda('${c.id}')" title="Excluir demanda" style="padding:6px 8px;color:var(--red)">🗑</button>` : ''}
         </div>
       </div>
     </div>`;
   }).join('');
+}
+
+// Gera imagem de REFERENCIA IA pra inspirar designer na demanda to-do
+function criGerarReferenciaIA(demandaId) {
+  const c = _criativosCache.find(x => x.id === demandaId);
+  if (!c) { showToast('Demanda não encontrada'); return; }
+  const formato = c.formato || 'reels';
+  const dimensoes = {
+    reels: 'vertical 9:16 Instagram Reels format',
+    feed: 'square 1:1 Instagram feed post format',
+    stories: 'vertical 9:16 Instagram Stories format',
+    carrossel: 'square 1:1 Instagram carousel format',
+    banner: 'horizontal 16:9 web banner format'
+  }[formato] || 'vertical 9:16 social media format';
+  const contexto = [
+    c.titulo && `theme: "${c.titulo}"`,
+    c.observacoes && `brief: ${c.observacoes}`,
+  ].filter(Boolean).join('. ');
+  const prompt = `Design reference concept mockup for a Brazilian medical uniform brand (Dana Jalecos — premium white lab coats, scrubs, luxury medical uniforms). ${dimensoes}. ${contexto}. Editorial lifestyle photography style with Brazilian healthcare professionals wearing premium white medical lab coats or scrubs. Modern clinical/spa environment, sophisticated warm natural lighting, beige and cream color palette with white accents, photorealistic commercial campaign aesthetic, aspirational luxury feel. This is a REFERENCE image only — designer will use it as inspiration, not as final art.`;
+  if (typeof gerarImagemIA === 'function') {
+    gerarImagemIA({
+      titulo: `Referência IA · ${c.titulo || 'Demanda'}`,
+      subtitulo: 'Imagem conceitual pra inspirar o designer (não substitui a arte)',
+      prompt,
+      contexto: 'outro',
+      contextoRefId: demandaId,
+    });
+  }
 }
 
 async function abrirModalDemanda(id) {
@@ -8110,6 +8139,7 @@ updateDynamicField('foto');
     <div class="mkt-tab active" onclick="switchAdminTab(this,'usuarios')">Usuários</div>
     <div class="mkt-tab" onclick="switchAdminTab(this,'permissoes')">Permissões por Cargo</div>
     <div class="mkt-tab" onclick="switchAdminTab(this,'atividades')">Relatório de Atividades</div>
+    <div class="mkt-tab" onclick="switchAdminTab(this,'custos-ia')">🎨 Custos IA</div>
   </div>
 
   <!-- ABA USUARIOS -->
@@ -8152,6 +8182,11 @@ updateDynamicField('foto');
       </div>
       <div id="admin-log-table" style="max-height:500px;overflow-y:auto"><div style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Carregando...</div></div>
     </div>
+  </div>
+
+  <!-- ABA CUSTOS IA -->
+  <div class="mkt-panel" id="admin-custos-ia">
+    <div id="admin-custos-ia-wrap"><div style="text-align:center;color:var(--text3);padding:40px;font-size:12.5px">⏳ Carregando...</div></div>
   </div>
 </div></div>
 
@@ -16333,7 +16368,205 @@ function switchAdminTab(tab, id) {
   if (id === 'usuarios') loadAdminUsers();
   if (id === 'permissoes') loadAdminPermissoes();
   if (id === 'atividades') loadActivityLog();
+  if (id === 'custos-ia') loadCustosIA();
 }
+
+// ── ADMIN: Dashboard de Custos IA ──
+async function loadCustosIA() {
+  const host = document.getElementById('admin-custos-ia-wrap');
+  if (!host) return;
+  host.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">⏳ Carregando...</div>';
+  try {
+    const [cfgRes, logsRes, gastoMesRes] = await Promise.all([
+      sb.from('avatares_ia_config').select('*').eq('id', 1).maybeSingle(),
+      sb.from('avatares_ia_log').select('*').eq('status','ok').not('url','is',null)
+        .gte('created_at', new Date(Date.now() - 90*86400000).toISOString())
+        .order('created_at', { ascending: false }).limit(500),
+      sb.rpc('avatares_ia_gasto_mes'),
+    ]);
+    const cfg = cfgRes.data || { limite_diario_usuario: 5, limite_mensal_reais: 50, custo_por_imagem_reais: 0.20, ativo: true, pausado_por_limite: false };
+    const logs = logsRes.data || [];
+    const gastoMes = Number(gastoMesRes.data || 0);
+    const limiteMes = Number(cfg.limite_mensal_reais || 50);
+    const pctMes = limiteMes > 0 ? (gastoMes / limiteMes * 100) : 0;
+
+    // Agrega por usuario
+    const porUser = {};
+    const porContexto = { persona: 0, campanha_interna: 0, briefing: 0, outro: 0 };
+    const inicioMes = new Date();
+    inicioMes.setDate(1); inicioMes.setHours(0,0,0,0);
+    const inicioMesISO = inicioMes.toISOString();
+    let totalMes = 0;
+    logs.forEach(l => {
+      const isThisMonth = l.created_at >= inicioMesISO;
+      if (!porUser[l.user_id]) porUser[l.user_id] = { nome: l.user_nome, cargo: l.user_cargo, imagensMes: 0, imagens90d: 0, custoMes: 0, custo90d: 0 };
+      const u = porUser[l.user_id];
+      const custo = Number(l.custo_estimado_reais || 0.20);
+      u.imagens90d++; u.custo90d += custo;
+      if (isThisMonth) { u.imagensMes++; u.custoMes += custo; totalMes++; }
+      if (isThisMonth) { porContexto[l.contexto] = (porContexto[l.contexto] || 0) + 1; }
+    });
+    const rankingUsers = Object.entries(porUser).sort((a,b) => b[1].custoMes - a[1].custoMes);
+
+    const corBarra = pctMes < 50 ? '#22c55e' : pctMes < 80 ? '#fbbf24' : '#ef4444';
+
+    host.innerHTML = `
+      <div class="card mb20">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Gasto do mês</div>
+            <div class="card-sub">Orçamento mensal R$ ${limiteMes.toFixed(2)} · custo por imagem R$ ${Number(cfg.custo_por_imagem_reais).toFixed(2)}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            ${cfg.pausado_por_limite ? '<span style="font-size:10.5px;padding:3px 9px;border-radius:5px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);font-weight:600">⏸ PAUSADO</span>' : ''}
+            ${!cfg.ativo ? '<span style="font-size:10.5px;padding:3px 9px;border-radius:5px;background:var(--surface2);color:var(--text3);border:1px solid var(--border);font-weight:600">INATIVO</span>' : ''}
+            <button class="btn btn-ghost btn-sm" onclick="loadCustosIA()">🔄</button>
+            <button class="btn btn-ghost btn-sm" onclick="iaCfgAbrirSettings()">⚙ Configurar</button>
+            ${cfg.pausado_por_limite ? `<button class="btn btn-primary btn-sm" onclick="iaCfgDespausar()">▶ Despausar</button>` : `<button class="btn btn-ghost btn-sm" onclick="iaCfgTogglePausa()">${cfg.ativo ? '⏸ Pausar agora' : '▶ Ativar'}</button>`}
+          </div>
+        </div>
+        <div style="display:flex;gap:24px;align-items:baseline;margin-bottom:10px;flex-wrap:wrap">
+          <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:${corBarra}">R$ ${gastoMes.toFixed(2)}</div><div style="font-size:11px;color:var(--text3)">gasto no mês</div></div>
+          <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px">${totalMes}</div><div style="font-size:11px;color:var(--text3)">imagens no mês</div></div>
+          <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px">${pctMes.toFixed(1)}%</div><div style="font-size:11px;color:var(--text3)">do orçamento</div></div>
+          <div style="margin-left:auto;font-size:11px;color:var(--text3)">Restam R$ ${Math.max(0, limiteMes - gastoMes).toFixed(2)} · ${Math.max(0, Math.floor((limiteMes - gastoMes) / Number(cfg.custo_por_imagem_reais))) } imagens</div>
+        </div>
+        <div style="height:8px;background:var(--surface2);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(100, pctMes)}%;background:${corBarra};transition:width .3s"></div>
+        </div>
+        ${pctMes >= 80 ? `<div style="margin-top:10px;padding:8px 12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:6px;font-size:12px;color:#ef4444">⚠ ${pctMes >= 100 ? 'Limite atingido — geração pausada automaticamente.' : 'Atingindo o limite mensal.'}</div>` : ''}
+      </div>
+
+      <div class="card mb20">
+        <div class="card-title" style="margin-bottom:10px">👥 Top usuários no mês</div>
+        ${rankingUsers.length === 0 ? '<div style="color:var(--text3);font-size:12.5px;text-align:center;padding:20px">Nenhuma geração esse mês</div>' : `
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:560px">
+              <thead><tr style="background:var(--surface2)">
+                <th style="padding:8px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Usuário</th>
+                <th style="padding:8px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Cargo</th>
+                <th style="padding:8px 10px;text-align:right;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Imagens mês</th>
+                <th style="padding:8px 10px;text-align:right;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Custo mês</th>
+                <th style="padding:8px 10px;text-align:right;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">90 dias</th>
+              </tr></thead>
+              <tbody>
+                ${rankingUsers.map(([uid, u]) => `
+                  <tr style="border-top:1px solid var(--border)">
+                    <td style="padding:8px 10px;font-weight:600">${esc(u.nome || '—')}</td>
+                    <td style="padding:8px 10px;color:var(--text3)">${esc(u.cargo || '—')}</td>
+                    <td style="padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums">${u.imagensMes}</td>
+                    <td style="padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600">R$ ${u.custoMes.toFixed(2)}</td>
+                    <td style="padding:8px 10px;text-align:right;color:var(--text3);font-variant-numeric:tabular-nums">${u.imagens90d} · R$ ${u.custo90d.toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>`}
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px">
+        ${Object.entries({persona:'👤 Personas',campanha_interna:'🎯 Campanhas',briefing:'📋 Briefings',outro:'📎 Outros'}).map(([k,l]) => `
+          <div class="card" style="padding:14px">
+            <div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px">${l}</div>
+            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;margin-top:4px">${porContexto[k] || 0}</div>
+            <div style="font-size:11px;color:var(--text3)">imagens no mês</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px">🖼 Últimas 20 gerações</div>
+        ${logs.length === 0 ? '<div style="color:var(--text3);font-size:12.5px;text-align:center;padding:20px">Nenhuma geração nos últimos 90 dias</div>' : `
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">
+            ${logs.slice(0,20).map(l => `
+              <a href="${esc(l.url)}" target="_blank" style="display:block;text-decoration:none;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#0a0a0a;aspect-ratio:9/16;position:relative" title="${esc(l.user_nome)} · ${esc(l.contexto)} · ${new Date(l.created_at).toLocaleDateString('pt-BR')}">
+                <img src="${esc(l.url)}" loading="lazy" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">
+                <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.8));color:white;padding:20px 6px 4px;font-size:9.5px">${esc(l.user_nome?.split(' ')[0] || '—')} · ${new Date(l.created_at).toLocaleDateString('pt-BR').slice(0,5)}</div>
+              </a>
+            `).join('')}
+          </div>`}
+      </div>
+    `;
+    window._iaCfgCache = cfg;
+  } catch (e) {
+    host.innerHTML = '<div style="padding:40px;text-align:center;color:#ef4444">Erro: ' + esc(e.message || e) + '</div>';
+  }
+}
+
+window.iaCfgAbrirSettings = function() {
+  const cfg = window._iaCfgCache || {};
+  document.getElementById('modal-ia-cfg')?.remove();
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay open" id="modal-ia-cfg">
+      <div class="modal" style="max-width:460px">
+        <div class="modal-header">
+          <div class="modal-title">⚙ Configurações Avatares IA</div>
+          <button class="modal-close" onclick="document.getElementById('modal-ia-cfg').remove()">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-field">
+            <label>Limite diário por usuário</label>
+            <input id="ia-cfg-lim-dia" type="number" min="0" class="input" value="${cfg.limite_diario_usuario || 5}">
+            <div style="font-size:10.5px;color:var(--text3);margin-top:3px">Admin sempre ilimitado</div>
+          </div>
+          <div class="form-field">
+            <label>Limite mensal (R$)</label>
+            <input id="ia-cfg-lim-mes" type="number" step="10" class="input" value="${cfg.limite_mensal_reais || 50}">
+            <div style="font-size:10.5px;color:var(--text3);margin-top:3px">Ao atingir, pausa geração automaticamente</div>
+          </div>
+          <div class="form-field">
+            <label>Custo por imagem (R$)</label>
+            <input id="ia-cfg-custo" type="number" step="0.01" class="input" value="${cfg.custo_por_imagem_reais || 0.20}">
+            <div style="font-size:10.5px;color:var(--text3);margin-top:3px">Nano Banana 2 = ~R$ 0,20</div>
+          </div>
+        </div>
+        <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+          <button class="btn btn-ghost" onclick="document.getElementById('modal-ia-cfg').remove()">Cancelar</button>
+          <button class="btn btn-primary" onclick="iaCfgSalvar()">Salvar</button>
+        </div>
+      </div>
+    </div>
+  `);
+};
+
+window.iaCfgSalvar = async function() {
+  const limDia = parseInt(document.getElementById('ia-cfg-lim-dia')?.value);
+  const limMes = parseFloat(document.getElementById('ia-cfg-lim-mes')?.value);
+  const custo = parseFloat(document.getElementById('ia-cfg-custo')?.value);
+  if (!isFinite(limDia) || limDia < 0) { showToast('Limite diário inválido'); return; }
+  if (!isFinite(limMes) || limMes < 0) { showToast('Limite mensal inválido'); return; }
+  if (!isFinite(custo) || custo <= 0) { showToast('Custo por imagem inválido'); return; }
+  const { error } = await sb.from('avatares_ia_config').update({
+    limite_diario_usuario: limDia, limite_mensal_reais: limMes, custo_por_imagem_reais: custo,
+    atualizado_por: currentUser?.id, atualizado_em: new Date().toISOString(),
+  }).eq('id', 1);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  showToast('✓ Configurações salvas');
+  document.getElementById('modal-ia-cfg')?.remove();
+  loadCustosIA();
+};
+
+window.iaCfgTogglePausa = async function() {
+  const cfg = window._iaCfgCache || {};
+  const novoAtivo = !cfg.ativo;
+  const { error } = await sb.from('avatares_ia_config').update({
+    ativo: novoAtivo, atualizado_por: currentUser?.id, atualizado_em: new Date().toISOString(),
+  }).eq('id', 1);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  showToast(novoAtivo ? 'IA reativada' : 'IA pausada');
+  loadCustosIA();
+};
+
+window.iaCfgDespausar = async function() {
+  if (!confirm('Despausar? A geração volta a rodar MAS pode ultrapassar o orçamento mensal se ninguém ajustar o limite.')) return;
+  const { error } = await sb.from('avatares_ia_config').update({
+    pausado_por_limite: false, pausado_em: null,
+    atualizado_por: currentUser?.id, atualizado_em: new Date().toISOString(),
+  }).eq('id', 1);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  showToast('IA despausada — atenção ao gasto!');
+  loadCustosIA();
+};
 
 // ── ADMIN: listar usuarios ──
 async function loadAdminUsers() {
