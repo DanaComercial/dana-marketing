@@ -18886,16 +18886,20 @@ const aiChatInterval = setInterval(() => {
 
   window.ciApagar = async function(id) {
     const c = ciState.campanhas.find(x => x.id === id);
-    if (!c || !ciPodeExcluir()) return;
+    if (!c) { showToast('Campanha não encontrada'); return; }
+    if (!ciPodeExcluir()) { showToast('🚫 Sem permissão pra apagar campanhas'); return; }
     if (!confirm(`Apagar a campanha "${c.nome}"?\n\nIsso remove também todas as atribuições de membros e o evento no calendário.`)) return;
+    console.log('[ci] apagando campanha', id, c.nome);
     // Apaga evento do calendario antes (ON DELETE SET NULL nao apaga o evento)
     if (c.calendario_evento_id) {
-      await sb.from('calendario').delete().eq('id', c.calendario_evento_id).catch(() => {});
+      const { error: eCal } = await sb.from('calendario').delete().eq('id', c.calendario_evento_id);
+      if (eCal) console.warn('[ci] falha apagar evento calendario (nao bloqueante):', eCal.message);
     }
-    const { error } = await sb.from('campanhas_internas').delete().eq('id', id);
-    if (error) { showToast('Erro: ' + error.message); return; }
+    const { error, count } = await sb.from('campanhas_internas').delete({ count: 'exact' }).eq('id', id);
+    if (error) { console.error('[ci] apagar falhou:', error); showToast('Erro: ' + error.message); return; }
+    if (count === 0) { showToast('⚠ Nada foi apagado — sem permissão no banco (RLS)'); return; }
     showToast('Campanha apagada');
-    logActivity('excluiu_campanha_interna', c.nome, 'campanhas-internas');
+    if (typeof logActivity === 'function') logActivity('excluiu_campanha_interna', c.nome, 'campanhas-internas');
     fecharModalCI();
     document.getElementById('modal-ci-view')?.remove();
     await ciLoad(); ciRender();
@@ -19030,6 +19034,7 @@ const aiChatInterval = setInterval(() => {
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               ${podeEditarC ? `<button class="btn btn-ghost" onclick="document.getElementById('modal-ci-view').remove();ciEditarCampanha('${c.id}')">✏️ Editar</button>` : ''}
               <button class="btn btn-ghost" onclick="ciExportarPDF('${c.id}')">🖨 Exportar PDF</button>
+              ${ciPodeExcluir() ? `<button class="btn btn-ghost" style="color:#ef4444;border-color:rgba(239,68,68,0.3)" onclick="ciApagar('${c.id}')">🗑 Apagar</button>` : ''}
             </div>
             <button class="btn btn-ghost" onclick="document.getElementById('modal-ci-view').remove()">Fechar</button>
           </div>
