@@ -18480,7 +18480,7 @@ const aiChatInterval = setInterval(() => {
             <div class="modal-title">${editando ? '✏️ Editar campanha' : '+ Nova campanha interna'}</div>
             <button class="modal-close" onclick="fecharModalCI()">×</button>
           </div>
-          <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+          <div class="modal-body">
             <div class="form-grid">
               <div class="form-field" style="grid-column:1 / -1">
                 <label>Nome da campanha *</label>
@@ -18568,11 +18568,14 @@ const aiChatInterval = setInterval(() => {
               </div>
             </div>
           </div>
-          <div class="modal-footer" style="gap:8px">
-            ${editando && ciPodeExcluir() ? `<button class="btn btn-ghost" style="color:#ef4444;border-color:rgba(239,68,68,0.3)" onclick="ciApagar('${c.id}')">🗑 Apagar campanha</button>` : ''}
-            <div style="flex:1"></div>
-            <button class="btn btn-ghost" onclick="fecharModalCI()">Cancelar</button>
-            <button class="btn btn-primary" id="ci-save-btn" onclick="ciSalvar('${c?.id || ''}')">${editando ? 'Salvar' : 'Criar campanha'}</button>
+          <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
+            <div>
+              ${editando && ciPodeExcluir() ? `<button class="btn btn-ghost" style="color:#ef4444;border-color:rgba(239,68,68,0.3)" onclick="ciApagar('${c.id}')">🗑 Apagar</button>` : ''}
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-ghost" onclick="fecharModalCI()">Cancelar</button>
+              <button class="btn btn-primary" id="ci-save-btn" onclick="ciSalvar('${c?.id || ''}')">${editando ? 'Salvar' : 'Criar campanha'}</button>
+            </div>
           </div>
         </div>
       </div>
@@ -18702,7 +18705,7 @@ const aiChatInterval = setInterval(() => {
             </div>
             <button class="modal-close" onclick="document.getElementById('modal-ci-view').remove()">×</button>
           </div>
-          <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+          <div class="modal-body">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
               <div><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px">Responsável</div><div style="font-size:13px;margin-top:2px">${esc(c.responsavel_nome || '—')}</div></div>
               <div><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px">Canais</div><div style="font-size:13px;margin-top:2px">${esc(canaisTxt)}</div></div>
@@ -18724,9 +18727,10 @@ const aiChatInterval = setInterval(() => {
               <div id="ci-membros-lista">${membrosHtml}</div>
             </div>
           </div>
-          <div class="modal-footer" style="gap:8px">
-            ${podeEditarC ? `<button class="btn btn-ghost" onclick="document.getElementById('modal-ci-view').remove();ciEditarCampanha('${c.id}')">✏️ Editar campanha</button>` : ''}
-            <div style="flex:1"></div>
+          <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
+            <div>
+              ${podeEditarC ? `<button class="btn btn-ghost" onclick="document.getElementById('modal-ci-view').remove();ciEditarCampanha('${c.id}')">✏️ Editar</button>` : ''}
+            </div>
             <button class="btn btn-ghost" onclick="document.getElementById('modal-ci-view').remove()">Fechar</button>
           </div>
         </div>
@@ -18776,7 +18780,7 @@ const aiChatInterval = setInterval(() => {
               <textarea id="ci-mem-obs" class="input" rows="2" placeholder="Ex: responsável por criar 3 reels">${esc(membro?.observacao || '')}</textarea>
             </div>
           </div>
-          <div class="modal-footer" style="gap:8px">
+          <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
             <button class="btn btn-ghost" onclick="document.getElementById('modal-ci-mem').remove()">Cancelar</button>
             <button class="btn btn-primary" id="ci-mem-save" onclick="ciSalvarMembro('${campanhaId}','${membroId||''}')">${membro?'Salvar':'Atribuir'}</button>
           </div>
