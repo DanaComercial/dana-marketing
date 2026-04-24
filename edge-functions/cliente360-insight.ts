@@ -28,7 +28,9 @@ const json = (o: any, status = 200) =>
 
 const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, { auth: { persistSession: false } })
 
-const CARGOS_AUTORIZADOS = new Set(['admin', 'gerente_comercial', 'gerente_marketing'])
+const CARGOS_AUTORIZADOS = new Set(['admin', 'gerente_comercial', 'gerente_marketing', 'vendedor'])
+const CARGOS_ILIMITADOS = new Set(['admin'])
+const CARGOS_GERENTE    = new Set(['gerente_comercial', 'gerente_marketing'])
 
 const LOJA_NOMES: Record<string, string> = {
   '0': 'Site', 'null': 'Site',
@@ -130,11 +132,55 @@ Deno.serve(async (req) => {
     const { data: userData, error: userErr } = await userClient.auth.getUser(jwt)
     if (userErr || !userData.user) return json({ error: 'JWT inválido' }, 401)
 
-    // 2. Permissão (admin ou gerentes)
+    // 2. Permissão (admin, gerentes ou vendedor com quota)
     const { data: profile } = await admin.from('profiles').select('cargo, nome').eq('id', userData.user.id).single()
     const cargo = profile?.cargo || 'vendedor'
     if (!CARGOS_AUTORIZADOS.has(cargo)) {
-      return json({ error: 'Sem permissão. Insights IA disponível para admin e gerentes.' }, 403)
+      return json({ error: 'Sem permissão. Insights IA disponível para admin, gerentes e vendedores.' }, 403)
+    }
+
+    // 2.1. Config + kill-switch + quota
+    const { data: cfg } = await admin.from('cliente_insights_config').select('*').eq('id', 1).single()
+    const config = cfg || {
+      ativo: true, limite_diario_vendedor: 5, limite_diario_gerente: 20,
+      limite_mensal_reais: 30, custo_por_insight_reais: 0.02, pausado_por_limite: false
+    }
+    if (!config.ativo) {
+      return json({ error: 'Geração de insights está desativada pelo admin.' }, 403)
+    }
+    if (config.pausado_por_limite) {
+      return json({ error: 'Geração de insights pausada — limite mensal atingido. Fale com o admin.' }, 403)
+    }
+
+    // Kill-switch automático: gasto do mês >= limite
+    const { data: gastoMes } = await admin.rpc('cliente_insights_gasto_mes')
+    const gasto = Number(gastoMes) || 0
+    if (gasto >= Number(config.limite_mensal_reais)) {
+      // Auto-pausa
+      await admin.from('cliente_insights_config').update({ pausado_por_limite: true }).eq('id', 1)
+      return json({ error: `Limite mensal de R$ ${config.limite_mensal_reais} atingido. Geração pausada.` }, 403)
+    }
+
+    // Quota diária (admin ilimitado)
+    let limiteDiario = 0
+    if (CARGOS_ILIMITADOS.has(cargo)) {
+      limiteDiario = -1 // ilimitado
+    } else if (CARGOS_GERENTE.has(cargo)) {
+      limiteDiario = Number(config.limite_diario_gerente) || 20
+    } else {
+      // vendedor
+      limiteDiario = Number(config.limite_diario_vendedor) || 5
+    }
+
+    if (limiteDiario !== -1) {
+      const { data: countHoje } = await admin.rpc('cliente_insights_count_hoje', { uid: userData.user.id })
+      const usados = Number(countHoje) || 0
+      if (usados >= limiteDiario) {
+        return json({
+          error: `Quota diária atingida (${usados}/${limiteDiario}). Tente novamente amanhã.`,
+          quota: { usados, limite: limiteDiario, restante: 0 }
+        }, 429)
+      }
     }
 
     // 3. Body
@@ -142,6 +188,22 @@ Deno.serve(async (req) => {
     const contato_nome = String(body.contato_nome || '').trim()
     const empresa = body.empresa === 'bc' ? 'bc' : 'matriz'
     if (!contato_nome) return json({ error: 'contato_nome obrigatório' }, 400)
+
+    // 3.1 Escopo vendedor: só pode gerar insight de cliente DA CARTEIRA dele
+    if (cargo === 'vendedor') {
+      const { data: meusClientes } = await admin
+        .from('cliente_scoring_vendedor')
+        .select('contato_nome')
+        .eq('vendedor_profile_id', userData.user.id)
+        .eq('empresa', empresa)
+        .eq('contato_nome', contato_nome)
+        .maybeSingle()
+      if (!meusClientes) {
+        return json({
+          error: 'Este cliente não está na sua carteira. Você só pode gerar insights dos seus clientes.'
+        }, 403)
+      }
+    }
 
     // 4. Busca dados agregados (cliente_scoring_full)
     const { data: cs } = await admin
@@ -235,17 +297,39 @@ Gere o insight seguindo EXATAMENTE o formato obrigatório do system prompt.`
     // 9. Gera via LLM
     const { text, modelo } = await gerarInsight(contexto)
 
-    // 10. Salva no cliente_insights (cache)
+    // Custo estimado (Groq = free, Gemini 2.5 Flash ~$0.02 BRL equiv)
+    const custoEstimado = modelo.toLowerCase().includes('gemini')
+      ? Number(config.custo_por_insight_reais) || 0.02
+      : 0  // Groq = zero custo
+    const provider = modelo.toLowerCase().includes('gemini') ? 'gemini'
+                   : modelo.toLowerCase().includes('groq') || modelo.toLowerCase().includes('llama') ? 'groq'
+                   : 'desconhecido'
+
+    // 10. Salva no cliente_insights (cache + quota)
     await admin.from('cliente_insights').insert({
       empresa,
       contato_nome,
       insight: text,
       modelo,
+      modelo_provider: provider,
       user_id: userData.user.id,
       user_nome: profile?.nome || userData.user.email,
+      cargo_autor: cargo,
+      custo_estimado: custoEstimado,
     }).then(({ error }) => { if (error) console.warn('[insight] save erro:', error.message) })
 
-    return json({ ok: true, insight: text, modelo, gerado_em: new Date().toISOString() })
+    // Quota info pra UI mostrar "3/5"
+    let quotaInfo: any = null
+    if (limiteDiario !== -1) {
+      const { data: novoCount } = await admin.rpc('cliente_insights_count_hoje', { uid: userData.user.id })
+      quotaInfo = {
+        usados: Number(novoCount) || 0,
+        limite: limiteDiario,
+        restante: Math.max(0, limiteDiario - (Number(novoCount) || 0)),
+      }
+    }
+
+    return json({ ok: true, insight: text, modelo, provider, custo_estimado: custoEstimado, quota: quotaInfo, gerado_em: new Date().toISOString() })
   } catch (e) {
     console.error('[insight] erro:', e)
     return json({ error: (e as Error).message || 'erro interno' }, 500)

@@ -1001,16 +1001,60 @@
       </div>`;
   }
 
+  async function c360LoadInsightQuota() {
+    try {
+      const { data: { user } } = await state.sb.auth.getUser();
+      if (!user) return null;
+      const { data: profile } = await state.sb.from('profiles').select('cargo').eq('id', user.id).single();
+      const cargo = profile?.cargo || 'vendedor';
+      if (cargo === 'admin') return { cargo, ilimitado: true };
+      const { data: cfg } = await state.sb.from('cliente_insights_config').select('*').eq('id', 1).single();
+      if (!cfg || !cfg.ativo) return { cargo, desativado: true };
+      if (cfg.pausado_por_limite) return { cargo, pausado: true };
+      const limite = ['gerente_comercial','gerente_marketing'].includes(cargo)
+        ? (cfg.limite_diario_gerente || 20)
+        : (cfg.limite_diario_vendedor || 5);
+      const { data: usados } = await state.sb.rpc('cliente_insights_count_hoje', { uid: user.id });
+      return { cargo, usados: Number(usados) || 0, limite, restante: Math.max(0, limite - (Number(usados) || 0)) };
+    } catch (e) { console.warn('[insight] quota:', e); return null; }
+  }
+
   function renderInsightsTab(contatoNome, insights, gerando) {
     const panel = document.getElementById('c360-tabpanel-insights');
     if (!panel) return;
     const cards = (insights || []).map((ins, idx) => insightCard(ins, idx === 0)).join('');
+
+    // Quota badge
+    const q = state.c360InsightQuota;
+    let quotaBadge = '';
+    let podeGerar = true;
+    if (q) {
+      if (q.ilimitado) {
+        quotaBadge = '<span style="font-size:11px;padding:3px 10px;background:rgba(168,85,247,0.12);color:#a855f7;border:1px solid rgba(168,85,247,0.3);border-radius:999px;font-weight:700">∞ ADMIN</span>';
+      } else if (q.desativado) {
+        quotaBadge = '<span style="font-size:11px;padding:3px 10px;background:rgba(100,116,139,0.15);color:#64748b;border-radius:999px">⏸ Desativado</span>';
+        podeGerar = false;
+      } else if (q.pausado) {
+        quotaBadge = '<span style="font-size:11px;padding:3px 10px;background:rgba(239,68,68,0.15);color:#ef4444;border-radius:999px">🚫 Limite mensal</span>';
+        podeGerar = false;
+      } else {
+        const cor = q.restante === 0 ? '#ef4444' : q.restante <= 1 ? '#fbbf24' : '#22c55e';
+        quotaBadge = `<span style="font-size:11px;padding:3px 10px;background:${cor}20;color:${cor};border:1px solid ${cor}50;border-radius:999px;font-weight:700">${q.usados}/${q.limite} hoje</span>`;
+        if (q.restante === 0) podeGerar = false;
+      }
+    }
+
+    const desabilitado = gerando || !podeGerar;
+
     panel.innerHTML = `
       <div style="padding:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px">
-          <div style="font-size:13px;color:#94a3b8">Análises geradas por IA (Groq Llama 3.3 · fallback Gemini 2.5)</div>
-          <button onclick="c360InsightIA()" ${gerando?'disabled':''} style="padding:8px 16px;border-radius:8px;border:1px solid oklch(88% 0.018 80 / 0.5);background:oklch(88% 0.018 80 / 0.12);color:oklch(88% 0.018 80);cursor:${gerando?'not-allowed':'pointer'};font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;opacity:${gerando?0.6:1}">
-            ${gerando ? '⏳ Gerando...' : '◆ Gerar novo Insight'}
+          <div style="font-size:13px;color:#94a3b8;display:flex;align-items:center;gap:10px">
+            <span>Análises geradas por IA (Groq Llama 3.3 · fallback Gemini 2.5)</span>
+            ${quotaBadge}
+          </div>
+          <button onclick="c360InsightIA()" ${desabilitado?'disabled':''} style="padding:8px 16px;border-radius:8px;border:1px solid oklch(88% 0.018 80 / 0.5);background:oklch(88% 0.018 80 / 0.12);color:oklch(88% 0.018 80);cursor:${desabilitado?'not-allowed':'pointer'};font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;opacity:${desabilitado?0.4:1}">
+            ${gerando ? '⏳ Gerando...' : !podeGerar ? '🚫 Indisponível' : '◆ Gerar novo Insight'}
           </button>
         </div>
         ${insights.length === 0
@@ -1446,17 +1490,26 @@
 
     // Muda pra aba insights
     c360SwitchTab('insights');
+    state.c360InsightQuota = await c360LoadInsightQuota();
     const history = await c360LoadInsightsHistory(nome);
     renderInsightsTab(nome, history, true);
 
     try {
       const result = await c360GenerateInsight(nome);
-      if (typeof showToast === 'function') showToast('Insight gerado!', 'success');
+      if (result.quota) state.c360InsightQuota = { cargo: state.c360InsightQuota?.cargo, ...result.quota };
+      if (typeof showToast === 'function') {
+        const msg = result.quota ? `Insight gerado! (${result.quota.usados}/${result.quota.limite} hoje)` : 'Insight gerado!';
+        showToast(msg, 'success');
+      }
       // Reload com o novo insight no topo
       const newHistory = await c360LoadInsightsHistory(nome);
       renderInsightsTab(nome, newHistory, false);
     } catch (e) {
       console.error('[c360] erro insight:', e);
+      // Se erro 429 (quota), recarrega quota pra UI refletir
+      if (String(e.message).includes('quota') || String(e.message).includes('Quota')) {
+        state.c360InsightQuota = await c360LoadInsightQuota();
+      }
       if (typeof showToast === 'function') showToast('Erro: ' + e.message, 'error');
       renderInsightsTab(nome, history, false);
     }
@@ -1475,6 +1528,7 @@
       const panel = document.getElementById('c360-tabpanel-insights');
       if (panel && panel.getAttribute('data-loaded-for') !== nome) {
         panel.setAttribute('data-loaded-for', nome);
+        state.c360InsightQuota = await c360LoadInsightQuota();
         const history = await c360LoadInsightsHistory(nome);
         renderInsightsTab(nome, history, false);
       }
