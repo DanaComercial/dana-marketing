@@ -13,6 +13,28 @@ const GEMINI_IMAGE_KEY = Deno.env.get('GEMINI_IMAGE_API_KEY')!
 const BUCKET = 'avatares-personas'
 const MODEL = 'gemini-2.5-flash-image'
 
+// Logo Dana "Principal Horizontal" (midia kit) pra usar como referencia em image-to-image
+const LOGO_DANA_URL = 'https://comlppiwzniskjbeneos.supabase.co/storage/v1/object/public/kanban/brandkit-logo-1776433663865-vn4wml.png'
+
+// Palavras-chave que indicam que o prompt eh sobre roupa Dana (jaleco/scrub/uniforme)
+const ROUPA_KEYWORDS = /\b(lab\s*coat|jaleco|scrub|uniform|medical\s*coat|labcoat|doctor|dentist|nurse|healthcare\s+professional|medical\s+professional|white\s+coat)\b/i
+
+async function fetchImagemBase64(url: string): Promise<{ mime: string, b64: string } | null> {
+  try {
+    const r = await fetch(url)
+    if (!r.ok) { console.warn('[logo] fetch falhou', r.status); return null }
+    const mime = r.headers.get('content-type') || 'image/png'
+    const buf = new Uint8Array(await r.arrayBuffer())
+    // Encode base64
+    let bin = ''
+    for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i])
+    return { mime, b64: btoa(bin) }
+  } catch (e) {
+    console.warn('[logo] fetch erro', e)
+    return null
+  }
+}
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -101,7 +123,7 @@ Deno.serve(async (req) => {
       if (usadas >= limite) {
         await admin.from('avatares_ia_log').insert({
           user_id: userId, user_nome: userNome, user_cargo: userCargo,
-          contexto, contexto_ref_id, prompt, url: null,
+          contexto, contexto_ref_id: contextoRefId, prompt, url: null,
           status: 'bloqueado_quota',
           erro_msg: `Quota diária atingida (${usadas}/${limite})`,
         })
@@ -112,14 +134,31 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── 7. Chama Gemini Image ──
+    // ── 7. Enhancer: injeta logo Dana quando for roupa/uniforme ──
+    const incluirLogo = body.incluir_logo !== false && ROUPA_KEYWORDS.test(prompt)
+    const parts: any[] = []
+    let promptFinal = prompt
+
+    if (incluirLogo) {
+      const logo = await fetchImagemBase64(LOGO_DANA_URL)
+      if (logo) {
+        parts.push({ inlineData: { mimeType: logo.mime, data: logo.b64 } })
+        promptFinal = prompt + `\n\nBRAND REQUIREMENT: The lab coat / medical uniform / scrub must have the Dana Jalecos brand logo (shown in the attached reference image) embroidered or printed subtly on the chest pocket area. Keep the logo recognizable but integrated tastefully into the garment — tonal embroidery (cream/beige on white fabric) preferred, or small discrete placement. Use the exact logo shape and proportions from the reference.`
+      } else {
+        // Fallback se nao conseguir baixar a logo: ainda instrui no texto
+        promptFinal = prompt + `\n\nBRAND REQUIREMENT: Include a small, elegant embroidered brand wordmark "Dana" on the chest pocket of the lab coat / uniform.`
+      }
+    }
+
+    parts.push({ text: promptFinal })
+
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_IMAGE_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          contents: [{ role: 'user', parts }],
           generationConfig: { responseModalities: ['IMAGE'] }
         })
       }
@@ -130,7 +169,7 @@ Deno.serve(async (req) => {
       console.error('[gerar-avatar-ia] Gemini erro:', geminiRes.status, erro)
       await admin.from('avatares_ia_log').insert({
         user_id: userId, user_nome: userNome, user_cargo: userCargo,
-        contexto, contexto_ref_id, prompt, url: null,
+        contexto, contexto_ref_id: contextoRefId, prompt, url: null,
         status: 'erro', erro_msg: `Gemini ${geminiRes.status}: ${erro.slice(0, 200)}`,
       })
       return json({ error: 'Falha ao gerar imagem', detalhe: erro.slice(0, 300) }, 500)
@@ -138,13 +177,13 @@ Deno.serve(async (req) => {
 
     const geminiData = await geminiRes.json()
     // Localiza a parte inlineData com o PNG
-    const parts = geminiData?.candidates?.[0]?.content?.parts || []
-    const imgPart = parts.find((p: any) => p.inlineData?.data)
+    const partsRet = geminiData?.candidates?.[0]?.content?.parts || []
+    const imgPart = partsRet.find((p: any) => p.inlineData?.data)
     if (!imgPart) {
       console.error('[gerar-avatar-ia] sem imagem no retorno', JSON.stringify(geminiData).slice(0, 500))
       await admin.from('avatares_ia_log').insert({
         user_id: userId, user_nome: userNome, user_cargo: userCargo,
-        contexto, contexto_ref_id, prompt, url: null,
+        contexto, contexto_ref_id: contextoRefId, prompt, url: null,
         status: 'erro', erro_msg: 'Sem inlineData no retorno do Gemini',
       })
       return json({ error: 'Gemini não retornou imagem. Reformule o prompt.' }, 500)
@@ -165,7 +204,7 @@ Deno.serve(async (req) => {
       console.error('[gerar-avatar-ia] upload falhou:', upErr)
       await admin.from('avatares_ia_log').insert({
         user_id: userId, user_nome: userNome, user_cargo: userCargo,
-        contexto, contexto_ref_id, prompt, url: null,
+        contexto, contexto_ref_id: contextoRefId, prompt, url: null,
         status: 'erro', erro_msg: `Upload falhou: ${upErr.message}`,
       })
       return json({ error: 'Falha ao salvar imagem no Storage', detalhe: upErr.message }, 500)
@@ -177,7 +216,7 @@ Deno.serve(async (req) => {
     // ── 9. Log de sucesso ──
     await admin.from('avatares_ia_log').insert({
       user_id: userId, user_nome: userNome, user_cargo: userCargo,
-      contexto, contexto_ref_id, prompt, url,
+      contexto, contexto_ref_id: contextoRefId, prompt, url,
       tamanho_bytes: bin.byteLength,
       modelo: MODEL,
       custo_estimado_reais: Number(cfg.custo_por_imagem_reais || 0.20),
