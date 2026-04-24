@@ -9,8 +9,8 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 const GEMINI_IMAGE_KEY = Deno.env.get('GEMINI_IMAGE_API_KEY')!
+const IMGBB_API_KEY = Deno.env.get('IMGBB_API_KEY')!
 
-const BUCKET = 'avatares-personas'
 const MODEL = 'gemini-2.5-flash-image'
 
 // Logo Dana "Principal Horizontal" (midia kit) pra usar como referencia em image-to-image
@@ -198,32 +198,44 @@ Deno.serve(async (req) => {
     const base64: string = imgPart.inlineData.data
     const mime: string = imgPart.inlineData.mimeType || 'image/png'
 
-    // ── 8. Decode base64 → upload no Storage ──
-    const bin = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
-    const ts = Date.now()
-    const fileName = `${contexto}/${contextoRefId || 'geral'}/${userId.slice(0,8)}-${ts}.png`
+    // ── 8. Upload pra ImgBB (externo, gratis, link permanente) ──
+    const tamanhoBytes = Math.floor((base64.length * 3) / 4) // aproximado
+    const imgbbForm = new FormData()
+    imgbbForm.append('image', base64)
+    imgbbForm.append('name', `${contexto}-${contextoRefId || 'geral'}-${Date.now()}`)
 
-    const { error: upErr } = await admin.storage.from(BUCKET).upload(fileName, bin, {
-      contentType: mime, cacheControl: '31536000', upsert: false
-    })
-    if (upErr) {
-      console.error('[gerar-avatar-ia] upload falhou:', upErr)
+    let url: string | null = null
+    try {
+      const imgbbRes = await fetch(
+        `https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`,
+        { method: 'POST', body: imgbbForm }
+      )
+      const imgbbJson = await imgbbRes.json()
+      if (!imgbbRes.ok || !imgbbJson?.data?.url) {
+        console.error('[gerar-avatar-ia] ImgBB falhou:', imgbbRes.status, imgbbJson)
+        await admin.from('avatares_ia_log').insert({
+          user_id: userId, user_nome: userNome, user_cargo: userCargo,
+          contexto, contexto_ref_id: contextoRefId, prompt, url: null,
+          status: 'erro', erro_msg: `ImgBB ${imgbbRes.status}: ${(imgbbJson?.error?.message || JSON.stringify(imgbbJson)).slice(0, 200)}`,
+        })
+        return json({ error: 'Falha ao hospedar imagem', detalhe: imgbbJson?.error?.message || 'ImgBB upload falhou' }, 500)
+      }
+      url = imgbbJson.data.url
+    } catch (e: any) {
+      console.error('[gerar-avatar-ia] ImgBB erro:', e)
       await admin.from('avatares_ia_log').insert({
         user_id: userId, user_nome: userNome, user_cargo: userCargo,
         contexto, contexto_ref_id: contextoRefId, prompt, url: null,
-        status: 'erro', erro_msg: `Upload falhou: ${upErr.message}`,
+        status: 'erro', erro_msg: `ImgBB network: ${String(e.message || e).slice(0, 200)}`,
       })
-      return json({ error: 'Falha ao salvar imagem no Storage', detalhe: upErr.message }, 500)
+      return json({ error: 'Falha ao hospedar imagem', detalhe: String(e.message || e) }, 500)
     }
-
-    const { data: urlData } = admin.storage.from(BUCKET).getPublicUrl(fileName)
-    const url = urlData.publicUrl
 
     // ── 9. Log de sucesso ──
     await admin.from('avatares_ia_log').insert({
       user_id: userId, user_nome: userNome, user_cargo: userCargo,
       contexto, contexto_ref_id: contextoRefId, prompt, url,
-      tamanho_bytes: bin.byteLength,
+      tamanho_bytes: tamanhoBytes,
       modelo: MODEL,
       custo_estimado_reais: Number(cfg.custo_por_imagem_reais || 0.20),
       status: 'ok',
@@ -234,7 +246,7 @@ Deno.serve(async (req) => {
     return json({
       url,
       mime,
-      tamanho_bytes: bin.byteLength,
+      tamanho_bytes: tamanhoBytes,
       custo_estimado: Number(cfg.custo_por_imagem_reais || 0.20),
       gasto_mes_atual: gastoMes + Number(cfg.custo_por_imagem_reais || 0.20),
       quota_hoje: ehAdmin ? null : { usadas: Number(usadasHojeRes?.data || 0), limite: Number(cfg.limite_diario_usuario || 5) },
