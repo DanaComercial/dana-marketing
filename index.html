@@ -4239,9 +4239,19 @@ select.input { cursor: pointer; }
         </select>
       </div>
     </div>
-    <div class="form-row">
-      <label class="label">Designer</label>
-      <select class="input" id="cri-up-designer"><option value="">Selecionar...</option></select>
+    <div class="form-row-2">
+      <div>
+        <label class="label">Designer</label>
+        <select class="input" id="cri-up-designer"><option value="">Selecionar...</option></select>
+      </div>
+      <div>
+        <label class="label">Equipe</label>
+        <select class="input" id="cri-up-equipe">
+          <option value="">— não informar —</option>
+          <option value="dana">🏠 Time Dana</option>
+          <option value="intensiva">🏢 Intensiva</option>
+        </select>
+      </div>
     </div>
     <div class="form-row">
       <label class="label">Origem da arte *</label>
@@ -4671,10 +4681,16 @@ function renderGridCriativos(list, status) {
         </div>`
       : '';
 
+    const equipeBadge = c.equipe === 'dana'
+      ? '<span style="display:inline-block;padding:2px 8px;background:rgba(59,130,246,0.15);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:999px;font-size:10px;font-weight:700;margin-left:6px">🏠 Time Dana</span>'
+      : c.equipe === 'intensiva'
+      ? '<span style="display:inline-block;padding:2px 8px;background:rgba(168,85,247,0.15);color:#a855f7;border:1px solid rgba(168,85,247,0.3);border-radius:999px;font-size:10px;font-weight:700;margin-left:6px">🏢 Intensiva</span>'
+      : '';
+
     return `<div class="arte-card ${c.status}">
       ${thumb}
       <div class="arte-body">
-        <div class="arte-camp">${briefingTitulo}</div>
+        <div class="arte-camp">${briefingTitulo}${equipeBadge}</div>
         <div class="arte-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nome}</div>
         <div class="arte-meta">Designer: ${designer} · ${fmtData(c.created_at)}</div>
         ${aprovadoInfo}
@@ -4745,6 +4761,7 @@ async function abrirModalEnviarArte() {
   fillResponsavelSelect('cri-up-designer', currentProfile?.nome || '');
   document.getElementById('cri-up-titulo').value = '';
   document.getElementById('cri-up-formato').value = 'reels';
+  const eqSel = document.getElementById('cri-up-equipe'); if (eqSel) eqSel.value = '';
   document.getElementById('cri-up-obs').value = '';
   document.getElementById('cri-up-file').value = '';
   document.getElementById('cri-up-link').value = '';
@@ -4762,6 +4779,7 @@ async function enviarArte() {
   const formato = document.getElementById('cri-up-formato').value;
   const designer = document.getElementById('cri-up-designer').value || null;
   const designerId = getSelectedProfileId('cri-up-designer');
+  const equipe = document.getElementById('cri-up-equipe')?.value || null;
   const observacoes = document.getElementById('cri-up-obs').value.trim() || null;
   const statusEl = document.getElementById('cri-up-status');
   const btnEl = document.getElementById('cri-up-btn');
@@ -4775,6 +4793,7 @@ async function enviarArte() {
     formato,
     designer_id: designerId,
     designer_nome: designer,
+    equipe,
     status: 'aguardando',
     observacoes,
     versao: 1,
@@ -5298,6 +5317,7 @@ async function abrirUploadParaDemanda(id) {
   document.getElementById('cri-up-briefing').value = c.briefing_id || '';
   document.getElementById('cri-up-formato').value = c.formato || 'reels';
   if (c.designer_nome) fillResponsavelSelect('cri-up-designer', c.designer_nome);
+  const eqSel2 = document.getElementById('cri-up-equipe'); if (eqSel2) eqSel2.value = c.equipe || '';
   if (c.observacoes) document.getElementById('cri-up-obs').value = c.observacoes;
 
   // Armazena o ID da demanda pra "virar" ela no save
@@ -5344,10 +5364,16 @@ function renderCriativosPublicados() {
       ? `<div class="arte-thumb"><img src="${urlEsc}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" onerror="this.style.display='none'"><div class="arte-format-badge estatico">${formato}</div></div>`
       : `<div class="arte-thumb"><div class="arte-thumb-placeholder"><span>${iconeTipo(tipo)}</span><p>${formato.toUpperCase()}</p></div><div class="arte-format-badge ${tipo==='video'?'video':'estatico'}">${formato}</div></div>`;
 
+    const equipeBadgePub = c.equipe === 'dana'
+      ? '<span style="display:inline-block;padding:2px 8px;background:rgba(59,130,246,0.15);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:999px;font-size:10px;font-weight:700;margin-left:6px">🏠 Time Dana</span>'
+      : c.equipe === 'intensiva'
+      ? '<span style="display:inline-block;padding:2px 8px;background:rgba(168,85,247,0.15);color:#a855f7;border:1px solid rgba(168,85,247,0.3);border-radius:999px;font-size:10px;font-weight:700;margin-left:6px">🏢 Intensiva</span>'
+      : '';
+
     return `<div class="arte-card aprovado">
       ${thumb}
       <div class="arte-body">
-        <div class="arte-camp">${esc(c.briefing_titulo || 'Avulso')}</div>
+        <div class="arte-camp">${esc(c.briefing_titulo || 'Avulso')}${equipeBadgePub}</div>
         <div class="arte-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nome}</div>
         <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);margin:4px 0">
           <span>${iconePlataforma(plat)} ${plat.charAt(0).toUpperCase()+plat.slice(1)}</span>
