@@ -9184,6 +9184,7 @@ function go(el, viewId) {
   if (viewId === 'home') { if (typeof loadMinhasTarefasSemana === 'function') loadMinhasTarefasSemana(); }
   if (viewId === 'campanhas-internas') { if (typeof loadCampanhasInternas === 'function') loadCampanhasInternas(); }
   if (viewId === 'campanhas') { if (typeof loadCampanhasFromBriefings === 'function') loadCampanhasFromBriefings(); }
+  if (viewId === 'personas') { if (typeof setupPersonaAvatarButtons === 'function') setupPersonaAvatarButtons(); }
 }
 
 // ── CLIENTE 360 · lazy-load do iframe (filtro de empresa é gerenciado internamente pelo iframe) ──
@@ -18278,6 +18279,265 @@ const aiChatInterval = setInterval(() => {
     clearInterval(aiChatInterval);
   }
 }, 500);
+
+// ══════════════════════════════════════════════════════
+// AVATARES IA — gerar imagens via Gemini 2.5 Flash Image
+// Helper reutilizavel: abre modal, chama edge function, exibe preview.
+// Uso: window.gerarImagemIA({ prompt, contexto, contextoRefId, titulo, onSave })
+// ══════════════════════════════════════════════════════
+(function() {
+  window.avatarIACfg = null; // cache config
+  window.avatarIAQuota = null; // { usadas, limite, gastoMes, gastoLimite }
+
+  async function aiaCarregarConfig() {
+    const { data } = await sb.from('avatares_ia_config').select('*').eq('id', 1).maybeSingle();
+    window.avatarIACfg = data;
+    return data;
+  }
+
+  async function aiaCarregarQuota() {
+    const { data: hoje } = await sb.rpc('avatares_ia_count_hoje', { p_user_id: currentUser?.id });
+    const { data: mes } = await sb.rpc('avatares_ia_gasto_mes');
+    const cfg = window.avatarIACfg || await aiaCarregarConfig();
+    window.avatarIAQuota = {
+      usadas: Number(hoje || 0),
+      limite: Number(cfg?.limite_diario_usuario || 5),
+      gastoMes: Number(mes || 0),
+      gastoLimite: Number(cfg?.limite_mensal_reais || 50),
+      ehAdmin: currentProfile?.cargo === 'admin',
+      pausado: !!cfg?.pausado_por_limite,
+      ativo: cfg?.ativo !== false,
+    };
+    return window.avatarIAQuota;
+  }
+
+  function aiaPodeGerar() {
+    return currentProfile?.cargo === 'admin' || userPermissoes['avatares_ia_gerar'] !== false;
+  }
+
+  function aiaQuotaTexto() {
+    const q = window.avatarIAQuota;
+    if (!q) return '';
+    if (q.ehAdmin) return '<span style="color:var(--text3);font-size:11px">admin · uso ilimitado</span>';
+    const restam = Math.max(0, q.limite - q.usadas);
+    const cor = restam === 0 ? '#ef4444' : restam <= 1 ? '#fb923c' : '#22c55e';
+    return `<span style="color:${cor};font-size:11px;font-weight:600">${q.usadas}/${q.limite} hoje</span>`;
+  }
+
+  // Abre modal de geracao de imagem
+  // opts = { prompt, contexto, contextoRefId, titulo, subtitulo, onSave? }
+  window.gerarImagemIA = async function(opts) {
+    if (!aiaPodeGerar()) {
+      showToast('🚫 Seu cargo não pode gerar avatares IA');
+      return;
+    }
+    await aiaCarregarQuota();
+    const q = window.avatarIAQuota;
+    if (!q.ativo) { showToast('Geração de avatares IA está desativada'); return; }
+    if (q.pausado && !q.ehAdmin) { showToast('Limite mensal atingido. Fale com o admin.'); return; }
+
+    document.getElementById('modal-aia')?.remove();
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay open" id="modal-aia">
+        <div class="modal" style="max-width:640px">
+          <div class="modal-header">
+            <div>
+              <div class="modal-title">🎨 ${esc(opts.titulo || 'Gerar imagem IA')}</div>
+              ${opts.subtitulo ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(opts.subtitulo)}</div>` : ''}
+            </div>
+            <button class="modal-close" onclick="document.getElementById('modal-aia').remove()">×</button>
+          </div>
+          <div class="modal-body">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:8px 12px;background:var(--surface);border-radius:6px;font-size:11.5px">
+              <span><strong>💰 ~R$ 0,20</strong> por imagem</span>
+              ${aiaQuotaTexto()}
+              ${q.ehAdmin ? `<span style="color:var(--text3);font-size:11px">Gasto mês: R$ ${q.gastoMes.toFixed(2)} / ${q.gastoLimite.toFixed(2)}</span>` : ''}
+            </div>
+            <div class="form-field">
+              <label>Prompt (descrição da imagem em inglês gera melhor resultado)</label>
+              <textarea id="aia-prompt" class="input" rows="6" style="resize:vertical;font-size:12.5px">${esc(opts.prompt || '')}</textarea>
+              <div style="font-size:11px;color:var(--text3);margin-top:4px">Dica: use inglês. Ex: "Professional portrait photography of a Brazilian dentist, 35yo, white lab coat, modern clinic, 3/4 composition, photorealistic"</div>
+            </div>
+            <div id="aia-preview" style="display:none;margin-top:14px;padding:14px;background:var(--surface);border-radius:8px;text-align:center">
+              <img id="aia-preview-img" style="max-width:100%;max-height:400px;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.1)">
+              <div id="aia-preview-meta" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
+            </div>
+            <div id="aia-loading" style="display:none;margin-top:14px;padding:30px;text-align:center;background:var(--surface);border-radius:8px">
+              <div style="font-size:26px;margin-bottom:8px;animation:spin 1.5s linear infinite;display:inline-block">⏳</div>
+              <div style="font-size:13px;color:var(--text2)">Gerando imagem... isso leva 5-15 segundos.</div>
+              <style>@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}</style>
+            </div>
+            <div id="aia-erro" style="display:none;margin-top:14px;padding:12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#ef4444;font-size:12.5px"></div>
+          </div>
+          <div class="modal-footer" style="display:flex;justify-content:space-between;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
+            <button class="btn btn-ghost" onclick="document.getElementById('modal-aia').remove()">Fechar</button>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-ghost" id="aia-download" style="display:none" onclick="aiaBaixar()">⬇ Baixar</button>
+              ${opts.onSave ? '<button class="btn btn-ghost" id="aia-salvar" style="display:none" onclick="aiaSalvar()">💾 Salvar</button>' : ''}
+              <button class="btn btn-primary" id="aia-gerar" onclick="aiaGerar('${esc(opts.contexto||'outro')}','${esc(opts.contextoRefId||'')}')">🎨 Gerar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `);
+    window._aiaCurrentOpts = opts;
+  };
+
+  window.aiaGerar = async function(contexto, contextoRefId) {
+    const prompt = (document.getElementById('aia-prompt')?.value || '').trim();
+    if (!prompt || prompt.length < 20) { showToast('Prompt muito curto (mín 20 caracteres)'); return; }
+    const btn = document.getElementById('aia-gerar');
+    const erroEl = document.getElementById('aia-erro');
+    const loadEl = document.getElementById('aia-loading');
+    const prevEl = document.getElementById('aia-preview');
+    if (btn) { btn.disabled = true; btn.textContent = 'Gerando...'; }
+    if (erroEl) erroEl.style.display = 'none';
+    if (prevEl) prevEl.style.display = 'none';
+    if (loadEl) loadEl.style.display = 'block';
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/gerar-avatar-ia`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ prompt, contexto, contexto_ref_id: contextoRefId || null })
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || j.detalhe || `HTTP ${r.status}`);
+      const img = document.getElementById('aia-preview-img');
+      if (img) img.src = j.url;
+      const meta = document.getElementById('aia-preview-meta');
+      if (meta) {
+        const tamKb = Math.round((j.tamanho_bytes || 0) / 1024);
+        meta.innerHTML = `${tamKb} KB · custo R$ ${Number(j.custo_estimado).toFixed(2)} · gasto mês R$ ${Number(j.gasto_mes_atual).toFixed(2)}${j.quota_hoje?' · '+j.quota_hoje.usadas+'/'+j.quota_hoje.limite+' hoje':''}`;
+      }
+      window._aiaResultado = j;
+      if (loadEl) loadEl.style.display = 'none';
+      if (prevEl) prevEl.style.display = 'block';
+      document.getElementById('aia-download').style.display = '';
+      const btnSalvar = document.getElementById('aia-salvar');
+      if (btnSalvar) btnSalvar.style.display = '';
+      if (btn) { btn.textContent = '🔄 Regenerar'; btn.disabled = false; }
+      showToast('✨ Imagem gerada!');
+    } catch (e) {
+      if (loadEl) loadEl.style.display = 'none';
+      if (erroEl) { erroEl.textContent = '⚠ ' + (e.message || e); erroEl.style.display = 'block'; }
+      if (btn) { btn.textContent = '🎨 Gerar'; btn.disabled = false; }
+    }
+  };
+
+  window.aiaBaixar = function() {
+    const url = window._aiaResultado?.url;
+    if (!url) return;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `avatar-ia-${Date.now()}.png`;
+    a.target = '_blank';
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+
+  window.aiaSalvar = async function() {
+    const j = window._aiaResultado;
+    const opts = window._aiaCurrentOpts;
+    if (!j || !opts?.onSave) return;
+    try {
+      await opts.onSave(j.url, j);
+      showToast('✅ Imagem vinculada');
+      document.getElementById('modal-aia')?.remove();
+    } catch (e) {
+      showToast('Erro ao salvar: ' + (e.message || e));
+    }
+  };
+
+  // ═══ PERSONAS — prompts prontos ═══
+  const PERSONA_PROMPTS = {
+    clinicas: {
+      titulo: 'Dra. Mariana (Clínicas)',
+      prompt: `Professional portrait photography of a 35-year-old Brazilian female dentist with medium-length dark brown hair, light-medium warm skin tone, confident genuine smile showing authority and approachability, wearing an elegant tailored white medical lab coat with subtle premium detailing. She stands in a modern minimalist dental clinic with soft natural daylight from a large window. 3/4 portrait composition, shot on Canon EOS R5 with 50mm lens, shallow depth of field, beige and warm white color palette, photorealistic, editorial commercial photography style, high detail, sharp focus on face.`,
+    },
+    empresas: {
+      titulo: 'Diretor Gabriel (Empresas)',
+      prompt: `Professional portrait photography of a 42-year-old Brazilian male corporate director, short dark hair with light gray at temples, medium skin tone, confident executive expression, wearing an impeccable tailored white medical lab coat over a dark blue dress shirt. Standing in a modern corporate healthcare office with large windows showing city buildings. 3/4 portrait composition, shot on Canon EOS R5 with 50mm lens, shallow depth of field, navy and warm white color palette, photorealistic, editorial commercial photography style, high detail, sharp focus.`,
+    },
+    instituicoes: {
+      titulo: 'Coord. Eduardo (Instituições)',
+      prompt: `Professional portrait photography of a 38-year-old Brazilian male academic coordinator, dark wavy hair, glasses, warm approachable smile with intellectual presence, wearing a pristine white medical lab coat over a light blue button-up shirt. Standing in a university healthcare teaching environment with laboratory equipment softly blurred in the background. 3/4 portrait composition, shot on Canon EOS R5 with 50mm lens, shallow depth of field, soft natural light, cool academic tones, photorealistic, editorial commercial photography style.`,
+    },
+    profissional: {
+      titulo: 'Profissional Liberal',
+      prompt: `Professional portrait photography of a 30-year-old Brazilian female healthcare professional (dermatologist or aesthetic doctor), long dark hair, warm olive skin tone, empowered confident expression, wearing a fashionable fitted white medical lab coat with modern cut. Standing in her own elegant minimalist private clinic with plants and modern furniture. 3/4 portrait composition, shot on Canon EOS R5 with 50mm lens, shallow depth of field, warm earth tones with white, photorealistic, editorial commercial photography style, aspirational lifestyle feel.`,
+    },
+    estudante: {
+      titulo: 'Estudante',
+      prompt: `Professional portrait photography of a 22-year-old Brazilian medical or nursing student, short wavy brown hair, light skin with a few freckles, bright enthusiastic smile, wearing a fresh new white medical student lab coat with a stethoscope around the neck. Standing on a university campus with academic buildings softly blurred in the background, natural outdoor light. 3/4 portrait composition, shot on Canon EOS R5 with 50mm lens, shallow depth of field, bright cheerful tones, photorealistic, editorial photography style, youthful energy.`,
+    },
+  };
+
+  // Injeta botao de "Gerar Avatar IA" em cada persona-hero
+  window.setupPersonaAvatarButtons = function() {
+    if (!aiaPodeGerar()) return;
+    const personas = [
+      { key: 'clinicas', panelId: 'persona-clinicas' },
+      { key: 'empresas', panelId: 'persona-empresas' },
+      { key: 'instituicoes', panelId: 'persona-instituicoes' },
+      { key: 'profissional', panelId: 'persona-profissional' },
+      { key: 'estudante', panelId: 'persona-estudante' },
+    ];
+    personas.forEach(p => {
+      const panel = document.getElementById(p.panelId);
+      if (!panel) return;
+      if (panel.querySelector('.persona-aia-btn')) return; // ja tem
+      const av = panel.querySelector('.persona-av');
+      if (!av) return;
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-ghost btn-sm persona-aia-btn';
+      btn.style.cssText = 'margin-left:8px;font-size:11.5px;padding:4px 10px';
+      btn.innerHTML = '🎨 Gerar Avatar IA';
+      btn.title = 'Gera avatar profissional via IA (~R$ 0,20)';
+      btn.onclick = () => {
+        const cfg = PERSONA_PROMPTS[p.key];
+        if (!cfg) return;
+        window.gerarImagemIA({
+          titulo: `Avatar IA · ${cfg.titulo}`,
+          subtitulo: 'Retrato profissional pra usar em briefings e referências',
+          prompt: cfg.prompt,
+          contexto: 'persona',
+          contextoRefId: p.key,
+        });
+      };
+      // Tenta injetar no hero. Se a av tem um pai proximo, poe ao lado
+      const hero = panel.querySelector('.persona-hero');
+      if (hero) {
+        // Acha o promise block ou adiciona acima do stats
+        const statsBlock = panel.querySelector('.persona-stats');
+        if (statsBlock) {
+          const wrap = document.createElement('div');
+          wrap.style.cssText = 'margin-bottom:10px;display:flex;justify-content:flex-end';
+          wrap.appendChild(btn);
+          statsBlock.parentNode.insertBefore(wrap, statsBlock);
+          return;
+        }
+      }
+      av.parentNode?.insertBefore(btn, av.nextSibling);
+    });
+  };
+
+  // Hook: chama setup quando entra em 'personas'
+  const origGoPersonas = window.go;
+  // Espera a view personas ser ativada pra injetar
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[onclick*="personas"]');
+    if (t) setTimeout(() => window.setupPersonaAvatarButtons?.(), 100);
+  });
+  // Tambem tenta injetar quando troca de tab interna
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('.persona-tab');
+    if (t) setTimeout(() => window.setupPersonaAvatarButtons?.(), 100);
+  });
+})();
 
 // ══════════════════════════════════════════════════════
 // CAMPANHAS INTERNAS (Feature 1) — organizacao da equipe
