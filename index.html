@@ -2528,6 +2528,10 @@ select.input { cursor: pointer; }
     <div class="nav-item" onclick="go(this,'campanhas')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="3" width="14" height="11" rx="1.5"/><path d="M1 6h14M5 2v2M11 2v2"/></svg></div>Campanhas
     </div>
+    <div class="nav-item" onclick="go(this,'campanhas-internas')">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 2a2 2 0 100 4 2 2 0 000-4zM12 4a1.5 1.5 0 100 3 1.5 1.5 0 000-3z"/><path d="M2 13c0-2 2-3 4-3s4 1 4 3"/><path d="M9 13c0-1.5 1.5-2.3 3-2.3s3 .8 3 2.3"/></svg></div>Campanhas Internas
+      <span class="nav-badge" id="nav-ci-badge" style="display:none" title="Você em campanhas ativas">0</span>
+    </div>
     <div class="nav-item" onclick="go(this,'construtor')" style="background:rgba(255,255,255,0.1);border-radius:7px;margin-top:4px">
       <div class="nav-icon" style="background:rgba(255,255,255,0.15)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3h10v2H3zM3 7h7v2H3zM3 11h5v2H3z"/><path d="M12 9l2 2-2 2"/></svg></div>
       <span style="color:white;font-weight:700">Construtor de Campanha</span>
@@ -3274,6 +3278,15 @@ select.input { cursor: pointer; }
     </div>
   </div>
 
+</div>
+</div>
+
+<!-- ════════ CAMPANHAS INTERNAS ════════ -->
+<div class="view" id="view-campanhas-internas">
+<div style="padding:24px 28px">
+  <div id="ci-container">
+    <div style="padding:40px;text-align:center;color:var(--text3)">⏳ Carregando...</div>
+  </div>
 </div>
 </div>
 
@@ -9007,6 +9020,7 @@ const VIEW_META = {
   ecommerce:    { title: 'E-commerce', sub: 'Vendas do site danajalecos.com.br', action: 'Exportar PDF' },
   lojafisica:   { title: 'Loja Física', sub: 'Vendas presenciais (Piçarras + BC) + WhatsApp', action: 'Exportar PDF' },
   campanhas:    { title: 'Campanhas', sub: 'Execução e performance de anúncios pagos', action: '' },
+  'campanhas-internas': { title: 'Campanhas Internas', sub: 'Organização da equipe por campanha · quem faz o quê', action: 'Nova Campanha' },
   criativos:    { title: 'Criativos', sub: 'Artes, vídeos e calendário de publicação', action: 'Novo Criativo' },
   influenciadores: { title: 'Influenciadores', sub: 'Controle de parcerias e performance', action: '' },
   personas:     { title: 'Públicos Ideais', sub: '5 personas estratégicas da Dana Jalecos', action: 'Criar Campanha' },
@@ -9165,6 +9179,7 @@ function go(el, viewId) {
   if (viewId === 'calendario') { if (typeof loadCalendario==='function') loadCalendario(); if (typeof loadTarefas==='function' && !_tarefasCache?.length) loadTarefas(); else if (typeof renderCalendario==='function') setTimeout(renderCalendario, 100); }
   if (viewId === 'cliente360') loadCliente360();
   if (viewId === 'home') { if (typeof loadMinhasTarefasSemana === 'function') loadMinhasTarefasSemana(); }
+  if (viewId === 'campanhas-internas') { if (typeof loadCampanhasInternas === 'function') loadCampanhasInternas(); }
 }
 
 // ── CLIENTE 360 · lazy-load do iframe (filtro de empresa é gerenciado internamente pelo iframe) ──
@@ -9208,6 +9223,7 @@ const TOPBAR_ACTION_PERMS = {
   tarefas: 'tarefas_criar',
   calendario: 'calendario_criar',
   criativos: 'criativo_criar',
+  'campanhas-internas': 'campanha_interna_criar',
 };
 
 function topbarAction() {
@@ -9223,6 +9239,7 @@ function topbarAction() {
   }
   if(views[id]) openModal(views[id]);
   else if(id==='construtor') document.querySelector('[onclick*=construtor]')?.click();
+  else if(id==='campanhas-internas') { if (typeof abrirNovaCampanhaInterna === 'function') abrirNovaCampanhaInterna(); }
   else if(EXPORT_PDF_VIEWS[id]) exportarViewPDF(id, EXPORT_PDF_VIEWS[id]);
 }
 
@@ -16272,7 +16289,7 @@ const PERM_GROUPS = [
   ['📊 Visão Geral', ['home','analytics','relatorio']],
   ['💰 Vendas',      ['ecommerce','lojafisica','marketplaces','canaisvendas','cliente360']],
   ['🏦 Financeiro',  ['financeiro','projecoes','roi']],
-  ['📣 Marketing',   ['canaisaquisicao','campanhas','construtor','criativos','briefingvisual','influenciadores','provasocial']],
+  ['📣 Marketing',   ['canaisaquisicao','campanhas','campanhas-internas','construtor','criativos','briefingvisual','influenciadores','provasocial']],
   ['🎯 Inteligência',['personas','keywords','mercado','referencias','performance']],
   ['✅ Produtividade',['tarefas','calendario']],
   ['👤 Cliente 360 · Abas', [
@@ -16287,6 +16304,7 @@ const PERM_GROUPS = [
     'brandkit_criar','brandkit_excluir',
     'canal_aquisicao_criar','canal_aquisicao_editar','canal_aquisicao_excluir',
     'criativo_criar','criativo_aprovar','criativo_publicar','criativo_excluir',
+    'campanha_interna_criar','campanha_interna_editar','campanha_interna_excluir',
   ]],
 ];
 
@@ -16320,6 +16338,9 @@ async function loadAdminPermissoes() {
     criativo_aprovar: '✅ Aprovar/Reprovar Arte',
     criativo_publicar: '🚀 Marcar como Publicado',
     criativo_excluir: '🗑 Excluir Criativo',
+    campanha_interna_criar: '✏️ Criar Campanha Interna',
+    campanha_interna_editar: '✏️ Editar Campanha Interna',
+    campanha_interna_excluir: '🗑 Excluir Campanha Interna',
     c360_dashboard: '🏠 Dashboard (C360)',
     c360_clientes: '👥 Lista de Clientes',
     c360_segmentacao: '🎯 Segmentação',
@@ -18218,6 +18239,631 @@ const aiChatInterval = setInterval(() => {
     clearInterval(aiChatInterval);
   }
 }, 500);
+
+// ══════════════════════════════════════════════════════
+// CAMPANHAS INTERNAS (Feature 1) — organizacao da equipe
+// ══════════════════════════════════════════════════════
+(function() {
+  const CI_TIPOS = [
+    { v: 'venda', l: '💰 Venda' },
+    { v: 'branding', l: '✨ Branding' },
+    { v: 'lancamento', l: '🚀 Lançamento' },
+    { v: 'clearance', l: '🏷 Clearance' },
+    { v: 'institucional', l: '🏛 Institucional' },
+    { v: 'outro', l: '📌 Outro' },
+  ];
+  const CI_STATUS = [
+    { v: 'planejamento', l: '📋 Planejamento', cor: '#94a3b8' },
+    { v: 'producao', l: '🛠 Produção', cor: '#fbbf24' },
+    { v: 'ativa', l: '🟢 Ativa', cor: '#22c55e' },
+    { v: 'encerrada', l: '✅ Encerrada', cor: '#60a5fa' },
+    { v: 'cancelada', l: '❌ Cancelada', cor: '#ef4444' },
+  ];
+  const CI_FUNCOES = [
+    { v: 'gerente', l: 'Gerente da campanha', emoji: '👑' },
+    { v: 'copy', l: 'Copy', emoji: '✍️' },
+    { v: 'designer', l: 'Designer', emoji: '🎨' },
+    { v: 'editor_video', l: 'Editor de vídeo', emoji: '🎬' },
+    { v: 'trafego', l: 'Tráfego (Ads)', emoji: '📈' },
+    { v: 'social_media', l: 'Social Media', emoji: '📱' },
+    { v: 'crm', l: 'CRM', emoji: '💬' },
+    { v: 'comercial', l: 'Comercial / Vendas', emoji: '🤝' },
+    { v: 'producao', l: 'Produção (Estoque)', emoji: '🏭' },
+    { v: 'expedicao', l: 'Expedição (Logística)', emoji: '📦' },
+    { v: 'influencer_manager', l: 'Influencer Manager', emoji: '🌟' },
+    { v: 'outro', l: 'Outro', emoji: '📌' },
+  ];
+  const CI_CANAIS = [
+    { v: 'site', l: 'Site' },
+    { v: 'loja', l: 'Loja física' },
+    { v: 'whatsapp', l: 'WhatsApp' },
+    { v: 'trafego', l: 'Tráfego pago' },
+    { v: 'influenciador', l: 'Influenciadores' },
+    { v: 'email', l: 'Email' },
+    { v: 'marketplace', l: 'Marketplaces' },
+    { v: 'organico', l: 'Social orgânico' },
+  ];
+  const CI_META_TIPOS = [
+    { v: 'faturamento', l: 'Faturamento (R$)' },
+    { v: 'pedidos', l: 'Pedidos' },
+    { v: 'leads', l: 'Leads' },
+    { v: 'alcance', l: 'Alcance' },
+    { v: 'outro', l: 'Outro' },
+  ];
+
+  // Estado local
+  const ciState = { campanhas: [], membrosByCamp: {}, profiles: null, realtime: null, filtro: 'todas', minhasOnly: false };
+
+  function ciFmtStatusBadge(v) {
+    const s = CI_STATUS.find(x => x.v === v) || CI_STATUS[0];
+    return `<span style="font-size:11px;padding:3px 9px;border-radius:6px;background:${s.cor}22;color:${s.cor};border:1px solid ${s.cor}55;font-weight:600">${s.l}</span>`;
+  }
+
+  function ciFmtFuncoesBadges(arr) {
+    if (!arr || !arr.length) return '<span style="color:var(--text3);font-size:11px">sem funções</span>';
+    return arr.map(f => {
+      const fn = CI_FUNCOES.find(x => x.v === f);
+      return `<span style="display:inline-block;font-size:10.5px;padding:2px 7px;border-radius:5px;background:var(--surface2);color:var(--text);border:1px solid var(--border);margin:2px">${fn?.emoji || ''} ${fn?.l || f}</span>`;
+    }).join('');
+  }
+
+  async function ciLoadProfiles() {
+    if (ciState.profiles) return ciState.profiles;
+    const { data } = await sb.from('profiles').select('id, nome, cargo').order('nome');
+    ciState.profiles = data || [];
+    return ciState.profiles;
+  }
+
+  async function ciLoad() {
+    const [{ data: camps }, { data: mems }] = await Promise.all([
+      sb.from('campanhas_internas').select('*').order('data_inicio', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(200),
+      sb.from('campanha_interna_membros').select('*'),
+    ]);
+    ciState.campanhas = camps || [];
+    ciState.membrosByCamp = {};
+    (mems || []).forEach(m => {
+      (ciState.membrosByCamp[m.campanha_id] = ciState.membrosByCamp[m.campanha_id] || []).push(m);
+    });
+    ciAtualizarBadge();
+  }
+
+  function ciAtualizarBadge() {
+    // Badge no sidebar: # de campanhas ativas que a pessoa esta atribuida
+    const badge = document.getElementById('nav-ci-badge');
+    if (!badge || !currentUser?.id) return;
+    const ativas = ciState.campanhas.filter(c => c.status === 'ativa' || c.status === 'producao');
+    const minhas = ativas.filter(c => {
+      const mems = ciState.membrosByCamp[c.id] || [];
+      return mems.some(m => m.profile_id === currentUser.id);
+    });
+    if (minhas.length > 0) { badge.textContent = minhas.length; badge.style.display = ''; }
+    else badge.style.display = 'none';
+  }
+
+  function ciPodeCriar() {
+    return currentProfile?.cargo === 'admin' || userPermissoes['campanha_interna_criar'] !== false;
+  }
+  function ciPodeEditar(camp) {
+    if (currentProfile?.cargo === 'admin') return true;
+    if (userPermissoes['campanha_interna_editar'] === true) return true;
+    if (!camp) return false;
+    // Responsavel/criador podem editar mesmo sem permissao granular
+    return camp.responsavel_id === currentUser?.id || camp.criado_por === currentUser?.id;
+  }
+  function ciPodeExcluir() {
+    return currentProfile?.cargo === 'admin' || userPermissoes['campanha_interna_excluir'] === true;
+  }
+
+  function ciFmtDateBR(d) { return d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '—'; }
+  function ciFmtBRL(n) { return (Number(n)||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' }); }
+
+  function ciRenderCard(c) {
+    const mems = ciState.membrosByCamp[c.id] || [];
+    const tipo = CI_TIPOS.find(t => t.v === c.tipo);
+    const temMetaValor = c.meta_valor != null && c.meta_valor > 0;
+    const metaTipo = CI_META_TIPOS.find(m => m.v === c.meta_tipo);
+    const metaTxt = temMetaValor
+      ? (c.meta_tipo === 'faturamento' ? ciFmtBRL(c.meta_valor) : `${Number(c.meta_valor).toLocaleString('pt-BR')} ${metaTipo?.l.toLowerCase() || ''}`)
+      : '';
+    const resp = c.responsavel_nome || '—';
+    const mc = mems.find(m => m.profile_id === currentUser?.id);
+    const minhasFuncs = mc ? ciFmtFuncoesBadges(mc.funcoes) : '';
+    return `
+      <div class="card" style="cursor:pointer;transition:transform .12s" onclick="abrirVerCampanhaInterna('${c.id}')">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
+          <div style="flex:1;min-width:0">
+            <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;line-height:1.25;margin-bottom:3px">${esc(c.nome)}</div>
+            <div style="font-size:11px;color:var(--text3);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              ${tipo ? `<span>${tipo.l}</span>` : ''}
+              ${(c.data_inicio || c.data_fim) ? `<span>📅 ${ciFmtDateBR(c.data_inicio)} → ${ciFmtDateBR(c.data_fim)}</span>` : ''}
+              <span>👤 ${esc(resp)}</span>
+            </div>
+          </div>
+          ${ciFmtStatusBadge(c.status)}
+        </div>
+        ${c.objetivo ? `<div style="font-size:12.5px;color:var(--text2);margin-bottom:8px;line-height:1.4">${esc(c.objetivo)}</div>` : ''}
+        ${temMetaValor ? `<div style="font-size:11.5px;color:var(--text2);margin-bottom:8px"><strong>Meta:</strong> ${metaTxt}</div>` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--border);gap:10px;flex-wrap:wrap">
+          <div style="font-size:11px;color:var(--text3)">👥 ${mems.length} ${mems.length === 1 ? 'pessoa atribuída' : 'pessoas atribuídas'}</div>
+          ${mc ? `<div style="font-size:10.5px"><strong style="color:var(--text)">Você:</strong> ${minhasFuncs}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  window.ciFiltrar = function(f) { ciState.filtro = f; ciRender(); };
+  window.ciToggleMinhasOnly = function() { ciState.minhasOnly = !ciState.minhasOnly; ciRender(); };
+
+  function ciRender() {
+    const host = document.getElementById('ci-container');
+    if (!host) return;
+    let lista = ciState.campanhas;
+    if (ciState.filtro !== 'todas') lista = lista.filter(c => c.status === ciState.filtro);
+    if (ciState.minhasOnly) lista = lista.filter(c => {
+      const mems = ciState.membrosByCamp[c.id] || [];
+      return c.responsavel_id === currentUser?.id || mems.some(m => m.profile_id === currentUser?.id);
+    });
+    const kpis = {
+      total: ciState.campanhas.length,
+      ativas: ciState.campanhas.filter(c => c.status === 'ativa').length,
+      producao: ciState.campanhas.filter(c => c.status === 'producao').length,
+      planejamento: ciState.campanhas.filter(c => c.status === 'planejamento').length,
+      minhas: ciState.campanhas.filter(c => {
+        const mems = ciState.membrosByCamp[c.id] || [];
+        return c.responsavel_id === currentUser?.id || mems.some(m => m.profile_id === currentUser?.id);
+      }).length,
+    };
+    const filtros = [
+      { v: 'todas', l: `Todas (${kpis.total})` },
+      { v: 'planejamento', l: `Planejamento (${kpis.planejamento})` },
+      { v: 'producao', l: `Produção (${kpis.producao})` },
+      { v: 'ativa', l: `Ativa (${kpis.ativas})` },
+      { v: 'encerrada', l: 'Encerrada' },
+    ];
+    host.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
+        <div class="card" style="padding:14px">
+          <div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Total</div>
+          <div style="font-size:22px;font-weight:700">${kpis.total}</div>
+        </div>
+        <div class="card" style="padding:14px">
+          <div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Ativas</div>
+          <div style="font-size:22px;font-weight:700;color:#22c55e">${kpis.ativas}</div>
+        </div>
+        <div class="card" style="padding:14px">
+          <div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Produção</div>
+          <div style="font-size:22px;font-weight:700;color:#fbbf24">${kpis.producao}</div>
+        </div>
+        <div class="card" style="padding:14px">
+          <div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Planejamento</div>
+          <div style="font-size:22px;font-weight:700;color:#94a3b8">${kpis.planejamento}</div>
+        </div>
+        <div class="card" style="padding:14px">
+          <div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Em que estou</div>
+          <div style="font-size:22px;font-weight:700;color:#a78bfa">${kpis.minhas}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+        ${filtros.map(f => `<button class="btn btn-sm ${ciState.filtro===f.v?'btn-primary':'btn-ghost'}" onclick="ciFiltrar('${f.v}')">${f.l}</button>`).join('')}
+        <button class="btn btn-sm ${ciState.minhasOnly?'btn-primary':'btn-ghost'}" onclick="ciToggleMinhasOnly()" style="margin-left:auto">${ciState.minhasOnly?'✓ ':''}👤 Só as minhas</button>
+      </div>
+      ${lista.length === 0 ? `
+        <div style="padding:48px 24px;text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:12px">
+          <div style="font-size:32px;margin-bottom:8px;opacity:0.5">📋</div>
+          <div style="font-size:14px;color:var(--text2);margin-bottom:10px">${ciState.filtro==='todas' && !ciState.minhasOnly ? 'Nenhuma campanha ainda.' : 'Nenhuma campanha com esse filtro.'}</div>
+          ${ciPodeCriar() && ciState.filtro==='todas' && !ciState.minhasOnly ? '<button class="btn btn-primary btn-sm" onclick="abrirNovaCampanhaInterna()">+ Criar primeira campanha</button>' : ''}
+        </div>
+      ` : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px">${lista.map(ciRenderCard).join('')}</div>`}
+    `;
+  }
+
+  window.loadCampanhasInternas = async function() {
+    await ciLoad();
+    ciRender();
+    if (!ciState.realtime) {
+      ciState.realtime = sb.channel('rt-campanhas-internas')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'campanhas_internas' }, async () => { await ciLoad(); ciRender(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'campanha_interna_membros' }, async () => { await ciLoad(); ciRender(); })
+        .subscribe();
+    }
+  };
+
+  // ── Modal Criar/Editar ──
+  function ciModalHtml(c, profiles) {
+    const editando = !!c;
+    const defaultResp = c?.responsavel_id || currentUser?.id || '';
+    const canaisSel = new Set(c?.canais || []);
+    return `
+      <div class="modal-overlay open" id="modal-ci-form">
+        <div class="modal" style="max-width:760px">
+          <div class="modal-header">
+            <div class="modal-title">${editando ? '✏️ Editar campanha' : '+ Nova campanha interna'}</div>
+            <button class="modal-close" onclick="fecharModalCI()">×</button>
+          </div>
+          <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+            <div class="form-grid">
+              <div class="form-field" style="grid-column:1 / -1">
+                <label>Nome da campanha *</label>
+                <input id="ci-nome" class="input" value="${esc(c?.nome || '')}" placeholder='Ex: "Semana do Consumidor 2.0"'>
+              </div>
+              <div class="form-field">
+                <label>Tipo *</label>
+                <select id="ci-tipo" class="input">
+                  ${CI_TIPOS.map(t => `<option value="${t.v}" ${c?.tipo===t.v?'selected':''}>${t.l}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Status</label>
+                <select id="ci-status" class="input">
+                  ${CI_STATUS.map(s => `<option value="${s.v}" ${(c?.status||'planejamento')===s.v?'selected':''}>${s.l}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Data início</label>
+                <input id="ci-inicio" type="date" class="input" value="${c?.data_inicio || ''}">
+              </div>
+              <div class="form-field">
+                <label>Data fim</label>
+                <input id="ci-fim" type="date" class="input" value="${c?.data_fim || ''}">
+              </div>
+              <div class="form-field" style="grid-column:1 / -1">
+                <label>Responsável geral</label>
+                <select id="ci-responsavel" class="input">
+                  <option value="">— selecionar —</option>
+                  ${profiles.map(p => `<option value="${p.id}" ${defaultResp===p.id?'selected':''}>${esc(p.nome)} · ${esc(p.cargo||'')}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-field" style="grid-column:1 / -1">
+                <label>Objetivo (ex: "gerar caixa", "girar estoque", "posicionamento")</label>
+                <textarea id="ci-objetivo" class="input" rows="2" style="resize:vertical">${esc(c?.objetivo || '')}</textarea>
+              </div>
+              <div class="form-field">
+                <label>Tipo de meta</label>
+                <select id="ci-meta-tipo" class="input">
+                  <option value="">—</option>
+                  ${CI_META_TIPOS.map(m => `<option value="${m.v}" ${c?.meta_tipo===m.v?'selected':''}>${m.l}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-field">
+                <label>Valor da meta</label>
+                <input id="ci-meta-valor" type="number" step="1" class="input" value="${c?.meta_valor != null ? c.meta_valor : ''}" placeholder="Ex: 50000">
+              </div>
+              <div class="form-field" style="grid-column:1 / -1">
+                <label>Público-alvo</label>
+                <input id="ci-publico" class="input" value="${esc(c?.publico_alvo || '')}" placeholder="Ex: clínicas de estética em SP, dentistas recém-formados">
+              </div>
+              <div class="form-field" style="grid-column:1 / -1">
+                <label>Canais</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  ${CI_CANAIS.map(ch => `
+                    <label style="display:flex;align-items:center;gap:6px;padding:6px 11px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12.5px">
+                      <input type="checkbox" class="ci-canal" value="${ch.v}" ${canaisSel.has(ch.v)?'checked':''}>
+                      ${ch.l}
+                    </label>
+                  `).join('')}
+                </div>
+              </div>
+              <div class="form-field" style="grid-column:1 / -1">
+                <label>Link do briefing (Drive / Notion / Figma)</label>
+                <input id="ci-briefing" class="input" type="url" value="${esc(c?.briefing_link || '')}" placeholder="https://...">
+              </div>
+              <div class="form-field" style="grid-column:1 / -1">
+                <label style="font-weight:700;color:var(--text);margin-top:10px">✨ Estratégia (diferencial Dana)</label>
+              </div>
+              <div class="form-field" style="grid-column:1 / -1">
+                <label>Oferta principal</label>
+                <input id="ci-oferta" class="input" value="${esc(c?.oferta_principal || '')}" placeholder='Ex: "25% + frete grátis + brinde"'>
+              </div>
+              <div class="form-field" style="grid-column:1 / -1">
+                <label>Produtos foco (curva ABC ou estoque parado)</label>
+                <input id="ci-produtos" class="input" value="${esc(c?.produtos_foco || '')}" placeholder="Ex: Jaleco Manuela + Scrub Comfy">
+              </div>
+              <div class="form-field" style="grid-column:1 / -1">
+                <label>Argumento central (big idea)</label>
+                <textarea id="ci-argumento" class="input" rows="2" style="resize:vertical">${esc(c?.argumento_central || '')}</textarea>
+              </div>
+              <div class="form-field" style="grid-column:1 / -1">
+                <label>Risco / gargalo (produção, estoque, prazo, etc)</label>
+                <textarea id="ci-risco" class="input" rows="2" style="resize:vertical">${esc(c?.risco || '')}</textarea>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer" style="gap:8px">
+            ${editando && ciPodeExcluir() ? `<button class="btn btn-ghost" style="color:#ef4444;border-color:rgba(239,68,68,0.3)" onclick="ciApagar('${c.id}')">🗑 Apagar campanha</button>` : ''}
+            <div style="flex:1"></div>
+            <button class="btn btn-ghost" onclick="fecharModalCI()">Cancelar</button>
+            <button class="btn btn-primary" id="ci-save-btn" onclick="ciSalvar('${c?.id || ''}')">${editando ? 'Salvar' : 'Criar campanha'}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  window.abrirNovaCampanhaInterna = async function() {
+    if (!ciPodeCriar()) { if (typeof showToast === 'function') showToast('Sem permissão'); return; }
+    const profiles = await ciLoadProfiles();
+    document.getElementById('modal-ci-form')?.remove();
+    document.body.insertAdjacentHTML('beforeend', ciModalHtml(null, profiles));
+  };
+
+  window.ciEditarCampanha = async function(id) {
+    const c = ciState.campanhas.find(x => x.id === id);
+    if (!c) return;
+    if (!ciPodeEditar(c)) { if (typeof showToast === 'function') showToast('Sem permissão'); return; }
+    const profiles = await ciLoadProfiles();
+    document.getElementById('modal-ci-form')?.remove();
+    document.body.insertAdjacentHTML('beforeend', ciModalHtml(c, profiles));
+  };
+
+  window.fecharModalCI = function() { document.getElementById('modal-ci-form')?.remove(); };
+
+  window.ciSalvar = async function(id) {
+    const btn = document.getElementById('ci-save-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+    try {
+      const nome = (document.getElementById('ci-nome')?.value || '').trim();
+      if (!nome) { showToast('Nome é obrigatório'); if (btn) { btn.disabled = false; btn.textContent = id?'Salvar':'Criar campanha'; } return; }
+      const respId = document.getElementById('ci-responsavel')?.value || null;
+      const profiles = await ciLoadProfiles();
+      const respProf = profiles.find(p => p.id === respId);
+      const canais = Array.from(document.querySelectorAll('.ci-canal:checked')).map(c => c.value);
+      const payload = {
+        nome,
+        tipo: document.getElementById('ci-tipo')?.value || 'outro',
+        status: document.getElementById('ci-status')?.value || 'planejamento',
+        data_inicio: document.getElementById('ci-inicio')?.value || null,
+        data_fim: document.getElementById('ci-fim')?.value || null,
+        objetivo: document.getElementById('ci-objetivo')?.value || null,
+        meta_tipo: document.getElementById('ci-meta-tipo')?.value || null,
+        meta_valor: parseFloat(document.getElementById('ci-meta-valor')?.value) || null,
+        publico_alvo: document.getElementById('ci-publico')?.value || null,
+        canais: canais.length ? canais : null,
+        briefing_link: document.getElementById('ci-briefing')?.value || null,
+        responsavel_id: respId,
+        responsavel_nome: respProf?.nome || null,
+        oferta_principal: document.getElementById('ci-oferta')?.value || null,
+        produtos_foco: document.getElementById('ci-produtos')?.value || null,
+        argumento_central: document.getElementById('ci-argumento')?.value || null,
+        risco: document.getElementById('ci-risco')?.value || null,
+      };
+      let campanhaId = id;
+      if (id) {
+        const { error } = await sb.from('campanhas_internas').update(payload).eq('id', id);
+        if (error) throw error;
+      } else {
+        payload.criado_por = currentUser?.id;
+        payload.criado_por_nome = currentProfile?.nome;
+        const { data, error } = await sb.from('campanhas_internas').insert(payload).select().single();
+        if (error) throw error;
+        campanhaId = data.id;
+      }
+      showToast(id ? 'Campanha atualizada' : 'Campanha criada');
+      logActivity(id ? 'editou_campanha_interna' : 'criou_campanha_interna', nome, 'campanhas-internas');
+      fecharModalCI();
+      await ciLoad();
+      ciRender();
+      // Abre o modal de detalhes pra atribuir membros
+      abrirVerCampanhaInterna(campanhaId);
+    } catch (e) {
+      console.error('[ci] salvar', e);
+      showToast('Erro: ' + (e.message || e));
+      if (btn) { btn.disabled = false; btn.textContent = id?'Salvar':'Criar campanha'; }
+    }
+  };
+
+  window.ciApagar = async function(id) {
+    const c = ciState.campanhas.find(x => x.id === id);
+    if (!c || !ciPodeExcluir()) return;
+    if (!confirm(`Apagar a campanha "${c.nome}"?\n\nIsso remove também todas as atribuições de membros.`)) return;
+    const { error } = await sb.from('campanhas_internas').delete().eq('id', id);
+    if (error) { showToast('Erro: ' + error.message); return; }
+    showToast('Campanha apagada');
+    logActivity('excluiu_campanha_interna', c.nome, 'campanhas-internas');
+    fecharModalCI();
+    document.getElementById('modal-ci-view')?.remove();
+    await ciLoad(); ciRender();
+  };
+
+  // ── Modal Ver Campanha + gerenciar membros ──
+  window.abrirVerCampanhaInterna = async function(id) {
+    const c = ciState.campanhas.find(x => x.id === id);
+    if (!c) { showToast('Campanha não encontrada'); return; }
+    const profiles = await ciLoadProfiles();
+    const membros = ciState.membrosByCamp[id] || [];
+    const podeEditarC = ciPodeEditar(c);
+    const tipo = CI_TIPOS.find(t => t.v === c.tipo);
+    const canaisTxt = (c.canais || []).map(v => CI_CANAIS.find(x => x.v === v)?.l || v).join(', ') || '—';
+    const membrosHtml = membros.length === 0
+      ? '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">Nenhum membro atribuído ainda.</div>'
+      : membros.map(m => `
+          <div class="card" style="padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:13.5px">${esc(m.profile_nome || '—')}</div>
+              <div style="margin-top:4px">${ciFmtFuncoesBadges(m.funcoes)}</div>
+              ${m.observacao ? `<div style="font-size:11.5px;color:var(--text2);margin-top:5px;font-style:italic">"${esc(m.observacao)}"</div>` : ''}
+            </div>
+            ${podeEditarC ? `<div style="display:flex;gap:4px">
+              <button class="btn btn-ghost btn-sm" onclick="ciEditarMembro('${id}','${m.id}')">✏️</button>
+              <button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="ciRemoverMembro('${m.id}','${esc(m.profile_nome||'')}')">🗑</button>
+            </div>` : ''}
+          </div>
+        `).join('');
+    document.getElementById('modal-ci-view')?.remove();
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay open" id="modal-ci-view">
+        <div class="modal" style="max-width:780px">
+          <div class="modal-header">
+            <div>
+              <div class="modal-title" style="font-size:20px">${esc(c.nome)}</div>
+              <div style="font-size:11.5px;color:var(--text3);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap">
+                ${tipo ? `<span>${tipo.l}</span>` : ''} ${ciFmtStatusBadge(c.status)}
+                ${(c.data_inicio || c.data_fim) ? `<span>📅 ${ciFmtDateBR(c.data_inicio)} → ${ciFmtDateBR(c.data_fim)}</span>` : ''}
+              </div>
+            </div>
+            <button class="modal-close" onclick="document.getElementById('modal-ci-view').remove()">×</button>
+          </div>
+          <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+              <div><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px">Responsável</div><div style="font-size:13px;margin-top:2px">${esc(c.responsavel_nome || '—')}</div></div>
+              <div><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px">Canais</div><div style="font-size:13px;margin-top:2px">${esc(canaisTxt)}</div></div>
+              ${c.meta_valor ? `<div><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px">Meta</div><div style="font-size:13px;margin-top:2px">${c.meta_tipo==='faturamento'?ciFmtBRL(c.meta_valor):Number(c.meta_valor).toLocaleString('pt-BR')} ${c.meta_tipo||''}</div></div>` : ''}
+              ${c.publico_alvo ? `<div><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px">Público</div><div style="font-size:13px;margin-top:2px">${esc(c.publico_alvo)}</div></div>` : ''}
+            </div>
+            ${c.objetivo ? `<div style="margin-bottom:12px"><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px">Objetivo</div><div style="font-size:13px">${esc(c.objetivo)}</div></div>` : ''}
+            ${c.oferta_principal ? `<div style="background:var(--surface);padding:10px 12px;border-radius:8px;margin-bottom:10px;border-left:3px solid #fbbf24"><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px">💰 Oferta principal</div><div style="font-size:13px">${esc(c.oferta_principal)}</div></div>` : ''}
+            ${c.produtos_foco ? `<div style="background:var(--surface);padding:10px 12px;border-radius:8px;margin-bottom:10px;border-left:3px solid #60a5fa"><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px">🎯 Produtos foco</div><div style="font-size:13px">${esc(c.produtos_foco)}</div></div>` : ''}
+            ${c.argumento_central ? `<div style="background:var(--surface);padding:10px 12px;border-radius:8px;margin-bottom:10px;border-left:3px solid #a78bfa"><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px">💡 Argumento central</div><div style="font-size:13px">${esc(c.argumento_central)}</div></div>` : ''}
+            ${c.risco ? `<div style="background:rgba(239,68,68,0.08);padding:10px 12px;border-radius:8px;margin-bottom:10px;border-left:3px solid #ef4444"><div style="font-size:10.5px;color:#ef4444;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:4px">⚠️ Risco / gargalo</div><div style="font-size:13px">${esc(c.risco)}</div></div>` : ''}
+            ${c.briefing_link ? `<div style="margin-bottom:14px"><a href="${esc(c.briefing_link)}" target="_blank" class="btn btn-ghost btn-sm">📎 Ver briefing</a></div>` : ''}
+
+            <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:10px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px">👥 Equipe atribuída (${membros.length})</div>
+                ${podeEditarC ? '<button class="btn btn-primary btn-sm" onclick="ciAtribuirMembro(\''+id+'\')">+ Atribuir pessoa</button>' : ''}
+              </div>
+              <div id="ci-membros-lista">${membrosHtml}</div>
+            </div>
+          </div>
+          <div class="modal-footer" style="gap:8px">
+            ${podeEditarC ? `<button class="btn btn-ghost" onclick="document.getElementById('modal-ci-view').remove();ciEditarCampanha('${c.id}')">✏️ Editar campanha</button>` : ''}
+            <div style="flex:1"></div>
+            <button class="btn btn-ghost" onclick="document.getElementById('modal-ci-view').remove()">Fechar</button>
+          </div>
+        </div>
+      </div>
+    `);
+  };
+
+  // ── Modal Atribuir/Editar membro ──
+  window.ciAtribuirMembro = async function(campanhaId, membroId) {
+    const c = ciState.campanhas.find(x => x.id === campanhaId);
+    if (!c) return;
+    const profiles = await ciLoadProfiles();
+    const membros = ciState.membrosByCamp[campanhaId] || [];
+    const membro = membroId ? membros.find(m => m.id === membroId) : null;
+    const jaAtribuidos = new Set(membros.map(m => m.profile_id));
+    const selecionaveis = membro ? profiles : profiles.filter(p => !jaAtribuidos.has(p.id));
+    const funcoesSel = new Set(membro?.funcoes || []);
+    document.getElementById('modal-ci-mem')?.remove();
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay open" id="modal-ci-mem">
+        <div class="modal" style="max-width:520px">
+          <div class="modal-header">
+            <div class="modal-title">${membro?'✏️ Editar atribuição':'+ Atribuir pessoa'}</div>
+            <button class="modal-close" onclick="document.getElementById('modal-ci-mem').remove()">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-field">
+              <label>Pessoa *</label>
+              <select id="ci-mem-profile" class="input" ${membro?'disabled':''}>
+                <option value="">— selecionar —</option>
+                ${selecionaveis.map(p => `<option value="${p.id}" ${membro?.profile_id===p.id?'selected':''}>${esc(p.nome)} · ${esc(p.cargo||'')}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-field">
+              <label>Funções na campanha * (múltipla escolha)</label>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;margin-top:6px">
+                ${CI_FUNCOES.map(f => `
+                  <label style="display:flex;align-items:center;gap:6px;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12.5px">
+                    <input type="checkbox" class="ci-mem-func" value="${f.v}" ${funcoesSel.has(f.v)?'checked':''}>
+                    ${f.emoji} ${f.l}
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+            <div class="form-field">
+              <label>Observação (opcional)</label>
+              <textarea id="ci-mem-obs" class="input" rows="2" placeholder="Ex: responsável por criar 3 reels">${esc(membro?.observacao || '')}</textarea>
+            </div>
+          </div>
+          <div class="modal-footer" style="gap:8px">
+            <button class="btn btn-ghost" onclick="document.getElementById('modal-ci-mem').remove()">Cancelar</button>
+            <button class="btn btn-primary" id="ci-mem-save" onclick="ciSalvarMembro('${campanhaId}','${membroId||''}')">${membro?'Salvar':'Atribuir'}</button>
+          </div>
+        </div>
+      </div>
+    `);
+  };
+
+  window.ciSalvarMembro = async function(campanhaId, membroId) {
+    const btn = document.getElementById('ci-mem-save');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+    try {
+      const profileId = document.getElementById('ci-mem-profile')?.value;
+      if (!profileId) { showToast('Selecione uma pessoa'); if (btn) { btn.disabled = false; btn.textContent = membroId?'Salvar':'Atribuir'; } return; }
+      const funcoes = Array.from(document.querySelectorAll('.ci-mem-func:checked')).map(c => c.value);
+      if (funcoes.length === 0) { showToast('Selecione pelo menos uma função'); if (btn) { btn.disabled = false; btn.textContent = membroId?'Salvar':'Atribuir'; } return; }
+      const profiles = await ciLoadProfiles();
+      const prof = profiles.find(p => p.id === profileId);
+      const obs = document.getElementById('ci-mem-obs')?.value || null;
+      const camp = ciState.campanhas.find(x => x.id === campanhaId);
+      if (membroId) {
+        const { error } = await sb.from('campanha_interna_membros').update({ funcoes, observacao: obs }).eq('id', membroId);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from('campanha_interna_membros').insert({
+          campanha_id: campanhaId,
+          profile_id: profileId,
+          profile_nome: prof?.nome,
+          funcoes,
+          observacao: obs,
+          atribuido_por: currentUser?.id,
+          atribuido_por_nome: currentProfile?.nome,
+        });
+        if (error) throw error;
+        // Notificacao pra pessoa atribuida (se nao for ela mesma)
+        if (profileId !== currentUser?.id) {
+          const funcsLabel = funcoes.map(f => CI_FUNCOES.find(x => x.v === f)?.l || f).join(', ');
+          await sb.from('alertas').insert({
+            tipo: 'atribuicao_campanha',
+            nivel: 'info',
+            titulo: 'Você foi atribuído a uma campanha',
+            mensagem: `Campanha "${camp?.nome || ''}" — suas funções: ${funcsLabel}`,
+            destinatario_id: profileId,
+            destinatario_nome: prof?.nome,
+            audiencia: 'pessoal',
+            link_ref: 'campanhas-internas',
+            link_label: 'Ver campanha',
+            dados: { campanha_id: campanhaId, funcoes },
+          }).catch(e => console.warn('[ci] alerta falhou (nao bloqueante)', e));
+        }
+      }
+      showToast(membroId ? 'Atribuição atualizada' : 'Pessoa atribuída');
+      document.getElementById('modal-ci-mem')?.remove();
+      await ciLoad();
+      // Re-abre modal de view pra mostrar atualizacao
+      document.getElementById('modal-ci-view')?.remove();
+      abrirVerCampanhaInterna(campanhaId);
+      ciRender();
+    } catch (e) {
+      console.error('[ci] salvar membro', e);
+      showToast('Erro: ' + (e.message || e));
+      if (btn) { btn.disabled = false; btn.textContent = membroId?'Salvar':'Atribuir'; }
+    }
+  };
+
+  window.ciEditarMembro = function(campanhaId, membroId) { ciAtribuirMembro(campanhaId, membroId); };
+
+  window.ciRemoverMembro = async function(membroId, nome) {
+    if (!confirm(`Remover ${nome || 'esta pessoa'} da campanha?`)) return;
+    const { error } = await sb.from('campanha_interna_membros').delete().eq('id', membroId);
+    if (error) { showToast('Erro: ' + error.message); return; }
+    showToast('Pessoa removida');
+    const m = document.getElementById('modal-ci-view');
+    const campId = ciState.campanhas.find(c => (ciState.membrosByCamp[c.id]||[]).find(x => x.id === membroId))?.id;
+    await ciLoad();
+    if (m && campId) { m.remove(); abrirVerCampanhaInterna(campId); }
+    ciRender();
+  };
+
+  // Load inicial quando a sessao estabilizar (pra pegar a badge)
+  const ciBootInterval = setInterval(() => {
+    if (typeof currentProfile !== 'undefined' && currentProfile && userPermissoes && userPermissoes['campanhas_internas'] !== false) {
+      ciLoad().catch(e => console.warn('[ci] load inicial', e));
+      clearInterval(ciBootInterval);
+    }
+  }, 800);
+})();
 
 </script>
 </body>
