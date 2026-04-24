@@ -18556,6 +18556,10 @@ const aiChatInterval = setInterval(() => {
           const campId = p.new?.campanha_id || p.old?.campanha_id;
           if (campId) { await ciLoadMateriais(campId); ciRefrescarViewAberta(); }
         })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'campanha_interna_historico' }, async (p) => {
+          const campId = p.new?.campanha_id || p.old?.campanha_id;
+          if (campId) { await ciLoadHistorico(campId); ciRefrescarViewAberta(); }
+        })
         .subscribe();
     }
   };
@@ -18729,15 +18733,28 @@ const aiChatInterval = setInterval(() => {
         risco: document.getElementById('ci-risco')?.value || null,
       };
       let campanhaId = id;
+      let statusAnterior = null;
       if (id) {
+        const existente = ciState.campanhas.find(c => c.id === id);
+        statusAnterior = existente?.status;
         const { error } = await sb.from('campanhas_internas').update(payload).eq('id', id);
         if (error) throw error;
+        // Se mudou o status → log + notifica equipe
+        if (statusAnterior && statusAnterior !== payload.status) {
+          await ciRegistrarHistorico(campanhaId, 'mudou_status',
+            `Status: ${CI_STATUS.find(s=>s.v===statusAnterior)?.l || statusAnterior} → ${CI_STATUS.find(s=>s.v===payload.status)?.l || payload.status}`,
+            { status: statusAnterior }, { status: payload.status });
+          await ciNotificarMudancaStatus(campanhaId, payload.nome, statusAnterior, payload.status);
+        } else {
+          await ciRegistrarHistorico(campanhaId, 'editou', `Campanha editada`, null, null);
+        }
       } else {
         payload.criado_por = currentUser?.id;
         payload.criado_por_nome = currentProfile?.nome;
         const { data, error } = await sb.from('campanhas_internas').insert(payload).select().single();
         if (error) throw error;
         campanhaId = data.id;
+        await ciRegistrarHistorico(campanhaId, 'criou', `Campanha criada: "${payload.nome}"`, null, null);
       }
       // Sincroniza com o calendario DMS
       await ciSyncCalendario(campanhaId, { ...payload, id: campanhaId, calendario_evento_id: id ? ciState.campanhas.find(c => c.id === id)?.calendario_evento_id : null });
@@ -18820,9 +18837,10 @@ const aiChatInterval = setInterval(() => {
     if (!c) { showToast('Campanha não encontrada'); return; }
     const profiles = await ciLoadProfiles();
     const membros = ciState.membrosByCamp[id] || [];
-    // Carrega comentarios e materiais em paralelo (nao bloqueia render)
+    // Carrega comentarios, materiais e historico em paralelo (nao bloqueia render)
     ciLoadComentarios(id).catch(() => {});
     ciLoadMateriais(id).catch(() => {});
+    ciLoadHistorico(id).catch(() => {});
     const podeEditarC = ciPodeEditar(c);
     const tipo = CI_TIPOS.find(t => t.v === c.tipo);
     const canaisTxt = (c.canais || []).map(v => CI_CANAIS.find(x => x.v === v)?.l || v).join(', ') || '—';
@@ -18894,6 +18912,8 @@ const aiChatInterval = setInterval(() => {
             ${ciRenderMateriaisSecao(id, podeEditarC)}
 
             ${ciRenderComentariosSecao(id)}
+
+            ${ciRenderTimelineSecao(id)}
           </div>
           <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
             <div>
@@ -18972,6 +18992,7 @@ const aiChatInterval = setInterval(() => {
       if (membroId) {
         const { error } = await sb.from('campanha_interna_membros').update({ funcoes, observacao: obs }).eq('id', membroId);
         if (error) throw error;
+        await ciRegistrarHistorico(campanhaId, 'editou_membro', `Funções de ${prof?.nome} atualizadas`, null, { funcoes });
       } else {
         const { error } = await sb.from('campanha_interna_membros').insert({
           campanha_id: campanhaId,
@@ -18983,6 +19004,7 @@ const aiChatInterval = setInterval(() => {
           atribuido_por_nome: currentProfile?.nome,
         });
         if (error) throw error;
+        await ciRegistrarHistorico(campanhaId, 'add_membro', `${prof?.nome} adicionado(a) com funções: ${funcoes.map(f => CI_FUNCOES.find(x=>x.v===f)?.l).join(', ')}`, null, { profile_id: profileId, funcoes });
         // Notificacao pra pessoa atribuida (se nao for ela mesma)
         if (profileId !== currentUser?.id) {
           const funcsLabel = funcoes.map(f => CI_FUNCOES.find(x => x.v === f)?.l || f).join(', ');
@@ -19017,11 +19039,18 @@ const aiChatInterval = setInterval(() => {
   window.ciEditarMembro = function(campanhaId, membroId) { ciAtribuirMembro(campanhaId, membroId); };
 
   window.ciAtualizarStatusMembro = async function(membroId, campanhaId, novoStatus) {
+    const mem = (ciState.membrosByCamp[campanhaId] || []).find(m => m.id === membroId);
+    const statusAnt = mem?.status || 'pendente';
     const { error } = await sb.from('campanha_interna_membros').update({
       status: novoStatus,
       progresso_atualizado_em: new Date().toISOString(),
     }).eq('id', membroId);
     if (error) { showToast('Erro: ' + error.message); return; }
+    if (mem && statusAnt !== novoStatus) {
+      await ciRegistrarHistorico(campanhaId, 'mudou_status_membro',
+        `${mem.profile_nome}: ${CI_MEM_STATUS.find(s=>s.v===statusAnt)?.l || statusAnt} → ${CI_MEM_STATUS.find(s=>s.v===novoStatus)?.l || novoStatus}`,
+        { status: statusAnt }, { status: novoStatus });
+    }
     showToast('Progresso atualizado');
     await ciLoad();
     ciRender();
@@ -19030,11 +19059,12 @@ const aiChatInterval = setInterval(() => {
 
   window.ciRemoverMembro = async function(membroId, nome) {
     if (!confirm(`Remover ${nome || 'esta pessoa'} da campanha?`)) return;
+    const campId = ciState.campanhas.find(c => (ciState.membrosByCamp[c.id]||[]).find(x => x.id === membroId))?.id;
     const { error } = await sb.from('campanha_interna_membros').delete().eq('id', membroId);
     if (error) { showToast('Erro: ' + error.message); return; }
+    if (campId) await ciRegistrarHistorico(campId, 'remove_membro', `${nome} removido(a) da campanha`, null, null);
     showToast('Pessoa removida');
     const m = document.getElementById('modal-ci-view');
-    const campId = ciState.campanhas.find(c => (ciState.membrosByCamp[c.id]||[]).find(x => x.id === membroId))?.id;
     await ciLoad();
     if (m && campId) { m.remove(); abrirVerCampanhaInterna(campId); }
     ciRender();
@@ -19292,11 +19322,13 @@ const aiChatInterval = setInterval(() => {
       if (expId) {
         const { error } = await sb.from('campanha_expedicoes').update(payload).eq('id', expId);
         if (error) throw error;
+        await ciRegistrarHistorico(campanhaId, 'editou_expedicao', `Envio editado: ${destNome}`, null, null);
       } else {
         payload.criado_por = currentUser?.id;
         payload.criado_por_nome = currentProfile?.nome;
         const { error } = await sb.from('campanha_expedicoes').insert(payload);
         if (error) throw error;
+        await ciRegistrarHistorico(campanhaId, 'add_expedicao', `Novo envio: ${destNome}`, null, { destino: destNome });
       }
       showToast(expId ? 'Envio atualizado' : 'Envio criado');
       document.getElementById('modal-exp')?.remove();
@@ -19317,6 +19349,95 @@ const aiChatInterval = setInterval(() => {
     await ciLoad();
     ciRefrescarViewAberta();
   };
+
+  // ══════════════════════════════════
+  // HISTORICO / TIMELINE + NOTIFICACOES
+  // ══════════════════════════════════
+  const ciHistorico = {}; // por campanha_id
+
+  async function ciRegistrarHistorico(campanhaId, tipo, descricao, antes, depois) {
+    try {
+      await sb.from('campanha_interna_historico').insert({
+        campanha_id: campanhaId,
+        user_id: currentUser?.id,
+        user_nome: currentProfile?.nome,
+        tipo, descricao,
+        dados_antes: antes, dados_depois: depois,
+      });
+    } catch (e) { console.warn('[ci] historico falhou', e); }
+  }
+
+  async function ciNotificarMudancaStatus(campanhaId, nomeCamp, statusAnterior, novoStatus) {
+    const membros = ciState.membrosByCamp[campanhaId] || [];
+    const camp = ciState.campanhas.find(c => c.id === campanhaId);
+    // Destinatarios: membros + responsavel (unique)
+    const destIds = new Set();
+    membros.forEach(m => m.profile_id && destIds.add(m.profile_id));
+    if (camp?.responsavel_id) destIds.add(camp.responsavel_id);
+    destIds.delete(currentUser?.id); // nao notifica quem fez a mudanca
+    if (destIds.size === 0) return;
+    const profiles = await ciLoadProfiles();
+    const statusDe = CI_STATUS.find(s => s.v === statusAnterior)?.l || statusAnterior;
+    const statusPara = CI_STATUS.find(s => s.v === novoStatus)?.l || novoStatus;
+    const titulo = `📊 Status da campanha mudou`;
+    const msg = `"${nomeCamp}" passou de ${statusDe} → ${statusPara}`;
+    const inserts = Array.from(destIds).map(pid => {
+      const p = profiles.find(x => x.id === pid);
+      return {
+        tipo: 'campanha_status_mudou',
+        nivel: novoStatus === 'ativa' ? 'info' : novoStatus === 'cancelada' ? 'warn' : 'info',
+        titulo, mensagem: msg,
+        destinatario_id: pid, destinatario_nome: p?.nome,
+        audiencia: 'pessoal',
+        link_ref: 'campanhas-internas', link_label: 'Ver campanha',
+        dados: { campanha_id: campanhaId, status: novoStatus },
+      };
+    });
+    await sb.from('alertas').insert(inserts).catch(e => console.warn('[ci] notif status falhou', e));
+  }
+
+  async function ciLoadHistorico(campanhaId) {
+    const { data } = await sb.from('campanha_interna_historico')
+      .select('*').eq('campanha_id', campanhaId)
+      .order('created_at', { ascending: false }).limit(100);
+    ciHistorico[campanhaId] = data || [];
+    return ciHistorico[campanhaId];
+  }
+
+  function ciHistTipoIcone(tipo) {
+    const map = {
+      criou: '🆕', editou: '✏️', mudou_status: '📊',
+      add_membro: '➕', remove_membro: '➖', editou_membro: '🔧',
+      mudou_status_membro: '📈', add_material: '📎', remove_material: '🗑',
+      add_expedicao: '📦',
+    };
+    return map[tipo] || '•';
+  }
+
+  function ciRenderTimelineSecao(campanhaId) {
+    const hist = ciHistorico[campanhaId] || [];
+    if (hist.length === 0) return '';
+    const items = hist.slice(0, 30).map(h => `
+      <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:flex-start">
+        <div style="font-size:16px;flex-shrink:0;width:22px;text-align:center">${ciHistTipoIcone(h.tipo)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12.5px;line-height:1.3">${esc(h.descricao)}</div>
+          <div style="font-size:10.5px;color:var(--text3);margin-top:2px">${esc(h.user_nome || '—')} · ${ciTempoRelativo(h.created_at)}</div>
+        </div>
+      </div>
+    `).join('');
+    return `
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px">
+        <details ${hist.length <= 5?'open':''}>
+          <summary style="cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:15px;list-style:none;display:flex;align-items:center;gap:6px">
+            <span style="font-size:10px;transition:transform .2s">▶</span>
+            📜 Timeline (${hist.length})
+          </summary>
+          <div style="max-height:300px;overflow-y:auto;margin-top:8px">${items}</div>
+        </details>
+      </div>
+    `;
+  }
 
   // ══════════════════════════════════
   // MATERIAIS / ANEXOS
@@ -19420,6 +19541,7 @@ const aiChatInterval = setInterval(() => {
         adicionado_por_nome: currentProfile?.nome,
       });
       if (error) throw error;
+      await ciRegistrarHistorico(campanhaId, 'add_material', `Adicionou anexo: ${nome}`, null, { url });
       showToast('Material adicionado');
       document.getElementById('modal-ci-mat')?.remove();
       await ciLoadMateriais(campanhaId);
