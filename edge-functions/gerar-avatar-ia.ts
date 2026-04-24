@@ -18,6 +18,8 @@ const LOGO_DANA_URL = 'https://comlppiwzniskjbeneos.supabase.co/storage/v1/objec
 
 // Palavras-chave que indicam que o prompt eh sobre roupa Dana (jaleco/scrub/uniforme)
 const ROUPA_KEYWORDS = /\b(lab\s*coat|jaleco|scrub|uniform|medical\s*coat|labcoat|doctor|dentist|nurse|healthcare\s+professional|medical\s+professional|white\s+coat)\b/i
+// Frases que indicam EXPLICITAMENTE que NAO e roupa medica (sobrescreve a detecao acima)
+const NAO_ROUPA = /\bNO\s+(medical\s+)?(lab\s*coat|scrubs|stethoscope|healthcare\s+uniform)\b|\bNOT\s+a\s+(doctor|nurse|healthcare)\b/i
 
 async function fetchImagemBase64(url: string): Promise<{ mime: string, b64: string } | null> {
   try {
@@ -135,7 +137,8 @@ Deno.serve(async (req) => {
     }
 
     // ── 7. Enhancer: injeta logo Dana quando for roupa/uniforme ──
-    const incluirLogo = body.incluir_logo !== false && ROUPA_KEYWORDS.test(prompt)
+    // Pula se o prompt EXPLICITAMENTE disser que nao e roupa medica (ex: Diretor Gabriel)
+    const incluirLogo = body.incluir_logo !== false && ROUPA_KEYWORDS.test(prompt) && !NAO_ROUPA.test(prompt)
     const parts: any[] = []
     let promptFinal = prompt
 
