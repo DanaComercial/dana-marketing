@@ -18523,6 +18523,10 @@ const aiChatInterval = setInterval(() => {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'campanhas_internas' }, async () => { await ciLoad(); ciRender(); ciRefrescarViewAberta(); })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'campanha_interna_membros' }, async () => { await ciLoad(); ciRender(); ciRefrescarViewAberta(); })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'campanha_expedicoes' }, async () => { await ciLoad(); ciRefrescarViewAberta(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'campanha_interna_comentarios' }, async (p) => {
+          const campId = p.new?.campanha_id || p.old?.campanha_id;
+          if (campId) { await ciLoadComentarios(campId); ciRefrescarViewAberta(); }
+        })
         .subscribe();
     }
   };
@@ -18787,6 +18791,8 @@ const aiChatInterval = setInterval(() => {
     if (!c) { showToast('Campanha não encontrada'); return; }
     const profiles = await ciLoadProfiles();
     const membros = ciState.membrosByCamp[id] || [];
+    // Carrega comentarios em paralelo (nao bloqueia render)
+    ciLoadComentarios(id).catch(() => {});
     const podeEditarC = ciPodeEditar(c);
     const tipo = CI_TIPOS.find(t => t.v === c.tipo);
     const canaisTxt = (c.canais || []).map(v => CI_CANAIS.find(x => x.v === v)?.l || v).join(', ') || '—';
@@ -18842,6 +18848,8 @@ const aiChatInterval = setInterval(() => {
             </div>
 
             ${ciRenderExpedicaoSecao(id, podeEditarC)}
+
+            ${ciRenderComentariosSecao(id)}
           </div>
           <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
             <div>
@@ -19251,6 +19259,140 @@ const aiChatInterval = setInterval(() => {
     if (error) { showToast('Erro: ' + error.message); return; }
     showToast('Envio apagado');
     await ciLoad();
+    ciRefrescarViewAberta();
+  };
+
+  // ══════════════════════════════════
+  // COMENTARIOS (tipo tarefas + @mencoes + realtime)
+  // ══════════════════════════════════
+  const ciComentarios = {}; // por campanha_id
+
+  async function ciLoadComentarios(campanhaId) {
+    const { data } = await sb.from('campanha_interna_comentarios')
+      .select('*').eq('campanha_id', campanhaId)
+      .order('created_at', { ascending: true }).limit(200);
+    ciComentarios[campanhaId] = data || [];
+    return ciComentarios[campanhaId];
+  }
+
+  function ciTempoRelativo(ts) {
+    const d = new Date(ts);
+    const diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 60) return 'agora';
+    if (diff < 3600) return Math.floor(diff/60) + 'min atrás';
+    if (diff < 86400) return Math.floor(diff/3600) + 'h atrás';
+    if (diff < 604800) return Math.floor(diff/86400) + 'd atrás';
+    return d.toLocaleDateString('pt-BR');
+  }
+
+  function ciEscTextoComMencoes(texto, mentionsIds) {
+    if (!texto) return '';
+    let html = esc(texto);
+    html = html.replace(/@([A-Za-zÀ-ÿ\u00C0-\u017F]+(?:\s+[A-Za-zÀ-ÿ\u00C0-\u017F]+)?)/g, (m, nome) => {
+      return `<span style="color:#c4b5fd;background:rgba(167,139,250,0.12);padding:1px 4px;border-radius:3px;font-weight:500">@${nome}</span>`;
+    });
+    return html.replace(/\n/g, '<br>');
+  }
+
+  function ciRenderComentariosSecao(campanhaId) {
+    const coms = ciComentarios[campanhaId] || [];
+    const cards = coms.length === 0
+      ? '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12.5px;background:var(--surface);border-radius:8px">Nenhum comentário ainda. Seja o primeiro a comentar.</div>'
+      : coms.map(c => {
+          const ehMeu = c.user_id === currentUser?.id;
+          const inicial = (c.user_nome || '?').charAt(0).toUpperCase();
+          return `
+            <div class="card" data-com-id="${c.id}" style="padding:10px 12px;margin-bottom:6px;display:flex;gap:10px">
+              <div style="width:30px;height:30px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--text2);font-size:13px;flex-shrink:0">${esc(inicial)}</div>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px">
+                  <div style="font-weight:600;font-size:12px">${esc(c.user_nome || '—')} <span style="color:var(--text3);font-weight:400;font-size:10.5px">${ciTempoRelativo(c.created_at)}${c.updated_at && c.updated_at !== c.created_at?' · editado':''}</span></div>
+                  ${ehMeu ? `<div style="display:flex;gap:3px">
+                    <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:10.5px" onclick="ciEditarComentario('${c.id}')">✏️</button>
+                    <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:10.5px;color:#ef4444" onclick="ciApagarComentario('${c.id}','${campanhaId}')">🗑</button>
+                  </div>` : ''}
+                </div>
+                <div class="ci-com-texto" style="font-size:12.5px;line-height:1.4;color:var(--text)">${ciEscTextoComMencoes(c.mensagem)}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+    return `
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px" id="ci-com-secao-${campanhaId}">
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px;margin-bottom:10px">💬 Comentários (${coms.length})</div>
+        <div id="ci-com-lista-${campanhaId}" style="max-height:280px;overflow-y:auto;margin-bottom:10px">${cards}</div>
+        <div style="display:flex;gap:6px;align-items:flex-start">
+          <textarea id="ci-com-input-${campanhaId}" class="input" rows="2" placeholder="Comente... use @nome pra mencionar" style="resize:vertical;font-size:12.5px;flex:1"></textarea>
+          <button class="btn btn-primary btn-sm" onclick="ciPostarComentario('${campanhaId}')" style="align-self:stretch">Enviar</button>
+        </div>
+      </div>
+    `;
+  }
+
+  window.ciPostarComentario = async function(campanhaId) {
+    const input = document.getElementById(`ci-com-input-${campanhaId}`);
+    if (!input) return;
+    const texto = input.value.trim();
+    if (!texto) return;
+    // Extrai @mencoes (busca em profiles)
+    const profiles = await ciLoadProfiles();
+    const mentionsIds = [];
+    const regex = /@([A-Za-zÀ-ÿ\u00C0-\u017F]+(?:\s+[A-Za-zÀ-ÿ\u00C0-\u017F]+)?)/g;
+    let match;
+    while ((match = regex.exec(texto)) !== null) {
+      const nome = match[1];
+      const prof = profiles.find(p => (p.nome||'').toLowerCase().startsWith(nome.toLowerCase()));
+      if (prof && !mentionsIds.includes(prof.id)) mentionsIds.push(prof.id);
+    }
+    const { error } = await sb.from('campanha_interna_comentarios').insert({
+      campanha_id: campanhaId,
+      user_id: currentUser.id,
+      user_nome: currentProfile?.nome,
+      user_cargo: currentProfile?.cargo,
+      mensagem: texto,
+      mentions_ids: mentionsIds.length ? mentionsIds : null,
+    });
+    if (error) { showToast('Erro: ' + error.message); return; }
+    input.value = '';
+    // Notifica mencoes
+    const camp = ciState.campanhas.find(c => c.id === campanhaId);
+    for (const mid of mentionsIds) {
+      if (mid === currentUser.id) continue;
+      const prof = profiles.find(p => p.id === mid);
+      await sb.from('alertas').insert({
+        tipo: 'mencao_campanha',
+        nivel: 'info',
+        titulo: '💬 Você foi mencionado',
+        mensagem: `${currentProfile?.nome} mencionou você em "${camp?.nome || 'campanha'}": ${texto.slice(0, 80)}`,
+        destinatario_id: mid,
+        destinatario_nome: prof?.nome,
+        audiencia: 'pessoal',
+        link_ref: 'campanhas-internas',
+        link_label: 'Ver campanha',
+        dados: { campanha_id: campanhaId },
+      }).catch(() => {});
+    }
+    await ciLoadComentarios(campanhaId);
+    ciRefrescarViewAberta();
+  };
+
+  window.ciEditarComentario = async function(comId) {
+    const coms = Object.values(ciComentarios).flat();
+    const c = coms.find(x => x.id === comId);
+    if (!c) return;
+    const novo = prompt('Editar comentário:', c.mensagem);
+    if (novo == null || novo.trim() === '' || novo === c.mensagem) return;
+    const { error } = await sb.from('campanha_interna_comentarios').update({ mensagem: novo.trim(), updated_at: new Date().toISOString() }).eq('id', comId);
+    if (error) { showToast('Erro: ' + error.message); return; }
+    await ciLoadComentarios(c.campanha_id);
+    ciRefrescarViewAberta();
+  };
+
+  window.ciApagarComentario = async function(comId, campanhaId) {
+    if (!confirm('Apagar comentário?')) return;
+    const { error } = await sb.from('campanha_interna_comentarios').delete().eq('id', comId);
+    if (error) { showToast('Erro: ' + error.message); return; }
+    await ciLoadComentarios(campanhaId);
     ciRefrescarViewAberta();
   };
 
