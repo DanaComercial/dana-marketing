@@ -18562,6 +18562,20 @@ const aiChatInterval = setInterval(() => {
     }
 
     const ctxLabels = { persona: '👤 Persona', campanha_interna: '🎯 Campanha', briefing: '📋 Briefing', outro: '📎 Outro' };
+    // Resolve o contexto_ref_id pra um nome amigavel
+    const resolverRef = (contexto, refId) => {
+      if (!refId) return '';
+      if (contexto === 'persona') {
+        return window.PERSONA_PROMPTS?.[refId]?.titulo || refId;
+      }
+      if (contexto === 'campanha_interna' && typeof ciState !== 'undefined' && ciState?.campanhas) {
+        return ciState.campanhas.find(c => c.id === refId)?.nome || refId.slice(0,8);
+      }
+      if (contexto === 'briefing' && typeof _briefingsCache !== 'undefined' && _briefingsCache) {
+        return _briefingsCache.find(b => b.id === refId)?.titulo || refId.slice(0,8);
+      }
+      return refId.slice(0, 20);
+    };
     const cards = itens.map(r => {
       const ehMeu = r.user_id === currentUser?.id;
       const podeApagar = ehMeu || currentProfile?.cargo === 'admin';
@@ -18573,12 +18587,12 @@ const aiChatInterval = setInterval(() => {
           </div>
           <div style="padding:10px;flex:1;display:flex;flex-direction:column;gap:4px">
             <div style="font-size:11px;color:var(--text3)">${esc(r.user_nome || '—')} · ${new Date(r.created_at).toLocaleDateString('pt-BR')}</div>
-            ${r.contexto_ref_id ? `<div style="font-size:10.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">ref: ${esc(r.contexto_ref_id)}</div>` : ''}
+            ${r.contexto_ref_id ? `<div style="font-size:10.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.contexto_ref_id)}">ref: ${esc(resolverRef(r.contexto, r.contexto_ref_id))}</div>` : ''}
             <div style="font-size:10.5px;color:var(--text2);max-height:42px;overflow:hidden">${esc((r.prompt||'').slice(0,100))}${(r.prompt||'').length>100?'…':''}</div>
             <div style="display:flex;gap:4px;margin-top:auto;padding-top:6px;flex-wrap:wrap">
               <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="window.open('${esc(r.url)}','_blank')">⬇ Baixar</button>
               <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="navigator.clipboard.writeText('${esc(r.url)}');showToast('Link copiado')">🔗 Link</button>
-              ${podeApagar ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:4px 8px;color:#ef4444;margin-left:auto" onclick="aiaHistApagar(${r.id})">🗑</button>` : ''}
+              ${podeApagar ? `<button class="btn btn-ghost btn-sm aia-hist-del" data-log-id="${r.id}" style="font-size:11px;padding:4px 8px;color:#ef4444;margin-left:auto" onclick="aiaHistApagar(${r.id}, this)">🗑</button>` : ''}
             </div>
           </div>
         </div>
@@ -18587,17 +18601,42 @@ const aiChatInterval = setInterval(() => {
     if (host) host.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">${cards}</div>`;
   };
 
-  window.aiaHistApagar = async function(logId) {
-    if (!confirm('Apagar este item do histórico?\n(A imagem permanece no Storage — apenas oculta do log)')) return;
+  window.aiaHistApagar = async function(logId, btn) {
+    // Padrao 2-cliques: 1o click vira "Confirmar?", 2o click apaga de verdade
+    if (btn && !btn.dataset.confirm) {
+      btn.dataset.confirm = '1';
+      btn.style.cssText = 'font-size:11px;padding:4px 10px;color:white;background:#ef4444;border:1px solid #ef4444;margin-left:auto;font-weight:600';
+      btn.innerHTML = '✓ Confirmar apagar';
+      // Reverte apos 5s se nao confirmar
+      btn._revertTimer = setTimeout(() => {
+        if (btn) {
+          delete btn.dataset.confirm;
+          btn.style.cssText = 'font-size:11px;padding:4px 8px;color:#ef4444;margin-left:auto';
+          btn.innerHTML = '🗑';
+        }
+      }, 5000);
+      return;
+    }
+    if (btn?._revertTimer) clearTimeout(btn._revertTimer);
+    if (btn) { btn.disabled = true; btn.innerHTML = '...'; }
     // Soft-delete: marca status como 'apagado_usuario'
-    const { error } = await sb.from('avatares_ia_log').update({ status: 'apagado_usuario' }).eq('id', logId);
-    if (error) { showToast('Erro: ' + error.message); return; }
+    const { error, data } = await sb.from('avatares_ia_log').update({ status: 'apagado_usuario' }).eq('id', logId).select();
+    if (error) {
+      showToast('Erro: ' + error.message);
+      if (btn) { btn.disabled = false; btn.innerHTML = '🗑'; delete btn.dataset.confirm; }
+      return;
+    }
+    if (!data || data.length === 0) {
+      showToast('⚠ Sem permissão pra apagar (RLS)');
+      if (btn) { btn.disabled = false; btn.innerHTML = '🗑'; delete btn.dataset.confirm; }
+      return;
+    }
     showToast('Item removido do histórico');
     await aiaHistCarregar();
   };
 
   // ═══ PERSONAS — prompts prontos (full body, VERTICAL portrait orientation) ═══
-  const PERSONA_PROMPTS = {
+  const PERSONA_PROMPTS = window.PERSONA_PROMPTS = {
     clinicas: {
       titulo: 'Dra. Mariana (Clínicas)',
       prompt: `VERTICAL PORTRAIT FORMAT (9:16 aspect ratio, tall image, NOT horizontal). Full body professional photography of a 35-year-old Brazilian female dentist with medium-length dark brown hair, light-medium warm skin tone, confident genuine smile showing authority and approachability, wearing an elegant tailored white medical lab coat (knee-length) over professional attire and comfortable dress shoes. She stands FULL BODY VISIBLE from head to feet in a modern minimalist dental clinic with soft natural daylight from a large window. Standing pose, slight angle, hands relaxed. Shot vertical 9:16, full-length composition, Canon EOS R5 with 35mm lens, beige and warm white color palette, photorealistic, editorial commercial fashion photography style, high detail.`,
