@@ -3484,6 +3484,45 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
     return data || [];
   }
 
+  // Carrega clientes MANUAIS (cadastrados no DMS, fora do Bling)
+  async function mcLoadClientesManuais(empresa, vendedorId) {
+    let q = state.sb.from('clientes_manuais').select('*').eq('empresa', empresa);
+    if (vendedorId === '__none__') q = q.is('profile_id_vendedor', null);
+    else if (vendedorId) q = q.eq('profile_id_vendedor', vendedorId);
+    q = q.order('created_at', { ascending: false }).limit(500);
+    const { data, error } = await q;
+    if (error) { console.error('[mc] manuais error', error); return []; }
+    return data || [];
+  }
+
+  // Normaliza cliente manual pro formato da tabela (compat com clientes Bling)
+  function mcNormalizarManual(m) {
+    return {
+      contato_nome: m.nome,
+      contato_id: null, // manual nao tem contato_id Bling
+      manual_id: m.id, // flag pra identificar
+      telefone: m.telefone || '',
+      celular: '',
+      empresa: m.empresa,
+      segmento: 'Novo',
+      score: 0,
+      total_pedidos: 0,
+      total_gasto: 0,
+      ticket_medio: 0,
+      ultima_compra: null,
+      dias_sem_compra: null,
+      vendedor_profile_id: m.profile_id_vendedor,
+      vendedor_nome: '', // preenchido pelo backend se quiser
+      vendedor_fonte: 'manual_dms',
+      status_relacionamento: m.status_relacionamento,
+      observacao: m.observacao,
+      documento: m.documento,
+      cidade: m.cidade,
+      uf: m.uf,
+      email: m.email,
+    };
+  }
+
   // Lista de clientes - filtrada server-side
   async function mcLoadClientes(empresa, vendedorId, busca, limit, filtros) {
     let q = state.sb.from('cliente_scoring_vendedor').select('*').eq('empresa', empresa);
@@ -3536,6 +3575,10 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cargo_permissoes' }, async () => {
         state.mcPerms = null; // invalida cache de perms
         await mcApplyTabPermissions();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clientes_manuais' }, async () => {
+        const active = document.querySelector('.page-section.active');
+        if (active?.id === 'page-meus-clientes') await renderMeusClientesPage();
       })
       .subscribe();
   }
@@ -3711,7 +3754,19 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
   // ─── View VENDEDOR (só clientes dele) ───
   async function renderMcVendedorView(content, perms) {
     const filtros = state.mcVendedorFiltros || {};
-    const meus = await mcLoadClientes(state.empresa, perms.profileId, filtros.busca || null, 1000, filtros);
+    const [meusBling, manuaisRaw] = await Promise.all([
+      mcLoadClientes(state.empresa, perms.profileId, filtros.busca || null, 1000, filtros),
+      mcLoadClientesManuais(state.empresa, perms.profileId),
+    ]);
+    // Aplica filtros em manuais localmente (PostgREST nao tem score/segmento)
+    let manuais = manuaisRaw.map(mcNormalizarManual);
+    if (filtros.busca) manuais = manuais.filter(c => (c.contato_nome||'').toLowerCase().includes(filtros.busca.toLowerCase()));
+    if (filtros.segmento) manuais = manuais.filter(c => c.segmento === filtros.segmento);
+    if (filtros.pedidosMin != null) manuais = manuais.filter(c => (c.total_pedidos||0) >= filtros.pedidosMin);
+    if (filtros.pedidosMax != null) manuais = manuais.filter(c => (c.total_pedidos||0) <= filtros.pedidosMax);
+    if (filtros.gastoMin != null) manuais = manuais.filter(c => Number(c.total_gasto||0) >= filtros.gastoMin);
+    if (filtros.gastoMax != null) manuais = manuais.filter(c => Number(c.total_gasto||0) <= filtros.gastoMax);
+    const meus = [...manuais, ...meusBling];
     // KPIs gerais (da carteira inteira, nao filtrada) — chamada separada sem filtros
     const todos = (filtros.busca || filtros.segmento || filtros.pedidosMin != null || filtros.pedidosMax != null || filtros.gastoMin != null || filtros.gastoMax != null)
       ? await mcLoadClientes(state.empresa, perms.profileId, null, 1000, null)
@@ -3757,11 +3812,16 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
   async function renderMcAdminView(content, perms) {
     const filtros = state.mcAdminFiltros || {};
     // Aggregates server-side (nao limitados a 1000)
-    const [totais, ranking, clientesPreview] = await Promise.all([
+    const [totais, ranking, clientesBling, manuaisRaw] = await Promise.all([
       mcLoadTotais(state.empresa),
       mcLoadRanking(state.empresa),
       mcLoadClientes(state.empresa, filtros.vendedor || null, filtros.busca || null, 500, filtros),
+      mcLoadClientesManuais(state.empresa, filtros.vendedor || null),
     ]);
+    let manuais = manuaisRaw.map(mcNormalizarManual);
+    if (filtros.busca) manuais = manuais.filter(c => (c.contato_nome||'').toLowerCase().includes(filtros.busca.toLowerCase()));
+    if (filtros.segmento) manuais = manuais.filter(c => c.segmento === filtros.segmento);
+    const clientesPreview = [...manuais, ...clientesBling];
 
     const t = totais || { total_clientes: 0, com_vendedor: 0, sem_vendedor: 0, vendedores_ativos: 0, faturamento_total: 0 };
     const pctAtribuido = t.total_clientes > 0 ? (t.com_vendedor / t.total_clientes * 100).toFixed(1) : '0.0';
@@ -3887,6 +3947,7 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
           </div>
         </div>
         ${temFiltro ? `<button onclick="window.${fnClear}()" style="padding:7px 14px;border-radius:6px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.1);color:#f87171;cursor:pointer;font-size:12px">Limpar filtros</button>` : ''}
+        <button onclick="window.c360McNovoCliente()" style="padding:7px 14px;border-radius:6px;border:1px solid rgba(167,139,250,0.4);background:rgba(167,139,250,0.12);color:#c4b5fd;cursor:pointer;font-size:12px;font-weight:600">+ Novo cliente</button>
       </div>
     `;
   }
@@ -3995,12 +4056,15 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       const vendedor = c.vendedor_nome
         ? escapeHtml(c.vendedor_nome) + (c.vendedor_fonte === 'manual' ? ' <span style="font-size:10px;color:#4ade80">●</span>' : '')
         : '<span style="color:#fb923c">—</span>';
-      const reatribuirBtn = perms.podeReatribuir
+      const ehManual = !!c.manual_id;
+      const reatribuirBtn = (perms.podeReatribuir && !ehManual)
         ? `<button onclick="event.stopPropagation();window.c360McReatribuir(${c.contato_id || 0}, '${escapeHtml(c.empresa)}', '${escapeHtml(c.contato_nome).replace(/'/g,'&#39;')}', '${c.vendedor_profile_id || ''}')" style="padding:4px 8px;border-radius:6px;border:1px solid rgba(167,139,250,0.35);background:rgba(167,139,250,0.08);color:#c4b5fd;cursor:pointer;font-size:11px">🔀</button>`
         : '';
+      const badgeDMS = ehManual ? ' <span style="font-size:9.5px;padding:1px 6px;border-radius:4px;background:rgba(168,85,247,0.2);color:#c4b5fd;border:1px solid rgba(168,85,247,0.35);margin-left:4px;vertical-align:middle">DMS</span>' : '';
+      const dataAttr = ehManual ? `data-manual="${c.manual_id}"` : `data-cliente="${escapeHtml(c.contato_nome)}"`;
       return `
-        <tr data-cliente="${escapeHtml(c.contato_nome)}" style="border-top:1px solid rgba(255,255,255,0.06);cursor:pointer">
-          <td style="padding:10px 14px;color:#e2e8f0;font-weight:500">${escapeHtml(c.contato_nome)}</td>
+        <tr ${dataAttr} style="border-top:1px solid rgba(255,255,255,0.06);cursor:pointer">
+          <td style="padding:10px 14px;color:#e2e8f0;font-weight:500">${escapeHtml(c.contato_nome)}${badgeDMS}</td>
           <td style="padding:10px 14px"><span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${s.bg.replace('bg-','').replace('/15','')};color:#e2e8f0;border:1px solid rgba(255,255,255,0.1)" class="${s.bg} ${s.fg} ${s.border}">${escapeHtml(c.segmento || '-')}</span></td>
           <td style="padding:10px 14px;color:#e2e8f0;text-align:right;font-variant-numeric:tabular-nums">${c.score || 0}</td>
           <td style="padding:10px 14px;color:#e2e8f0;text-align:right;font-variant-numeric:tabular-nums">${fmtNum(c.total_pedidos || 0)}</td>
@@ -4035,9 +4099,14 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
   }
 
   function mcWireTable(content) {
-    const rows = content.querySelectorAll('tbody tr[data-cliente]');
+    const rows = content.querySelectorAll('tbody tr[data-cliente], tbody tr[data-manual]');
     rows.forEach(tr => {
       tr.addEventListener('click', () => {
+        const manualId = tr.getAttribute('data-manual');
+        if (manualId) {
+          window.c360McEditarManual(manualId);
+          return;
+        }
         const nome = tr.getAttribute('data-cliente');
         if (nome) mcOpenClienteDetalhe(nome);
       });
@@ -4185,6 +4254,168 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       if (typeof showToast === 'function') showToast('Erro: ' + (e.message || e), 'error');
       if (btn) { btn.disabled = false; btn.textContent = 'Confirmar'; }
     }
+  };
+
+  // ─── Modal: Novo / Editar cliente manual ───
+  const STATUS_RELACIONAMENTO_OPCOES = [
+    { v: 'novo',        l: '🆕 Novo' },
+    { v: 'contatado',   l: '💬 Contatado' },
+    { v: 'negociando',  l: '🤝 Em negociação' },
+    { v: 'comprou',     l: '✅ Comprou' },
+    { v: 'perdido',     l: '❌ Perdido' },
+    { v: 'sem_interesse', l: '😐 Sem interesse' },
+  ];
+
+  window.c360McNovoCliente = async function() {
+    await mcAbrirModalCliente(null);
+  };
+
+  window.c360McEditarManual = async function(manualId) {
+    const { data } = await state.sb.from('clientes_manuais').select('*').eq('id', manualId).maybeSingle();
+    if (!data) { if (typeof showToast === 'function') showToast('Cliente não encontrado', 'error'); return; }
+    await mcAbrirModalCliente(data);
+  };
+
+  async function mcAbrirModalCliente(cliente) {
+    const perms = await mcLoadPerms();
+    const editando = !!cliente;
+    const profiles = await mcLoadProfiles();
+    const podeAtribuirOutro = perms.eAdminOuGerente;
+    const vendedorAtual = cliente?.profile_id_vendedor || perms.profileId;
+    const existing = document.getElementById('mc-cliente-modal');
+    if (existing) existing.remove();
+    const modal = document.createElement('div');
+    modal.id = 'mc-cliente-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
+
+    const statusOpts = STATUS_RELACIONAMENTO_OPCOES.map(o =>
+      `<option value="${o.v}" ${(cliente?.status_relacionamento || 'novo') === o.v ? 'selected' : ''}>${o.l}</option>`
+    ).join('');
+    const vendOpts = profiles.map(p =>
+      `<option value="${p.id}" ${p.id === vendedorAtual ? 'selected' : ''}>${escapeHtml(p.nome)} · ${escapeHtml(p.cargo || '')}</option>`
+    ).join('');
+    const empOpts = `
+      <option value="matriz" ${(cliente?.empresa || state.empresa) === 'matriz' ? 'selected' : ''}>Matriz (Piçarras)</option>
+      <option value="bc" ${(cliente?.empresa || state.empresa) === 'bc' ? 'selected' : ''}>Balneário Camboriú</option>
+    `;
+
+    modal.innerHTML = `
+      <div style="background:#0b0f17;border:1px solid rgba(255,255,255,0.1);border-radius:14px;max-width:640px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,0.5);max-height:90vh;overflow-y:auto">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+          <div>
+            <div style="font-size:18px;font-weight:700;color:#f1f5f9;font-family:'Playfair Display',serif">${editando ? '✏️ Editar cliente' : '+ Novo cliente'}</div>
+            <div style="font-size:12px;color:#94a3b8;margin-top:2px">Cliente DMS — não é sincronizado com o Bling</div>
+          </div>
+          <button onclick="document.getElementById('mc-cliente-modal').remove()" style="background:transparent;border:0;color:#94a3b8;cursor:pointer;font-size:22px;line-height:1;padding:0 4px">×</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="grid-column:1 / -1">
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.3px">Nome *</label>
+            <input id="mc-novo-nome" value="${escapeHtml(cliente?.nome || '')}" placeholder="Nome completo / Razão social" style="width:100%;padding:9px 11px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.3px">Telefone</label>
+            <input id="mc-novo-fone" value="${escapeHtml(cliente?.telefone || '')}" placeholder="(47) 99999-0000" style="width:100%;padding:9px 11px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.3px">Email</label>
+            <input id="mc-novo-email" type="email" value="${escapeHtml(cliente?.email || '')}" placeholder="cliente@..." style="width:100%;padding:9px 11px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.3px">CNPJ / CPF</label>
+            <input id="mc-novo-doc" value="${escapeHtml(cliente?.documento || '')}" placeholder="00.000.000/0000-00" style="width:100%;padding:9px 11px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.3px">Empresa</label>
+            <select id="mc-novo-empresa" style="width:100%;padding:9px 11px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;box-sizing:border-box">${empOpts}</select>
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.3px">Cidade</label>
+            <input id="mc-novo-cidade" value="${escapeHtml(cliente?.cidade || '')}" style="width:100%;padding:9px 11px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.3px">UF</label>
+            <input id="mc-novo-uf" value="${escapeHtml(cliente?.uf || '')}" maxlength="2" placeholder="SC" style="width:100%;padding:9px 11px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;box-sizing:border-box;text-transform:uppercase">
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.3px">Status</label>
+            <select id="mc-novo-status" style="width:100%;padding:9px 11px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;box-sizing:border-box">${statusOpts}</select>
+          </div>
+          ${podeAtribuirOutro ? `
+          <div style="grid-column:1 / -1">
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.3px">Vendedor responsável</label>
+            <select id="mc-novo-vendedor" style="width:100%;padding:9px 11px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;box-sizing:border-box">${vendOpts}</select>
+          </div>` : ''}
+          <div style="grid-column:1 / -1">
+            <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.3px">Observação</label>
+            <textarea id="mc-novo-obs" rows="3" placeholder="Notas rápidas sobre este cliente..." style="width:100%;padding:9px 11px;border-radius:7px;border:1px solid rgba(255,255,255,0.15);background:#0b0f17;color:#e2e8f0;font-size:13px;box-sizing:border-box;resize:vertical;font-family:inherit">${escapeHtml(cliente?.observacao || '')}</textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:space-between;margin-top:18px;flex-wrap:wrap">
+          <div>
+            ${editando ? `<button onclick="window.c360McApagarManual('${cliente.id}')" style="padding:9px 16px;border-radius:8px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.1);color:#f87171;cursor:pointer;font-size:13px">🗑 Apagar</button>` : ''}
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onclick="document.getElementById('mc-cliente-modal').remove()" style="padding:9px 18px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:transparent;color:#e2e8f0;cursor:pointer;font-size:13px">Cancelar</button>
+            <button id="mc-novo-save" onclick="window.c360McSalvarCliente('${cliente?.id || ''}')" style="padding:9px 18px;border-radius:8px;border:1px solid rgba(167,139,250,0.4);background:rgba(167,139,250,0.2);color:#c4b5fd;cursor:pointer;font-size:13px;font-weight:600">${editando ? 'Salvar' : 'Criar cliente'}</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    setTimeout(() => document.getElementById('mc-novo-nome')?.focus(), 100);
+  }
+
+  window.c360McSalvarCliente = async function(id) {
+    const btn = document.getElementById('mc-novo-save');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+    try {
+      const nome = (document.getElementById('mc-novo-nome')?.value || '').trim();
+      if (!nome) { if (typeof showToast === 'function') showToast('Nome é obrigatório', 'error'); if (btn) { btn.disabled = false; btn.textContent = id ? 'Salvar' : 'Criar cliente'; } return; }
+      const perms = await mcLoadPerms();
+      const vendedor = document.getElementById('mc-novo-vendedor')?.value || perms.profileId;
+      const payload = {
+        nome,
+        telefone: (document.getElementById('mc-novo-fone')?.value || '').trim() || null,
+        email: (document.getElementById('mc-novo-email')?.value || '').trim() || null,
+        documento: (document.getElementById('mc-novo-doc')?.value || '').trim() || null,
+        cidade: (document.getElementById('mc-novo-cidade')?.value || '').trim() || null,
+        uf: (document.getElementById('mc-novo-uf')?.value || '').trim().toUpperCase().slice(0,2) || null,
+        empresa: document.getElementById('mc-novo-empresa')?.value || state.empresa,
+        status_relacionamento: document.getElementById('mc-novo-status')?.value || 'novo',
+        observacao: (document.getElementById('mc-novo-obs')?.value || '').trim() || null,
+        profile_id_vendedor: vendedor,
+      };
+      let res;
+      if (id) {
+        res = await state.sb.from('clientes_manuais').update(payload).eq('id', id);
+      } else {
+        payload.criado_por = perms.profileId;
+        payload.criado_por_nome = perms.nome;
+        res = await state.sb.from('clientes_manuais').insert(payload);
+      }
+      if (res.error) throw res.error;
+      if (typeof showToast === 'function') showToast(id ? 'Cliente atualizado' : 'Cliente criado', 'success');
+      document.getElementById('mc-cliente-modal')?.remove();
+      await renderMeusClientesPage();
+    } catch (e) {
+      console.error('[mc] salvar cliente manual', e);
+      if (typeof showToast === 'function') showToast('Erro: ' + (e.message || e), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = id ? 'Salvar' : 'Criar cliente'; }
+    }
+  };
+
+  window.c360McApagarManual = async function(id) {
+    if (typeof c360Confirm === 'function') {
+      const ok = await c360Confirm('Apagar este cliente?', { danger: true, okLabel: 'Apagar' });
+      if (!ok) return;
+    } else if (!confirm('Apagar este cliente?')) return;
+    const { error } = await state.sb.from('clientes_manuais').delete().eq('id', id);
+    if (error) { if (typeof showToast === 'function') showToast('Erro: ' + error.message, 'error'); return; }
+    if (typeof showToast === 'function') showToast('Cliente apagado', 'success');
+    document.getElementById('mc-cliente-modal')?.remove();
+    await renderMeusClientesPage();
   };
 
   // ─── Modal: Mapear vendedores Bling ───
