@@ -18345,7 +18345,7 @@ const aiChatInterval = setInterval(() => {
   ];
 
   // Estado local
-  const ciState = { campanhas: [], membrosByCamp: {}, expedicoesByCamp: {}, profiles: null, realtime: null, filtro: 'todas', minhasOnly: false };
+  const ciState = { campanhas: [], membrosByCamp: {}, expedicoesByCamp: {}, profiles: null, realtime: null, filtro: 'todas', minhasOnly: false, viewMode: 'grid', filtroResponsavel: '' };
 
   function ciFmtStatusBadge(v) {
     const s = CI_STATUS.find(x => x.v === v) || CI_STATUS[0];
@@ -18476,16 +18476,19 @@ const aiChatInterval = setInterval(() => {
 
   window.ciFiltrar = function(f) { ciState.filtro = f; ciRender(); };
   window.ciToggleMinhasOnly = function() { ciState.minhasOnly = !ciState.minhasOnly; ciRender(); };
+  window.ciSetViewMode = function(m) { ciState.viewMode = m; ciRender(); };
+  window.ciSetFiltroResponsavel = function(id) { ciState.filtroResponsavel = id; ciRender(); };
 
   function ciRender() {
     const host = document.getElementById('ci-container');
     if (!host) return;
     let lista = ciState.campanhas;
-    if (ciState.filtro !== 'todas') lista = lista.filter(c => c.status === ciState.filtro);
+    if (ciState.viewMode !== 'kanban' && ciState.filtro !== 'todas') lista = lista.filter(c => c.status === ciState.filtro);
     if (ciState.minhasOnly) lista = lista.filter(c => {
       const mems = ciState.membrosByCamp[c.id] || [];
       return c.responsavel_id === currentUser?.id || mems.some(m => m.profile_id === currentUser?.id);
     });
+    if (ciState.filtroResponsavel) lista = lista.filter(c => c.responsavel_id === ciState.filtroResponsavel);
     const kpis = {
       total: ciState.campanhas.length,
       ativas: ciState.campanhas.filter(c => c.status === 'ativa').length,
@@ -18527,18 +18530,126 @@ const aiChatInterval = setInterval(() => {
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
-        ${filtros.map(f => `<button class="btn btn-sm ${ciState.filtro===f.v?'btn-primary':'btn-ghost'}" onclick="ciFiltrar('${f.v}')">${f.l}</button>`).join('')}
-        <button class="btn btn-sm ${ciState.minhasOnly?'btn-primary':'btn-ghost'}" onclick="ciToggleMinhasOnly()" style="margin-left:auto">${ciState.minhasOnly?'✓ ':''}👤 Só as minhas</button>
+        ${ciState.viewMode === 'grid' ? filtros.map(f => `<button class="btn btn-sm ${ciState.filtro===f.v?'btn-primary':'btn-ghost'}" onclick="ciFiltrar('${f.v}')">${f.l}</button>`).join('') : ''}
+        <select onchange="ciSetFiltroResponsavel(this.value)" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--white);font-size:12.5px">
+          <option value="">👤 Responsável: todos</option>
+          ${ciRespOptionsHtml()}
+        </select>
+        <button class="btn btn-sm ${ciState.minhasOnly?'btn-primary':'btn-ghost'}" onclick="ciToggleMinhasOnly()">${ciState.minhasOnly?'✓ ':''}👤 Só as minhas</button>
+        <div style="margin-left:auto;display:inline-flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+          <button class="btn btn-sm ${ciState.viewMode==='grid'?'btn-primary':'btn-ghost'}" style="border-radius:0;border:none" onclick="ciSetViewMode('grid')">▦ Grid</button>
+          <button class="btn btn-sm ${ciState.viewMode==='kanban'?'btn-primary':'btn-ghost'}" style="border-radius:0;border:none" onclick="ciSetViewMode('kanban')">▤ Kanban</button>
+        </div>
       </div>
       ${lista.length === 0 ? `
         <div style="padding:48px 24px;text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:12px">
           <div style="font-size:32px;margin-bottom:8px;opacity:0.5">📋</div>
-          <div style="font-size:14px;color:var(--text2);margin-bottom:10px">${ciState.filtro==='todas' && !ciState.minhasOnly ? 'Nenhuma campanha ainda.' : 'Nenhuma campanha com esse filtro.'}</div>
+          <div style="font-size:14px;color:var(--text2);margin-bottom:10px">${ciState.filtro==='todas' && !ciState.minhasOnly && !ciState.filtroResponsavel ? 'Nenhuma campanha ainda.' : 'Nenhuma campanha com esses filtros.'}</div>
           ${ciPodeCriar() && ciState.filtro==='todas' && !ciState.minhasOnly ? '<button class="btn btn-primary btn-sm" onclick="abrirNovaCampanhaInterna()">+ Criar primeira campanha</button>' : ''}
         </div>
-      ` : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px">${lista.map(ciRenderCard).join('')}</div>`}
+      ` : (
+        ciState.viewMode === 'kanban'
+          ? ciRenderKanban(lista)
+          : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px">${lista.map(ciRenderCard).join('')}</div>`
+      )}
+    `;
+    // Se kanban, adiciona drag listeners
+    if (ciState.viewMode === 'kanban') ciWireKanbanDrag();
+  }
+
+  function ciRespOptionsHtml() {
+    // Responsaveis unicos
+    const ids = new Set();
+    const opts = [];
+    ciState.campanhas.forEach(c => {
+      if (c.responsavel_id && !ids.has(c.responsavel_id)) {
+        ids.add(c.responsavel_id);
+        opts.push(`<option value="${c.responsavel_id}" ${ciState.filtroResponsavel===c.responsavel_id?'selected':''}>${esc(c.responsavel_nome || '—')}</option>`);
+      }
+    });
+    return opts.join('');
+  }
+
+  function ciRenderKanban(lista) {
+    const cols = CI_STATUS.filter(s => s.v !== 'cancelada' || lista.some(c => c.status === 'cancelada')); // oculta cancelada se vazia
+    return `
+      <div style="display:grid;grid-template-columns:repeat(${cols.length},minmax(260px,1fr));gap:12px;overflow-x:auto;padding-bottom:8px">
+        ${cols.map(col => {
+          const colCamps = lista.filter(c => c.status === col.v);
+          return `
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;min-height:140px" data-kanban-col="${col.v}" ondragover="event.preventDefault();this.style.borderColor='${col.cor}'" ondragleave="this.style.borderColor='var(--border)'" ondrop="ciKanbanDrop(event, '${col.v}')">
+              <div style="font-size:12px;font-weight:700;color:${col.cor};margin-bottom:10px;padding:0 4px;display:flex;justify-content:space-between;align-items:center">
+                ${col.l.toUpperCase()}
+                <span style="font-size:10.5px;background:var(--surface2);padding:2px 7px;border-radius:10px;color:var(--text3)">${colCamps.length}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                ${colCamps.map(c => ciRenderKanbanCard(c)).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
     `;
   }
+
+  function ciRenderKanbanCard(c) {
+    const mems = ciState.membrosByCamp[c.id] || [];
+    const tipo = CI_TIPOS.find(t => t.v === c.tipo);
+    const mc = mems.find(m => m.profile_id === currentUser?.id);
+    const concluidos = mems.filter(m => m.status === 'concluido').length;
+    const pct = mems.length > 0 ? Math.round(concluidos / mems.length * 100) : 0;
+    return `
+      <div class="card" draggable="${ciPodeEditar(c)?'true':'false'}" data-kanban-id="${c.id}" style="padding:10px;cursor:pointer;font-size:12px" onclick="abrirVerCampanhaInterna('${c.id}')">
+        <div style="font-weight:700;font-size:13px;line-height:1.2;margin-bottom:4px">${esc(c.nome)}</div>
+        <div style="font-size:10.5px;color:var(--text3);display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+          ${tipo ? `<span>${tipo.l}</span>` : ''}
+          ${c.data_fim ? `<span>📅 ${ciFmtDateBR(c.data_fim)}</span>` : ''}
+        </div>
+        ${c.responsavel_nome ? `<div style="font-size:10.5px;color:var(--text2)">👤 ${esc(c.responsavel_nome)}</div>` : ''}
+        ${mems.length > 0 ? `
+          <div style="margin-top:6px">
+            <div style="display:flex;justify-content:space-between;font-size:9.5px;color:var(--text3);margin-bottom:2px"><span>Equipe</span><span>${concluidos}/${mems.length}</span></div>
+            <div style="height:3px;background:var(--surface2);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pct===100?'#22c55e':pct>=50?'#fbbf24':'#94a3b8'}"></div></div>
+          </div>
+        ` : ''}
+        ${mc ? `<div style="margin-top:6px">${ciMemStatusBadge(mc.status || 'pendente')}</div>` : ''}
+      </div>
+    `;
+  }
+
+  function ciWireKanbanDrag() {
+    document.querySelectorAll('[data-kanban-id]').forEach(el => {
+      el.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/ci-id', el.getAttribute('data-kanban-id'));
+        el.style.opacity = '0.5';
+      });
+      el.addEventListener('dragend', () => { el.style.opacity = ''; });
+    });
+  }
+
+  window.ciKanbanDrop = async function(event, novoStatus) {
+    event.preventDefault();
+    const col = event.currentTarget;
+    col.style.borderColor = 'var(--border)';
+    const campId = event.dataTransfer.getData('text/ci-id');
+    if (!campId) return;
+    const c = ciState.campanhas.find(x => x.id === campId);
+    if (!c || c.status === novoStatus) return;
+    if (!ciPodeEditar(c)) { showToast('Sem permissão pra mudar status'); return; }
+    const statusAnterior = c.status;
+    const { error } = await sb.from('campanhas_internas').update({ status: novoStatus }).eq('id', campId);
+    if (error) { showToast('Erro: ' + error.message); return; }
+    // Log + notifica
+    await ciRegistrarHistorico(campId, 'mudou_status',
+      `Status: ${CI_STATUS.find(s=>s.v===statusAnterior)?.l || statusAnterior} → ${CI_STATUS.find(s=>s.v===novoStatus)?.l || novoStatus} (via Kanban)`,
+      { status: statusAnterior }, { status: novoStatus });
+    await ciNotificarMudancaStatus(campId, c.nome, statusAnterior, novoStatus);
+    // Sync calendario se aplicavel
+    await ciSyncCalendario(campId, { ...c, status: novoStatus });
+    showToast('Status atualizado');
+    await ciLoad();
+    ciRender();
+  };
 
   window.loadCampanhasInternas = async function() {
     await ciLoad();
