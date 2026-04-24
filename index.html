@@ -11122,11 +11122,12 @@ async function loadPersonasStats() {
     const dataCorte = doze.toISOString().slice(0, 10);
 
     // Pedidos últimos 12 meses (paginado — limite 1000/query)
+    // FIX: contato_tipo vem dos PEDIDOS (contatos tem esse campo vazio em 100% dos casos)
     const pedidosAll = [];
     let from = 0, pageSize = 1000;
     while (from < 20000) {
       const { data, error } = await aplicarEmpresa(sb.from('pedidos')
-        .select('total, contato_nome, loja_id, data')
+        .select('total, contato_nome, contato_tipo, loja_id, data')
         .gte('data', dataCorte)
         .not('contato_nome', 'is', null)
         .range(from, from + pageSize - 1));
@@ -11137,31 +11138,20 @@ async function loadPersonasStats() {
       from += pageSize;
     }
 
-    // Contatos com tipo_pessoa (paginado)
-    const contatosByName = {};
-    from = 0;
-    while (from < 40000) {
-      const { data, error } = await aplicarEmpresa(sb.from('contatos')
-        .select('nome, tipo_pessoa')
-        .range(from, from + pageSize - 1));
-      if (error) { console.warn('loadPersonasStats contatos:', error); break; }
-      if (!data || !data.length) break;
-      data.forEach(c => { if (c.nome) contatosByName[c.nome.toUpperCase().trim()] = c.tipo_pessoa; });
-      if (data.length < pageSize) break;
-      from += pageSize;
-    }
-
-    // Agregar pedidos por cliente
+    // Agregar pedidos por cliente (contato_tipo = voto majoritario dos pedidos dele)
     const porCliente = {};
     pedidosAll.forEach(p => {
       const key = (p.contato_nome || '').toUpperCase().trim();
       if (!key) return;
-      if (!porCliente[key]) porCliente[key] = { nome: p.contato_nome, total: 0, n: 0, canais: {} };
+      if (!porCliente[key]) porCliente[key] = { nome: p.contato_nome, total: 0, n: 0, canais: {}, tiposVotos: {} };
       const c = porCliente[key];
       c.total += parseFloat(p.total) || 0;
       c.n += 1;
       const canal = getNomeCanal(p.loja_id);
       c.canais[canal] = (c.canais[canal] || 0) + 1;
+      // Votacao pra contato_tipo (maior numero de pedidos define o tipo)
+      const tipo = p.contato_tipo || 'F';
+      c.tiposVotos[tipo] = (c.tiposVotos[tipo] || 0) + 1;
     });
 
     // Classificar
@@ -11175,7 +11165,8 @@ async function loadPersonasStats() {
     let totalClientes = 0, totalReceita = 0;
     Object.values(porCliente).forEach(c => {
       const ticket = c.n > 0 ? c.total / c.n : 0;
-      const tipo_pessoa = contatosByName[c.nome.toUpperCase().trim()] || 'F';
+      // tipo dominante (voto majoritario dos pedidos do cliente) - pegando do contato_tipo dos pedidos
+      const tipo_pessoa = Object.entries(c.tiposVotos || {}).sort((a,b) => b[1]-a[1])[0]?.[0] || 'F';
       const id = classifyClienteToPersona({ tipo_pessoa, n_pedidos: c.n, ticket_medio: ticket });
       const p = personas[id];
       p.clientes += 1;
