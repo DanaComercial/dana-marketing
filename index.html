@@ -18291,8 +18291,28 @@ const aiChatInterval = setInterval(() => {
     { v: 'outro', l: 'Outro' },
   ];
 
+  // === EXPEDICAO (modulo dentro da campanha) ===
+  const EXP_DESTINO_TIPOS = [
+    { v: 'loja_propria', l: '🏪 Loja própria', hint: 'Piçarras ou BC' },
+    { v: 'revendedora', l: '🛍 Revendedora', hint: 'Parceiras comerciais' },
+    { v: 'influencer', l: '🌟 Influencer', hint: 'Envio PR' },
+    { v: 'cliente_final', l: '👤 Cliente final', hint: 'Ação especial VIP' },
+  ];
+  const EXP_STATUS = [
+    { v: 'pendente', l: '⏳ Pendente', cor: '#94a3b8' },
+    { v: 'em_producao', l: '🛠 Em produção', cor: '#fbbf24' },
+    { v: 'enviado', l: '🚚 Enviado', cor: '#60a5fa' },
+    { v: 'entregue', l: '✅ Entregue', cor: '#22c55e' },
+    { v: 'cancelado', l: '❌ Cancelado', cor: '#ef4444' },
+  ];
+  const EXP_BRINDE_TIPOS = [
+    { v: 'nenhum', l: 'Sem brinde' },
+    { v: 'catalogo', l: 'Produto do catálogo Dana' },
+    { v: 'livre', l: 'Cadastro livre (foto + descrição)' },
+  ];
+
   // Estado local
-  const ciState = { campanhas: [], membrosByCamp: {}, profiles: null, realtime: null, filtro: 'todas', minhasOnly: false };
+  const ciState = { campanhas: [], membrosByCamp: {}, expedicoesByCamp: {}, profiles: null, realtime: null, filtro: 'todas', minhasOnly: false };
 
   function ciFmtStatusBadge(v) {
     const s = CI_STATUS.find(x => x.v === v) || CI_STATUS[0];
@@ -18315,14 +18335,19 @@ const aiChatInterval = setInterval(() => {
   }
 
   async function ciLoad() {
-    const [{ data: camps }, { data: mems }] = await Promise.all([
+    const [{ data: camps }, { data: mems }, { data: exps }] = await Promise.all([
       sb.from('campanhas_internas').select('*').order('data_inicio', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(200),
       sb.from('campanha_interna_membros').select('*'),
+      sb.from('campanha_expedicoes').select('*').order('data_envio_estimada', { ascending: true, nullsFirst: false }),
     ]);
     ciState.campanhas = camps || [];
     ciState.membrosByCamp = {};
+    ciState.expedicoesByCamp = {};
     (mems || []).forEach(m => {
       (ciState.membrosByCamp[m.campanha_id] = ciState.membrosByCamp[m.campanha_id] || []).push(m);
+    });
+    (exps || []).forEach(e => {
+      (ciState.expedicoesByCamp[e.campanha_id] = ciState.expedicoesByCamp[e.campanha_id] || []).push(e);
     });
     ciAtualizarBadge();
   }
@@ -18462,11 +18487,19 @@ const aiChatInterval = setInterval(() => {
     ciRender();
     if (!ciState.realtime) {
       ciState.realtime = sb.channel('rt-campanhas-internas')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'campanhas_internas' }, async () => { await ciLoad(); ciRender(); })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'campanha_interna_membros' }, async () => { await ciLoad(); ciRender(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'campanhas_internas' }, async () => { await ciLoad(); ciRender(); ciRefrescarViewAberta(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'campanha_interna_membros' }, async () => { await ciLoad(); ciRender(); ciRefrescarViewAberta(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'campanha_expedicoes' }, async () => { await ciLoad(); ciRefrescarViewAberta(); })
         .subscribe();
     }
   };
+
+  function ciRefrescarViewAberta() {
+    const modal = document.getElementById('modal-ci-view');
+    if (!modal) return;
+    const campId = modal.getAttribute('data-camp-id');
+    if (campId) abrirVerCampanhaInterna(campId);
+  }
 
   // ── Modal Criar/Editar ──
   function ciModalHtml(c, profiles) {
@@ -18693,7 +18726,7 @@ const aiChatInterval = setInterval(() => {
         `).join('');
     document.getElementById('modal-ci-view')?.remove();
     document.body.insertAdjacentHTML('beforeend', `
-      <div class="modal-overlay open" id="modal-ci-view">
+      <div class="modal-overlay open" id="modal-ci-view" data-camp-id="${id}">
         <div class="modal" style="max-width:780px">
           <div class="modal-header">
             <div>
@@ -18726,6 +18759,8 @@ const aiChatInterval = setInterval(() => {
               </div>
               <div id="ci-membros-lista">${membrosHtml}</div>
             </div>
+
+            ${ciRenderExpedicaoSecao(id, podeEditarC)}
           </div>
           <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
             <div>
@@ -18858,6 +18893,284 @@ const aiChatInterval = setInterval(() => {
     await ciLoad();
     if (m && campId) { m.remove(); abrirVerCampanhaInterna(campId); }
     ciRender();
+  };
+
+  // ══════════════════════════════════
+  // EXPEDICAO — modulo dentro da campanha
+  // ══════════════════════════════════
+  function expFmtStatusBadge(v) {
+    const s = EXP_STATUS.find(x => x.v === v) || EXP_STATUS[0];
+    return `<span style="font-size:10.5px;padding:2px 7px;border-radius:5px;background:${s.cor}22;color:${s.cor};border:1px solid ${s.cor}55;font-weight:600">${s.l}</span>`;
+  }
+
+  function expDiasUntil(date) {
+    if (!date) return null;
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const alvo = new Date(date + 'T00:00:00');
+    return Math.ceil((alvo - hoje) / (1000*60*60*24));
+  }
+
+  function expDiasBadge(e) {
+    if (!e.data_envio_estimada) return '';
+    if (e.status === 'entregue' || e.status === 'cancelado' || e.status === 'enviado') return '';
+    const d = expDiasUntil(e.data_envio_estimada);
+    if (d == null) return '';
+    if (d < 0) return `<span style="font-size:10px;padding:2px 6px;border-radius:5px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);font-weight:600">⚠ atrasado ${Math.abs(d)}d</span>`;
+    if (d === 0) return `<span style="font-size:10px;padding:2px 6px;border-radius:5px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);font-weight:600">🚨 hoje</span>`;
+    if (d <= 3) return `<span style="font-size:10px;padding:2px 6px;border-radius:5px;background:rgba(251,146,60,0.15);color:#fb923c;border:1px solid rgba(251,146,60,0.4);font-weight:600">🚨 em ${d}d</span>`;
+    if (d <= 7) return `<span style="font-size:10px;padding:2px 6px;border-radius:5px;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.4)">⏰ em ${d}d</span>`;
+    return `<span style="font-size:10px;padding:2px 6px;border-radius:5px;background:var(--surface2);color:var(--text3)">em ${d}d</span>`;
+  }
+
+  function ciRenderExpedicaoSecao(campanhaId, podeEditar) {
+    const expedicoes = ciState.expedicoesByCamp[campanhaId] || [];
+    const cards = expedicoes.length === 0
+      ? '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;background:var(--surface);border-radius:8px">Nenhum envio planejado.</div>'
+      : expedicoes.map(e => {
+          const destTipo = EXP_DESTINO_TIPOS.find(d => d.v === e.tipo_destino);
+          const brindeInfo = e.brinde_tipo === 'nenhum' || !e.brinde_tipo
+            ? '<span style="color:var(--text3);font-size:11px">sem brinde</span>'
+            : `<span style="color:var(--text);font-size:11.5px">🎁 ${esc(e.brinde_produto_nome || e.brinde_descricao || 'brinde')}${e.brinde_quantidade > 1 ? ` × ${e.brinde_quantidade}` : ''}</span>`;
+          const condPartes = [];
+          if (e.compra_minima) condPartes.push(`mín R$ ${e.compra_minima}`);
+          if (e.desconto_pct) condPartes.push(`${e.desconto_pct}% off`);
+          if (e.frete_gratis) condPartes.push('frete grátis');
+          const condTxt = condPartes.join(' · ') || '—';
+          return `
+            <div class="card" style="padding:12px;margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px">
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    ${destTipo?.l || e.tipo_destino} · ${esc(e.destino_nome)}
+                    ${expFmtStatusBadge(e.status)}
+                    ${expDiasBadge(e)}
+                  </div>
+                  ${e.destino_contato ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">📞 ${esc(e.destino_contato)}</div>` : ''}
+                </div>
+                ${podeEditar ? `<div style="display:flex;gap:4px">
+                  <button class="btn btn-ghost btn-sm" onclick="expEditar('${campanhaId}','${e.id}')">✏️</button>
+                  <button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="expApagar('${e.id}','${esc(e.destino_nome)}')">🗑</button>
+                </div>` : ''}
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:6px;font-size:11.5px">
+                <div><strong>Envio estimado:</strong> ${e.data_envio_estimada ? ciFmtDateBR(e.data_envio_estimada) : '—'}</div>
+                <div><strong>Brinde:</strong> ${brindeInfo}</div>
+                <div><strong>Condição:</strong> ${esc(condTxt)}</div>
+              </div>
+              ${e.condicao_observacao ? `<div style="font-size:11.5px;color:var(--text2);margin-top:6px;padding:6px 10px;background:var(--surface);border-left:3px solid #fbbf24;border-radius:4px;font-style:italic">"${esc(e.condicao_observacao)}"</div>` : ''}
+            </div>
+          `;
+        }).join('');
+    return `
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px">📦 Expedição (${expedicoes.length})</div>
+          ${podeEditar ? `<button class="btn btn-primary btn-sm" onclick="expNovo('${campanhaId}')">+ Novo envio</button>` : ''}
+        </div>
+        <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">Onde enviar · que brinde vai · que condição comercial · alerta automático 7 dias e 3 dias antes</div>
+        ${cards}
+      </div>
+    `;
+  }
+
+  window.expNovo = async function(campanhaId) {
+    expModalAbrir(campanhaId, null);
+  };
+
+  window.expEditar = async function(campanhaId, expId) {
+    const e = (ciState.expedicoesByCamp[campanhaId] || []).find(x => x.id === expId);
+    if (!e) { showToast('Expedição não encontrada'); return; }
+    expModalAbrir(campanhaId, e);
+  };
+
+  async function expModalAbrir(campanhaId, exp) {
+    const editando = !!exp;
+    const produtos = await expLoadProdutos();
+    document.getElementById('modal-exp')?.remove();
+    const destOpts = EXP_DESTINO_TIPOS.map(d => `<option value="${d.v}" ${exp?.tipo_destino===d.v?'selected':''}>${d.l} — ${d.hint}</option>`).join('');
+    const statusOpts = EXP_STATUS.map(s => `<option value="${s.v}" ${(exp?.status||'pendente')===s.v?'selected':''}>${s.l}</option>`).join('');
+    const brindeOpts = EXP_BRINDE_TIPOS.map(b => `<option value="${b.v}" ${(exp?.brinde_tipo||'nenhum')===b.v?'selected':''}>${b.l}</option>`).join('');
+    const prodOpts = produtos.map(p => `<option value="${p.codigo}" ${exp?.brinde_produto_codigo===p.codigo?'selected':''}>${esc(p.nome)} ${p.codigo?'('+p.codigo+')':''}</option>`).join('');
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay open" id="modal-exp">
+        <div class="modal" style="max-width:680px">
+          <div class="modal-header">
+            <div class="modal-title">${editando?'✏️ Editar envio':'+ Novo envio de expedição'}</div>
+            <button class="modal-close" onclick="document.getElementById('modal-exp').remove()">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-grid">
+              <div class="form-field">
+                <label>Tipo de destino *</label>
+                <select id="exp-tipo" class="input">${destOpts}</select>
+              </div>
+              <div class="form-field">
+                <label>Status</label>
+                <select id="exp-status" class="input">${statusOpts}</select>
+              </div>
+              <div class="form-field" style="grid-column:1 / -1">
+                <label>Nome do destino *</label>
+                <input id="exp-destino-nome" class="input" value="${esc(exp?.destino_nome || '')}" placeholder='Ex: "Loja Piçarras", "Julia Revendedora", "@dra.cherry"'>
+              </div>
+              <div class="form-field">
+                <label>Contato</label>
+                <input id="exp-contato" class="input" value="${esc(exp?.destino_contato || '')}" placeholder="WhatsApp / email">
+              </div>
+              <div class="form-field">
+                <label>Data envio estimada</label>
+                <input id="exp-data" type="date" class="input" value="${exp?.data_envio_estimada || ''}">
+              </div>
+              <div class="form-field" style="grid-column:1 / -1">
+                <label>Endereço (opcional)</label>
+                <input id="exp-endereco" class="input" value="${esc(exp?.destino_endereco || '')}">
+              </div>
+              <div class="form-field" style="grid-column:1 / -1;border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+                <label style="font-weight:700;color:var(--text)">🎁 Brinde</label>
+              </div>
+              <div class="form-field">
+                <label>Modalidade</label>
+                <select id="exp-brinde-tipo" class="input" onchange="expToggleBrindeCampos(this.value)">${brindeOpts}</select>
+              </div>
+              <div class="form-field">
+                <label>Quantidade</label>
+                <input id="exp-brinde-qty" type="number" min="1" class="input" value="${exp?.brinde_quantidade || 1}">
+              </div>
+              <div class="form-field exp-brinde-cat" style="grid-column:1 / -1;display:${exp?.brinde_tipo==='catalogo'?'block':'none'}">
+                <label>Produto do catálogo Dana</label>
+                <select id="exp-brinde-prod" class="input" onchange="expSelectProdutoCatalogo(this.value)">
+                  <option value="">— selecionar —</option>
+                  ${prodOpts}
+                </select>
+              </div>
+              <div class="form-field exp-brinde-livre" style="grid-column:1 / -1;display:${exp?.brinde_tipo==='livre'?'block':'none'}">
+                <label>Nome do brinde</label>
+                <input id="exp-brinde-nome" class="input" value="${esc(exp?.brinde_produto_nome || '')}" placeholder='Ex: "Caneca personalizada", "Kit amostra"'>
+              </div>
+              <div class="form-field exp-brinde-full" style="grid-column:1 / -1;display:${exp?.brinde_tipo==='catalogo'||exp?.brinde_tipo==='livre'?'block':'none'}">
+                <label>URL da foto do brinde (opcional)</label>
+                <input id="exp-brinde-foto" type="url" class="input" value="${esc(exp?.brinde_foto_url || '')}" placeholder="https://...">
+              </div>
+              <div class="form-field exp-brinde-full" style="grid-column:1 / -1;display:${exp?.brinde_tipo==='catalogo'||exp?.brinde_tipo==='livre'?'block':'none'}">
+                <label>Descrição do brinde</label>
+                <textarea id="exp-brinde-desc" class="input" rows="2">${esc(exp?.brinde_descricao || '')}</textarea>
+              </div>
+              <div class="form-field" style="grid-column:1 / -1;border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+                <label style="font-weight:700;color:var(--text)">💰 Condição comercial</label>
+              </div>
+              <div class="form-field">
+                <label>Compra mínima (R$)</label>
+                <input id="exp-compra-min" type="number" step="10" class="input" value="${exp?.compra_minima || ''}" placeholder="500">
+              </div>
+              <div class="form-field">
+                <label>Desconto (%)</label>
+                <input id="exp-desconto" type="number" step="1" min="0" max="100" class="input" value="${exp?.desconto_pct || ''}" placeholder="25">
+              </div>
+              <div class="form-field" style="grid-column:1 / -1;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+                <label style="display:flex;align-items:center;gap:6px;font-weight:500">
+                  <input id="exp-frete" type="checkbox" ${exp?.frete_gratis?'checked':''}>
+                  Frete grátis
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-weight:500">
+                  <input id="exp-tem-brinde" type="checkbox" ${exp?.tem_brinde?'checked':''}>
+                  Tem brinde na oferta
+                </label>
+              </div>
+              <div class="form-field" style="grid-column:1 / -1">
+                <label>Observação da condição (texto livre)</label>
+                <textarea id="exp-cond-obs" class="input" rows="2" placeholder='Ex: "válido apenas jalecos brancos", "não cumulativo com cupom"'>${esc(exp?.condicao_observacao || '')}</textarea>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
+            <button class="btn btn-ghost" onclick="document.getElementById('modal-exp').remove()">Cancelar</button>
+            <button class="btn btn-primary" id="exp-save" onclick="expSalvar('${campanhaId}','${exp?.id||''}')">${editando?'Salvar':'Criar envio'}</button>
+          </div>
+        </div>
+      </div>
+    `);
+  }
+
+  window.expToggleBrindeCampos = function(tipo) {
+    document.querySelectorAll('.exp-brinde-cat').forEach(el => el.style.display = tipo === 'catalogo' ? 'block' : 'none');
+    document.querySelectorAll('.exp-brinde-livre').forEach(el => el.style.display = tipo === 'livre' ? 'block' : 'none');
+    document.querySelectorAll('.exp-brinde-full').forEach(el => el.style.display = (tipo === 'catalogo' || tipo === 'livre') ? 'block' : 'none');
+  };
+
+  window.expSelectProdutoCatalogo = async function(codigo) {
+    if (!codigo) return;
+    const produtos = await expLoadProdutos();
+    const p = produtos.find(x => x.codigo === codigo);
+    if (p) {
+      const nomeEl = document.getElementById('exp-brinde-nome');
+      if (nomeEl) nomeEl.value = p.nome;
+      const fotoEl = document.getElementById('exp-brinde-foto');
+      if (fotoEl && p.imagem_url) fotoEl.value = p.imagem_url;
+    }
+  };
+
+  let _expProdutosCache = null;
+  async function expLoadProdutos() {
+    if (_expProdutosCache) return _expProdutosCache;
+    const { data } = await sb.from('produtos').select('codigo, nome, imagem_url').order('nome').limit(1000);
+    _expProdutosCache = data || [];
+    return _expProdutosCache;
+  }
+
+  window.expSalvar = async function(campanhaId, expId) {
+    const btn = document.getElementById('exp-save');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+    try {
+      const destNome = (document.getElementById('exp-destino-nome')?.value || '').trim();
+      if (!destNome) { showToast('Destino é obrigatório'); if (btn) { btn.disabled = false; btn.textContent = expId?'Salvar':'Criar envio'; } return; }
+      const tipoDest = document.getElementById('exp-tipo')?.value || 'loja_propria';
+      const brindeTipo = document.getElementById('exp-brinde-tipo')?.value || 'nenhum';
+      const payload = {
+        campanha_id: campanhaId,
+        tipo_destino: tipoDest,
+        destino_nome: destNome,
+        destino_endereco: (document.getElementById('exp-endereco')?.value || '').trim() || null,
+        destino_contato: (document.getElementById('exp-contato')?.value || '').trim() || null,
+        data_envio_estimada: document.getElementById('exp-data')?.value || null,
+        status: document.getElementById('exp-status')?.value || 'pendente',
+        brinde_tipo: brindeTipo,
+        brinde_produto_codigo: brindeTipo === 'catalogo' ? (document.getElementById('exp-brinde-prod')?.value || null) : null,
+        brinde_produto_nome: (brindeTipo !== 'nenhum') ? (document.getElementById('exp-brinde-nome')?.value || null) : null,
+        brinde_foto_url: (brindeTipo !== 'nenhum') ? (document.getElementById('exp-brinde-foto')?.value || null) : null,
+        brinde_descricao: (brindeTipo !== 'nenhum') ? (document.getElementById('exp-brinde-desc')?.value || null) : null,
+        brinde_quantidade: parseInt(document.getElementById('exp-brinde-qty')?.value) || 1,
+        compra_minima: parseFloat(document.getElementById('exp-compra-min')?.value) || null,
+        desconto_pct: parseFloat(document.getElementById('exp-desconto')?.value) || null,
+        frete_gratis: document.getElementById('exp-frete')?.checked || false,
+        tem_brinde: document.getElementById('exp-tem-brinde')?.checked || false,
+        condicao_observacao: (document.getElementById('exp-cond-obs')?.value || '').trim() || null,
+      };
+      if (expId) {
+        const { error } = await sb.from('campanha_expedicoes').update(payload).eq('id', expId);
+        if (error) throw error;
+      } else {
+        payload.criado_por = currentUser?.id;
+        payload.criado_por_nome = currentProfile?.nome;
+        const { error } = await sb.from('campanha_expedicoes').insert(payload);
+        if (error) throw error;
+      }
+      showToast(expId ? 'Envio atualizado' : 'Envio criado');
+      document.getElementById('modal-exp')?.remove();
+      await ciLoad();
+      ciRefrescarViewAberta();
+    } catch (e) {
+      console.error('[exp] salvar', e);
+      showToast('Erro: ' + (e.message || e));
+      if (btn) { btn.disabled = false; btn.textContent = expId?'Salvar':'Criar envio'; }
+    }
+  };
+
+  window.expApagar = async function(expId, destNome) {
+    if (!confirm(`Apagar o envio "${destNome || 'selecionado'}"?`)) return;
+    const { error } = await sb.from('campanha_expedicoes').delete().eq('id', expId);
+    if (error) { showToast('Erro: ' + error.message); return; }
+    showToast('Envio apagado');
+    await ciLoad();
+    ciRefrescarViewAberta();
   };
 
   // Load inicial quando a sessao estabilizar (pra pegar a badge)
