@@ -3212,6 +3212,9 @@ select.input { cursor: pointer; }
 <div class="view" id="view-campanhas">
 <div style="padding:24px 28px">
 
+  <!-- Briefings salvos do Construtor (aparecem como campanhas) -->
+  <div id="campanhas-briefings-container"></div>
+
   <!-- Estado aguardando APIs -->
   <div class="card" style="text-align:center;padding:48px 24px;margin-bottom:20px">
     <div style="font-size:44px;margin-bottom:12px;opacity:0.4">📊</div>
@@ -9180,6 +9183,7 @@ function go(el, viewId) {
   if (viewId === 'cliente360') loadCliente360();
   if (viewId === 'home') { if (typeof loadMinhasTarefasSemana === 'function') loadMinhasTarefasSemana(); }
   if (viewId === 'campanhas-internas') { if (typeof loadCampanhasInternas === 'function') loadCampanhasInternas(); }
+  if (viewId === 'campanhas') { if (typeof loadCampanhasFromBriefings === 'function') loadCampanhasFromBriefings(); }
 }
 
 // ── CLIENTE 360 · lazy-load do iframe (filtro de empresa é gerenciado internamente pelo iframe) ──
@@ -9713,10 +9717,12 @@ async function saveBriefing() {
   try {
     const { error } = await sb.from('briefings_campanha').insert(payload);
     if (error) throw error;
-    showToast('✓ Briefing salvo!');
+    showToast('✓ Briefing salvo! A campanha está em "Campanhas".');
     logActivity('criou_briefing', titulo, 'briefingvisual');
     // Recarrega lista se o usuário estiver na tela Briefing Visual
     if (typeof loadBriefings === 'function') loadBriefings();
+    // Recarrega tambem view-campanhas (novo card vai aparecer la)
+    if (typeof loadCampanhasFromBriefings === 'function') loadCampanhasFromBriefings();
   } catch (e) {
     console.error('saveBriefing:', e);
     showToast('Erro ao salvar briefing: ' + (e.message || e));
@@ -19960,6 +19966,128 @@ const aiChatInterval = setInterval(() => {
     w.document.write(html);
     w.document.close();
     setTimeout(() => w.print(), 400);
+  };
+
+  // ══════════════════════════════════
+  // CAMPANHAS (listagem de briefings salvos do Construtor)
+  // Aparecem como "campanhas nao conectadas" — quando APIs forem ligadas,
+  // cada briefing pode ser vinculado a uma campanha real do Meta/Google/TikTok
+  // ══════════════════════════════════
+  window.loadCampanhasFromBriefings = async function() {
+    const host = document.getElementById('campanhas-briefings-container');
+    if (!host) return;
+    host.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">⏳ Carregando campanhas...</div>';
+    const { data, error } = await sb.from('briefings_campanha')
+      .select('*').order('created_at', { ascending: false }).limit(100);
+    if (error) { console.error('[campanhas] erro', error); host.innerHTML = ''; return; }
+    const briefs = data || [];
+    if (briefs.length === 0) {
+      host.innerHTML = `
+        <div class="card" style="padding:28px 24px;text-align:center;margin-bottom:20px;background:linear-gradient(135deg, rgba(167,139,250,0.05), transparent);border:1px dashed var(--border)">
+          <div style="font-size:30px;margin-bottom:8px;opacity:0.5">📝</div>
+          <div style="font-size:14px;color:var(--text2);margin-bottom:10px">Nenhuma campanha criada ainda.</div>
+          <div style="font-size:12px;color:var(--text3);max-width:460px;margin:0 auto 14px;line-height:1.5">Use o <strong>Construtor de Campanha</strong> (8 passos) pra montar seu briefing estratégico. Ele vai aparecer aqui como uma campanha pronta pra conectar na Meta/Google/TikTok Ads.</div>
+          <button class="btn btn-primary btn-sm" onclick="document.querySelector('[onclick*=construtor]')?.click()">🚀 Abrir Construtor de Campanha</button>
+        </div>`;
+      return;
+    }
+    const cards = briefs.map(b => {
+      const dados = b.dados || {};
+      const orcamento = b.orcamento || dados.orcamento;
+      const dataSalva = b.created_at ? new Date(b.created_at).toLocaleDateString('pt-BR') : '—';
+      const publico = b.publico || dados.pub || '—';
+      const conceito = b.conceito || dados.promise || '';
+      return `
+        <div class="card" style="padding:16px;cursor:pointer;transition:transform .12s" onclick="abrirBriefingCampanha('${b.id}')" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
+            <div style="flex:1;min-width:0">
+              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px;line-height:1.2;margin-bottom:3px">${esc(b.titulo || 'Sem título')}</div>
+              <div style="font-size:10.5px;color:var(--text3)">criado em ${dataSalva} · por ${esc(b.criado_por_nome || '—')}</div>
+            </div>
+            <span style="font-size:10px;padding:3px 9px;border-radius:5px;background:var(--surface2);color:var(--text3);border:1px solid var(--border);font-weight:600;white-space:nowrap">📴 Não conectada</span>
+          </div>
+          ${conceito ? `<div style="font-size:12.5px;color:var(--text2);margin:8px 0;line-height:1.4;font-style:italic">"${esc(conceito.slice(0,140))}${conceito.length>140?'…':''}"</div>` : ''}
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;font-size:11px;margin-top:8px">
+            <div><div style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Público</div><div style="color:var(--text);margin-top:1px">${esc(publico.slice(0,40))}${publico.length>40?'…':''}</div></div>
+            <div><div style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Canais</div><div style="color:var(--text);margin-top:1px">${esc(b.canais || '—')}</div></div>
+            ${orcamento ? `<div><div style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:0.3px">Investimento</div><div style="color:var(--text);margin-top:1px;font-weight:600">R$ ${Number(orcamento).toLocaleString('pt-BR')}</div></div>` : ''}
+          </div>
+          <div style="display:flex;gap:6px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();abrirBriefingCampanha('${b.id}')" style="font-size:11.5px;padding:4px 10px">👁 Ver detalhes</button>
+            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();document.querySelector('[onclick*=apis]')?.click()" style="font-size:11.5px;padding:4px 10px" title="Liga Meta/Google/TikTok Ads">🔌 Conectar API</button>
+            <div style="flex:1"></div>
+            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();apagarBriefingCampanha('${b.id}','${esc(b.titulo||'').replace(/'/g,'&#39;')}')" style="font-size:11.5px;padding:4px 10px;color:#ef4444">🗑</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    host.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px">📝 Campanhas criadas (${briefs.length})</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Briefings do Construtor · aguardando conexão com API pra métricas reais</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="document.querySelector('[onclick*=construtor]')?.click()">+ Nova campanha</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;margin-bottom:24px">${cards}</div>
+    `;
+  };
+
+  window.abrirBriefingCampanha = async function(id) {
+    const { data: b } = await sb.from('briefings_campanha').select('*').eq('id', id).single();
+    if (!b) { showToast('Campanha não encontrada'); return; }
+    const dados = b.dados || {};
+    document.getElementById('modal-brief-view')?.remove();
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay open" id="modal-brief-view">
+        <div class="modal" style="max-width:680px">
+          <div class="modal-header">
+            <div>
+              <div class="modal-title" style="font-size:18px">${esc(b.titulo || 'Sem título')}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">Criado em ${b.created_at ? new Date(b.created_at).toLocaleDateString('pt-BR') : '—'} por ${esc(b.criado_por_nome || '—')}</div>
+            </div>
+            <button class="modal-close" onclick="document.getElementById('modal-brief-view').remove()">×</button>
+          </div>
+          <div class="modal-body">
+            <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.3);border-radius:8px;padding:10px 12px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start">
+              <div style="font-size:18px">📴</div>
+              <div style="flex:1">
+                <div style="font-size:12.5px;font-weight:600;color:var(--text)">Campanha não conectada</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px">Quando Meta/Google/TikTok Ads forem conectados, as métricas reais aparecerão aqui.</div>
+              </div>
+            </div>
+            ${b.publico ? `<div style="margin-bottom:10px"><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Público</div><div style="font-size:13px">${esc(b.publico)}</div></div>` : ''}
+            ${b.problema ? `<div style="margin-bottom:10px"><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Problema/dor</div><div style="font-size:13px">${esc(b.problema)}</div></div>` : ''}
+            ${b.conceito ? `<div style="background:var(--surface);padding:10px 12px;border-radius:8px;margin-bottom:10px;border-left:3px solid #a78bfa"><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">💡 Conceito / Big Idea</div><div style="font-size:13px">${esc(b.conceito)}</div></div>` : ''}
+            ${b.oferta ? `<div style="background:var(--surface);padding:10px 12px;border-radius:8px;margin-bottom:10px;border-left:3px solid #fbbf24"><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">💰 Oferta</div><div style="font-size:13px">${esc(b.oferta)}</div></div>` : ''}
+            ${b.gancho ? `<div style="margin-bottom:10px"><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">🎣 Gancho</div><div style="font-size:13px">${esc(b.gancho)}</div></div>` : ''}
+            ${b.quote ? `<div style="margin-bottom:10px"><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">Mensagem</div><div style="font-size:13px">${esc(b.quote)}</div></div>` : ''}
+            ${b.cta ? `<div style="margin-bottom:10px"><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px;margin-bottom:3px">🎯 CTA</div><div style="font-size:13px">${esc(b.cta)}</div></div>` : ''}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+              <div><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px">Canais</div><div style="font-size:13px;margin-top:2px">${esc(b.canais || '—')}</div></div>
+              ${b.orcamento ? `<div><div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px">Investimento</div><div style="font-size:13px;margin-top:2px;font-weight:600">R$ ${Number(b.orcamento).toLocaleString('pt-BR')}</div></div>` : ''}
+            </div>
+          </div>
+          <div class="modal-footer" style="display:flex;justify-content:space-between;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
+            <button class="btn btn-ghost" style="color:#ef4444" onclick="apagarBriefingCampanha('${b.id}','${esc(b.titulo||'').replace(/'/g,'&#39;')}')">🗑 Apagar</button>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-ghost" onclick="document.querySelector('[onclick*=briefingvisual]')?.click();document.getElementById('modal-brief-view').remove()">📋 Ver no Briefing Visual</button>
+              <button class="btn btn-ghost" onclick="document.getElementById('modal-brief-view').remove()">Fechar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `);
+  };
+
+  window.apagarBriefingCampanha = async function(id, nome) {
+    if (!confirm(`Apagar a campanha "${nome}"?\n\nIsso apaga o briefing também.`)) return;
+    const { error } = await sb.from('briefings_campanha').delete().eq('id', id);
+    if (error) { showToast('Erro: ' + error.message); return; }
+    showToast('Campanha apagada');
+    document.getElementById('modal-brief-view')?.remove();
+    await loadCampanhasFromBriefings();
   };
 
   // Load inicial quando a sessao estabilizar (pra pegar a badge)
