@@ -3968,7 +3968,12 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
         ${state.mcAdminVendedores.length === 0 ? mcEmptyMapping() : ''}
 
         <div style="margin-bottom:24px">
-          <h2 style="margin:0 0 12px;font-size:16px;font-weight:600;color:#e2e8f0">🏆 Ranking por vendedor</h2>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h2 style="margin:0;font-size:16px;font-weight:600;color:#e2e8f0">🏆 Ranking por vendedor</h2>
+            <button type="button" onclick="window.mcExportarRankingPDF()" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:#e2e8f0;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+              🖨 Exportar PDF
+            </button>
+          </div>
           ${mcRankingTable(ranking, totalFat)}
         </div>
 
@@ -4676,6 +4681,103 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       mcInvalidateCache();
       await renderMeusClientesPage();
     }
+  };
+
+  // ─── Export PDF do Ranking (admin/gerente) ───
+  window.mcExportarRankingPDF = async function() {
+    const ranking = state.mcAdminVendedores || [];
+    if (!ranking.length) { alert('Ranking vazio — nada a exportar'); return; }
+
+    const empresa = EMPRESA_LABELS[state.empresa] || state.empresa;
+    const totalFat = ranking.reduce((s, r) => s + (+r.faturamento || 0), 0);
+    const totalClientes = ranking.reduce((s, r) => s + (+r.clientes || 0), 0);
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    const medalha = (i) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1) + 'º';
+    const rowsHtml = ranking.map((r, i) => {
+      const pct = totalFat > 0 ? ((+r.faturamento / totalFat) * 100).toFixed(1) : '0.0';
+      const ticketMedio = r.pedidos_total > 0 ? (+r.faturamento / +r.pedidos_total) : 0;
+      return `<tr>
+        <td style="text-align:center;font-weight:700">${medalha(i)}</td>
+        <td style="font-weight:600">${escapeHtml(r.vendedor_nome || '(sem nome)')}</td>
+        <td style="text-align:right">${fmtNum(r.clientes || 0)}</td>
+        <td style="text-align:right">${fmtNum(r.vips || 0)}</td>
+        <td style="text-align:right">${fmtNum(r.ativos || 0)}</td>
+        <td style="text-align:right">${fmtNum(r.em_risco || 0)}</td>
+        <td style="text-align:right">${fmtNum(r.pedidos_total || 0)}</td>
+        <td style="text-align:right">${fmtBRL(+r.faturamento || 0)}</td>
+        <td style="text-align:right">${fmtBRL(ticketMedio)}</td>
+        <td style="text-align:right;color:#a855f7;font-weight:600">${pct}%</td>
+      </tr>`;
+    }).join('');
+
+    const win = window.open('', '_blank', 'width=1100,height=800');
+    if (!win) { alert('Permita popups para exportar PDF'); return; }
+
+    win.document.write(`<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>Ranking Meus Clientes — ${empresa} — ${hoje}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; padding: 32px 40px; color: #111; background: #fff; }
+  .header { border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 18px; display:flex; justify-content:space-between; align-items:flex-end; }
+  .header h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+  .header .sub { font-size: 11px; color: #666; margin-top: 2px; }
+  .meta { font-size: 11px; color: #666; text-align: right; }
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi { padding: 12px 14px; border: 1px solid #ddd; border-radius: 8px; }
+  .kpi .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 4px; font-weight: 600; }
+  .kpi .value { font-size: 18px; font-weight: 700; color: #111; }
+  table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  th { background: #111; color: #fff; padding: 8px 10px; text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.4px; }
+  th:not(:nth-child(2)):not(:first-child) { text-align: right; }
+  td { padding: 7px 10px; border-bottom: 1px solid #eee; }
+  tr:nth-child(even) td { background: #f8f9fa; }
+  .footer { margin-top: 30px; padding-top: 12px; border-top: 1px solid #eee; font-size: 10px; color: #999; text-align: center; }
+  @media print { body { padding: 20px; } .no-print { display: none; } @page { size: A4 landscape; margin: 15mm; } }
+  .btn-print { position: fixed; top: 20px; right: 20px; padding: 10px 18px; background: #111; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .btn-print:hover { background: #333; }
+</style>
+</head>
+<body>
+  <button class="btn-print no-print" onclick="window.print()">🖨 Imprimir / Salvar PDF</button>
+  <div class="header">
+    <div>
+      <h1>Ranking — Meus Clientes</h1>
+      <div class="sub">Performance de vendedores · ${empresa}</div>
+    </div>
+    <div class="meta">
+      Gerado em ${hoje} às ${hora}<br>
+      Dana Marketing System
+    </div>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="label">Vendedores no ranking</div><div class="value">${ranking.length}</div></div>
+    <div class="kpi"><div class="label">Clientes somados</div><div class="value">${fmtNum(totalClientes)}</div></div>
+    <div class="kpi"><div class="label">Faturamento total</div><div class="value">${fmtBRL(totalFat)}</div></div>
+    <div class="kpi"><div class="label">Ticket médio geral</div><div class="value">${fmtBRL(totalClientes > 0 ? totalFat / ranking.reduce((s,r) => s + (+r.pedidos_total||0), 0) : 0)}</div></div>
+  </div>
+  <table>
+    <thead><tr>
+      <th style="width:40px">#</th>
+      <th>Vendedor</th>
+      <th>Clientes</th>
+      <th>VIPs</th>
+      <th>Ativos</th>
+      <th>Em Risco</th>
+      <th>Pedidos</th>
+      <th>Faturamento</th>
+      <th>Ticket Médio</th>
+      <th>% Share</th>
+    </tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <div class="footer">
+    Relatório gerado automaticamente pelo DMS · Dados: Bling + mapeamento manual interno
+  </div>
+  <script>setTimeout(() => window.print(), 500);</script>
+</body></html>`);
+    win.document.close();
   };
 
   // ─── Boot ───

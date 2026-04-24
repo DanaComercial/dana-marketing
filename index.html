@@ -7056,7 +7056,133 @@ updateDynamicField('foto');
     </div>
   </div>
 
+  <!-- UGC: DEPOIMENTOS / FOTOS / VIDEOS / MENÇÕES -->
+  <div class="card mb20" style="margin-top:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:12px">
+      <div>
+        <div class="card-title">💬 Conteúdo de clientes (UGC)</div>
+        <div class="card-sub">Depoimentos, fotos, vídeos e menções aprovadas</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="ps-filtros-tipo">
+        <button class="tab active" onclick="psFiltrarTipo(this, 'todos')">Todos</button>
+        <button class="tab" onclick="psFiltrarTipo(this, 'depoimento')">💬 Depoimentos</button>
+        <button class="tab" onclick="psFiltrarTipo(this, 'foto')">📸 Fotos</button>
+        <button class="tab" onclick="psFiltrarTipo(this, 'video')">🎥 Vídeos</button>
+        <button class="tab" onclick="psFiltrarTipo(this, 'mencao_rede_social')">📱 Menções</button>
+      </div>
+    </div>
+    <div id="ps-admin-actions" style="display:none;margin-bottom:12px">
+      <div id="ps-rascunhos-badge" style="display:none;padding:10px 14px;background:rgba(251,191,36,0.08);border-left:3px solid #fbbf24;border-radius:6px;font-size:12.5px;color:#fbbf24;cursor:pointer" onclick="psFiltrarStatus('rascunho')">
+        <strong id="ps-rascunhos-count">0</strong> rascunho(s) aguardando aprovação — clique pra revisar
+      </div>
+    </div>
+    <div id="ps-ugc-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px">
+      <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:13px;padding:40px 20px">Carregando...</div>
+    </div>
+  </div>
+
 </div></div>
+
+<!-- MODAL: NOVO CONTEÚDO PROVA SOCIAL -->
+<div class="modal-overlay" id="modal-ps-novo">
+  <div class="modal" style="max-width:560px;max-height:92vh;overflow-y:auto">
+    <div class="modal-header">
+      <div class="modal-title" id="ps-modal-titulo">💬 Novo conteúdo</div>
+      <button class="modal-close" onclick="psFecharModal()">×</button>
+    </div>
+    <div class="form-row">
+      <label class="label">Tipo *</label>
+      <select class="input" id="ps-tipo" onchange="psOnTipoChange()">
+        <option value="depoimento">💬 Depoimento escrito</option>
+        <option value="foto">📸 Foto</option>
+        <option value="video">🎥 Vídeo</option>
+        <option value="mencao_rede_social">📱 Menção em rede social</option>
+        <option value="review_produto">⭐ Review de produto</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="label">Título *</label>
+      <input class="input" id="ps-titulo" placeholder="Ex: Dra. Mariana elogiou o caimento do jaleco">
+    </div>
+    <div class="form-row" id="ps-row-texto">
+      <label class="label">Conteúdo / Depoimento</label>
+      <textarea class="input" id="ps-texto" rows="3" placeholder="O texto completo do depoimento..."></textarea>
+    </div>
+    <div class="form-row" id="ps-row-midia">
+      <label class="label">Link da mídia (Instagram / Drive / YouTube)</label>
+      <input class="input" id="ps-midia-url" placeholder="https://instagram.com/p/... ou https://drive.google.com/...">
+      <div style="font-size:10.5px;color:var(--text3);margin-top:3px">💡 Use links externos — não ocupa storage.</div>
+    </div>
+    <div class="form-row-2">
+      <div>
+        <label class="label">Nome do autor</label>
+        <input class="input" id="ps-autor-nome" placeholder="Ex: Dra. Mariana Silva">
+      </div>
+      <div>
+        <label class="label">Instagram (@)</label>
+        <input class="input" id="ps-autor-ig" placeholder="@drmariana">
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div>
+        <label class="label">Cidade</label>
+        <input class="input" id="ps-autor-cidade" placeholder="São Paulo">
+      </div>
+      <div>
+        <label class="label">UF</label>
+        <input class="input" id="ps-autor-uf" maxlength="2" placeholder="SP" style="text-transform:uppercase">
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div>
+        <label class="label">Profissão</label>
+        <input class="input" id="ps-autor-prof" placeholder="Dentista, Esteticista...">
+      </div>
+      <div>
+        <label class="label">Origem *</label>
+        <select class="input" id="ps-origem">
+          <option value="manual">✍ Manual</option>
+          <option value="instagram">📷 Instagram</option>
+          <option value="whatsapp">💬 WhatsApp</option>
+          <option value="email">✉ Email</option>
+          <option value="google_review">⭐ Google Review</option>
+          <option value="indicacao">👥 Indicação</option>
+          <option value="evento">🎪 Evento</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row-2">
+      <div>
+        <label class="label">Rating (1-5)</label>
+        <select class="input" id="ps-rating">
+          <option value="">—</option>
+          <option value="5">⭐⭐⭐⭐⭐</option>
+          <option value="4">⭐⭐⭐⭐</option>
+          <option value="3">⭐⭐⭐</option>
+          <option value="2">⭐⭐</option>
+          <option value="1">⭐</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:flex-end">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer">
+          <input type="checkbox" id="ps-destaque" style="width:auto"> ⭐ Marcar como destaque
+        </label>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="label">Tags (separadas por vírgula)</label>
+      <input class="input" id="ps-tags" placeholder="dentista, bc, jaleco-branco">
+    </div>
+    <input type="hidden" id="ps-edit-id">
+    <div id="ps-modal-status" style="font-size:11px;color:var(--text3);margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-ghost" onclick="psFecharModal()" style="flex:1">Cancelar</button>
+      <button class="btn btn-primary" onclick="psSalvarConteudo(false)" style="flex:1">Salvar rascunho</button>
+      <button class="btn btn-primary" id="ps-btn-aprovar" onclick="psSalvarConteudo(true)" style="flex:1;background:var(--green)">✓ Aprovar e publicar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════════ CANAIS E VENDAS ════════ -->
 <div class="view" id="view-canaisvendas"><div style="padding:24px 28px">
   <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px;margin-bottom:4px">Canais e Vendas</div>
@@ -9292,6 +9418,7 @@ const TOPBAR_ACTION_PERMS = {
   calendario: 'calendario_criar',
   criativos: 'criativo_criar',
   'campanhas-internas': 'campanha_interna_criar',
+  provasocial: 'provasocial_criar',
 };
 
 function topbarAction() {
@@ -9308,6 +9435,7 @@ function topbarAction() {
   if(views[id]) openModal(views[id]);
   else if(id==='construtor') document.querySelector('[onclick*=construtor]')?.click();
   else if(id==='campanhas-internas') { if (typeof abrirNovaCampanhaInterna === 'function') abrirNovaCampanhaInterna(); }
+  else if(id==='provasocial') { if (typeof psAbrirModal === 'function') psAbrirModal(); }
   else if(EXPORT_PDF_VIEWS[id]) exportarViewPDF(id, EXPORT_PDF_VIEWS[id]);
 }
 
@@ -15661,7 +15789,288 @@ function loadProvaSocial() {
   }
 
   loadRevendasParceiros();
+  psLoadUGC();
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// PROVA SOCIAL — UGC (depoimentos, fotos, vídeos, menções)
+// ═══════════════════════════════════════════════════════════════════
+let _psCache = [];
+let _psFiltroTipo = 'todos';
+let _psFiltroStatus = null; // null = aprovado/publicado; 'rascunho' = admin vê rascunhos
+
+function psPode(perm) {
+  if (currentProfile?.cargo === 'admin') return true;
+  return userPermissoes['provasocial_' + perm] === true;
+}
+
+async function psLoadUGC() {
+  try {
+    const { data, error } = await sb.from('prova_social_conteudo')
+      .select('*').order('destaque', { ascending: false }).order('created_at', { ascending: false });
+    if (error) throw error;
+    _psCache = data || [];
+    psRenderUGC();
+    psUpdateAdminBadge();
+  } catch (e) {
+    console.error('psLoadUGC:', e);
+    const grid = document.getElementById('ps-ugc-grid');
+    if (grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--red);font-size:12.5px;padding:30px">Erro: ' + esc(e.message) + '</div>';
+  }
+}
+
+function psFiltrarTipo(btn, tipo) {
+  _psFiltroTipo = tipo;
+  document.querySelectorAll('#ps-filtros-tipo .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  psRenderUGC();
+}
+
+function psFiltrarStatus(status) {
+  _psFiltroStatus = status;
+  psRenderUGC();
+  // Scroll pro grid
+  document.getElementById('ps-ugc-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function psUpdateAdminBadge() {
+  const adminEl = document.getElementById('ps-admin-actions');
+  const badge = document.getElementById('ps-rascunhos-badge');
+  const count = document.getElementById('ps-rascunhos-count');
+  if (!adminEl) return;
+  const podeAprovar = psPode('aprovar');
+  adminEl.style.display = podeAprovar ? '' : 'none';
+  if (!podeAprovar) return;
+  const rascunhos = _psCache.filter(c => c.status === 'rascunho').length;
+  if (badge) badge.style.display = rascunhos > 0 ? '' : 'none';
+  if (count) count.textContent = rascunhos;
+}
+
+function psRenderUGC() {
+  const grid = document.getElementById('ps-ugc-grid');
+  if (!grid) return;
+  let lista = _psCache;
+  if (_psFiltroStatus === 'rascunho') {
+    lista = lista.filter(c => c.status === 'rascunho');
+  } else {
+    lista = lista.filter(c => ['aprovado','publicado'].includes(c.status) ||
+                              (psPode('aprovar') && c.status === 'rascunho'));
+  }
+  if (_psFiltroTipo !== 'todos') {
+    lista = lista.filter(c => c.tipo === _psFiltroTipo);
+  }
+
+  if (!lista.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:13px;padding:40px 20px">
+      Nenhum conteúdo ${_psFiltroTipo === 'todos' ? '' : 'desse tipo '}cadastrado. ${psPode('criar') ? '<br>Clique em <b>+ Novo Conteúdo</b> lá em cima.' : ''}
+    </div>`;
+    return;
+  }
+
+  const ICON = { depoimento:'💬', foto:'📸', video:'🎥', mencao_rede_social:'📱', review_produto:'⭐' };
+  const podeEditar = psPode('aprovar');
+
+  grid.innerHTML = lista.map(c => {
+    const tipoIcon = ICON[c.tipo] || '📌';
+    const rating = c.rating ? '⭐'.repeat(c.rating) : '';
+    const autor = [c.autor_nome, c.autor_profissao, c.autor_cidade && c.autor_uf ? `${c.autor_cidade}/${c.autor_uf}` : c.autor_cidade].filter(Boolean).join(' · ');
+    const statusBadge = c.status === 'rascunho'
+      ? '<span style="display:inline-block;padding:2px 8px;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);border-radius:999px;font-size:10px;font-weight:700">📝 Rascunho</span>'
+      : c.status === 'publicado'
+      ? '<span style="display:inline-block;padding:2px 8px;background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3);border-radius:999px;font-size:10px;font-weight:700">✓ Publicado</span>'
+      : '<span style="display:inline-block;padding:2px 8px;background:rgba(59,130,246,0.15);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:999px;font-size:10px;font-weight:700">👁 Aprovado</span>';
+
+    const destaqueMark = c.destaque
+      ? '<div style="position:absolute;top:8px;right:8px;background:#fbbf24;color:#0a0a0a;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:800">⭐ DESTAQUE</div>'
+      : '';
+
+    const midiaBloc = c.midia_url
+      ? (c.tipo === 'foto'
+        ? `<a href="${esc(c.midia_url)}" target="_blank" style="display:block;width:100%;aspect-ratio:16/9;background:#1a1a1a url('${esc(c.midia_url)}') center/cover no-repeat;border-radius:8px;margin-bottom:10px"></a>`
+        : `<a href="${esc(c.midia_url)}" target="_blank" style="display:inline-block;font-size:11px;color:var(--blue);margin-bottom:8px;text-decoration:underline">🔗 Abrir ${c.tipo === 'video' ? 'vídeo' : 'link'}</a>`)
+      : '';
+
+    const acoes = [];
+    if (c.status === 'rascunho' && psPode('aprovar')) {
+      acoes.push(`<button class="btn btn-sm" style="padding:4px 10px;background:var(--green);color:#fff" onclick="psAprovar('${c.id}')">✓ Aprovar</button>`);
+    }
+    if (podeEditar) {
+      acoes.push(`<button class="btn btn-sm btn-ghost" style="padding:4px 10px" onclick="psEditar('${c.id}')">✎ Editar</button>`);
+      if (c.destaque) {
+        acoes.push(`<button class="btn btn-sm btn-ghost" style="padding:4px 10px" title="Remover destaque" onclick="psToggleDestaque('${c.id}', false)">✕ Dest.</button>`);
+      } else {
+        acoes.push(`<button class="btn btn-sm btn-ghost" style="padding:4px 10px" title="Marcar destaque" onclick="psToggleDestaque('${c.id}', true)">⭐ Dest.</button>`);
+      }
+    }
+    if (psPode('excluir')) {
+      acoes.push(`<button class="btn btn-sm btn-ghost" style="padding:4px 10px;color:var(--red)" onclick="psExcluir('${c.id}')">🗑</button>`);
+    }
+
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;position:relative">
+      ${destaqueMark}
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px">
+        <span>${tipoIcon}</span>
+        ${statusBadge}
+        ${rating ? `<span style="color:#fbbf24">${rating}</span>` : ''}
+      </div>
+      <div style="font-weight:700;font-size:14px;color:#f1f5f9;margin-bottom:8px;line-height:1.3">${esc(c.titulo)}</div>
+      ${midiaBloc}
+      ${c.conteudo_texto ? `<div style="font-size:12.5px;color:#cbd5e1;line-height:1.5;margin-bottom:10px;max-height:96px;overflow:hidden">"${esc(c.conteudo_texto)}"</div>` : ''}
+      <div style="font-size:11px;color:#94a3b8;margin-bottom:10px">${esc(autor || '—')} ${c.autor_instagram ? `· <a href="https://instagram.com/${esc((c.autor_instagram||'').replace('@',''))}" target="_blank" style="color:var(--blue);text-decoration:none">${esc(c.autor_instagram)}</a>` : ''}</div>
+      ${acoes.length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:8px">${acoes.join('')}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function psAbrirModal(editId) {
+  if (!psPode('criar') && !editId) { showToast('Sem permissão'); return; }
+  const el = (id) => document.getElementById(id);
+  el('ps-edit-id').value = editId || '';
+  el('ps-modal-titulo').textContent = editId ? '✎ Editar conteúdo' : '+ Novo conteúdo';
+
+  if (editId) {
+    const c = _psCache.find(x => x.id === editId);
+    if (!c) return;
+    el('ps-tipo').value = c.tipo || 'depoimento';
+    el('ps-titulo').value = c.titulo || '';
+    el('ps-texto').value = c.conteudo_texto || '';
+    el('ps-midia-url').value = c.midia_url || '';
+    el('ps-autor-nome').value = c.autor_nome || '';
+    el('ps-autor-ig').value = c.autor_instagram || '';
+    el('ps-autor-cidade').value = c.autor_cidade || '';
+    el('ps-autor-uf').value = c.autor_uf || '';
+    el('ps-autor-prof').value = c.autor_profissao || '';
+    el('ps-origem').value = c.origem || 'manual';
+    el('ps-rating').value = c.rating || '';
+    el('ps-destaque').checked = !!c.destaque;
+    el('ps-tags').value = (c.tags || []).join(', ');
+  } else {
+    ['ps-titulo','ps-texto','ps-midia-url','ps-autor-nome','ps-autor-ig','ps-autor-cidade','ps-autor-uf','ps-autor-prof','ps-tags','ps-rating'].forEach(id => el(id).value = '');
+    el('ps-tipo').value = 'depoimento';
+    el('ps-origem').value = 'manual';
+    el('ps-destaque').checked = false;
+  }
+  psOnTipoChange();
+  document.getElementById('ps-btn-aprovar').style.display = psPode('aprovar') ? '' : 'none';
+  document.getElementById('ps-modal-status').textContent = '';
+  document.getElementById('modal-ps-novo').classList.add('open');
+}
+
+function psFecharModal() {
+  document.getElementById('modal-ps-novo').classList.remove('open');
+}
+
+function psOnTipoChange() {
+  const tipo = document.getElementById('ps-tipo').value;
+  const rowTexto = document.getElementById('ps-row-texto');
+  const rowMidia = document.getElementById('ps-row-midia');
+  rowTexto.style.display = ['depoimento','review_produto','mencao_rede_social'].includes(tipo) ? '' : '';
+  rowMidia.style.display = ['foto','video','mencao_rede_social'].includes(tipo) ? '' : 'none';
+}
+
+async function psSalvarConteudo(aprovar) {
+  const el = (id) => document.getElementById(id);
+  const titulo = el('ps-titulo').value.trim();
+  if (!titulo) { showToast('Título é obrigatório'); return; }
+
+  const editId = el('ps-edit-id').value;
+  const tags = el('ps-tags').value.split(',').map(s => s.trim()).filter(Boolean);
+  const rating = el('ps-rating').value ? parseInt(el('ps-rating').value) : null;
+
+  const payload = {
+    tipo: el('ps-tipo').value,
+    titulo,
+    conteudo_texto: el('ps-texto').value.trim() || null,
+    midia_url: el('ps-midia-url').value.trim() || null,
+    autor_nome: el('ps-autor-nome').value.trim() || null,
+    autor_instagram: el('ps-autor-ig').value.trim() || null,
+    autor_cidade: el('ps-autor-cidade').value.trim() || null,
+    autor_uf: el('ps-autor-uf').value.trim().toUpperCase() || null,
+    autor_profissao: el('ps-autor-prof').value.trim() || null,
+    origem: el('ps-origem').value,
+    tags,
+    rating,
+    destaque: el('ps-destaque').checked,
+  };
+
+  if (aprovar && psPode('aprovar')) {
+    payload.status = 'publicado';
+    payload.aprovado_por_id = currentUser?.id;
+    payload.aprovado_por_nome = currentProfile?.nome;
+    payload.aprovado_em = new Date().toISOString();
+    payload.publicado_em = new Date().toISOString();
+  } else if (!editId) {
+    payload.status = 'rascunho';
+    payload.created_by = currentUser?.id;
+    payload.created_by_nome = currentProfile?.nome;
+  }
+
+  el('ps-modal-status').textContent = 'Salvando...';
+  try {
+    let resp;
+    if (editId) {
+      resp = await sb.from('prova_social_conteudo').update(payload).eq('id', editId);
+    } else {
+      resp = await sb.from('prova_social_conteudo').insert(payload);
+    }
+    if (resp.error) throw resp.error;
+    showToast(aprovar ? '✓ Publicado na Prova Social' : '✓ Rascunho salvo');
+    logActivity(editId ? 'editou_prova_social' : 'criou_prova_social', titulo, 'provasocial');
+    psFecharModal();
+    await psLoadUGC();
+  } catch (e) {
+    el('ps-modal-status').textContent = 'Erro: ' + e.message;
+    console.error('psSalvarConteudo:', e);
+  }
+}
+
+async function psAprovar(id) {
+  if (!psPode('aprovar')) { showToast('Sem permissão'); return; }
+  try {
+    const { error } = await sb.from('prova_social_conteudo').update({
+      status: 'publicado',
+      aprovado_por_id: currentUser?.id,
+      aprovado_por_nome: currentProfile?.nome,
+      aprovado_em: new Date().toISOString(),
+      publicado_em: new Date().toISOString(),
+    }).eq('id', id);
+    if (error) throw error;
+    showToast('✓ Conteúdo publicado');
+    logActivity('aprovou_prova_social', '—', 'provasocial');
+    await psLoadUGC();
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+function psEditar(id) { psAbrirModal(id); }
+
+async function psToggleDestaque(id, valor) {
+  try {
+    const { error } = await sb.from('prova_social_conteudo').update({ destaque: valor }).eq('id', id);
+    if (error) throw error;
+    showToast(valor ? '⭐ Marcado como destaque' : '✕ Destaque removido');
+    await psLoadUGC();
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+async function psExcluir(id) {
+  if (!psPode('excluir')) { showToast('Sem permissão'); return; }
+  const c = _psCache.find(x => x.id === id);
+  if (!confirm(`Excluir "${c?.titulo || 'conteúdo'}"?\n\nEsta ação não pode ser desfeita.`)) return;
+  try {
+    const { error } = await sb.from('prova_social_conteudo').delete().eq('id', id);
+    if (error) throw error;
+    showToast('✓ Excluído');
+    logActivity('excluiu_prova_social', c?.titulo || '—', 'provasocial');
+    await psLoadUGC();
+  } catch (e) { showToast('Erro: ' + e.message); }
+}
+
+// Realtime
+try {
+  sb.channel('ps-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'prova_social_conteudo' }, () => psLoadUGC())
+    .subscribe();
+} catch(e) { console.warn('ps realtime:', e); }
 
 // ── REVENDAS E PARCERIAS (tabela revendas_parceiros + JOIN contatos) ──
 async function loadRevendasParceiros() {

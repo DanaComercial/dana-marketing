@@ -272,6 +272,37 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'listar_campanhas_internas',
+      description: 'Lista as CAMPANHAS INTERNAS de marketing (organização da equipe por campanha, com funções, expedição, comentários, etc). Use pra "quais campanhas internas estão ativas", "em que campanhas o Juan está", "campanhas em produção", "expedições pendentes", "próximas entregas", "campanha [nome]", "minhas campanhas internas". NÃO CONFUNDA com a seção Campanhas do DMS (essa é de Ads/Briefings). "Campanhas Internas" é a aba nova de gestão operacional de equipe.',
+      parameters: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', enum: ['planejamento','producao','ativa','encerrada','cancelada','todos'], description: 'Padrão: ativa (ou "todos")' },
+          minhas: { type: 'boolean', description: 'Se true, filtra apenas campanhas em que o usuário logado está como responsável OU membro' },
+          limite: { type: 'number', description: 'Padrão 10, máx 30' }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'detalhe_campanha_interna',
+      description: 'Retorna tudo sobre uma campanha interna específica: dados gerais, equipe com funções, expedições pendentes, comentários recentes, materiais anexados, timeline. Use pra "me fala tudo sobre a campanha X", "quem está na campanha Y", "qual a próxima expedição da campanha Z".',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'UUID da campanha (pegue via listar_campanhas_internas)' },
+          nome: { type: 'string', description: 'Nome parcial da campanha (alternativa ao id — busca com ilike)' }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'listar_schema',
       description: 'Lista TODAS as tabelas disponíveis e suas colunas. Use ANTES de consultar_tabela quando não souber qual tabela/coluna usar. Também use quando perguntar algo fora do escopo das outras ferramentas ("quantos influenciadores", "criativos aprovados", "alertas não lidos", etc).',
       parameters: { type: 'object', properties: {}, required: [] }
@@ -328,6 +359,9 @@ const TOOL_SECOES: Record<string, string[]> = {
   detalhe_cliente_c360:           ['cliente360'],
   buscar_notas_c360:              ['cliente360'],
   minha_carteira:                 ['meus_clientes'],
+  // Campanhas Internas
+  listar_campanhas_internas:      ['campanhas_internas'],
+  detalhe_campanha_interna:       ['campanhas_internas'],
   // Internas
   listar_schema:                  [], // disponível pra todos
   consultar_tabela:               ['admin'], // só admins
@@ -347,6 +381,11 @@ const TABELAS_PERMITIDAS = new Set([
   // Cliente 360 (Fases 2-7)
   'cliente_insights', 'cliente_notas', 'cliente_segmentos_custom',
   'cliente_campanhas', 'cliente_campanha_envios',
+  // Campanhas Internas
+  'campanhas_internas', 'campanha_interna_membros', 'campanha_expedicoes',
+  'campanha_interna_comentarios', 'campanha_interna_materiais', 'campanha_interna_historico',
+  // Prova Social UGC
+  'prova_social_conteudo',
   // Views
   'dashboard_resumo', 'dashboard_mensal', 'dashboard_contas',
   'cliente_scoring', 'cliente_scoring_full', 'cliente_scoring_resumo',
@@ -796,6 +835,98 @@ async function executarFerramenta(nome: string, args: any, contextoUsuario: { ca
       }
     }
 
+    if (nome === 'listar_campanhas_internas') {
+      const status = args.status || 'ativa'
+      const limite = Math.min(+args.limite || 10, 30)
+      let q = supabaseAdmin.from('campanhas_internas')
+        .select('id, nome, tipo, status, data_inicio, data_fim, objetivo, meta_tipo, meta_valor, responsavel_id, oferta_principal, produtos_foco, argumento_central')
+        .order('data_inicio', { ascending: false }).limit(limite)
+      if (status !== 'todos') q = q.eq('status', status)
+      if (args.minhas && contextoUsuario.profileId) {
+        // filtra campanhas onde sou responsável OU membro
+        const { data: membroOf } = await supabaseAdmin.from('campanha_interna_membros')
+          .select('campanha_id').eq('profile_id', contextoUsuario.profileId)
+        const ids = (membroOf || []).map((m: any) => m.campanha_id)
+        q = q.or(`responsavel_id.eq.${contextoUsuario.profileId}${ids.length ? ',id.in.(' + ids.join(',') + ')' : ''}`)
+      }
+      const { data, error } = await q
+      if (error) return { erro: error.message }
+      // Nomes dos responsáveis
+      const respIds = [...new Set((data || []).map((c: any) => c.responsavel_id).filter(Boolean))]
+      const { data: profs } = respIds.length
+        ? await supabaseAdmin.from('profiles').select('id, nome').in('id', respIds)
+        : { data: [] } as any
+      const mapaProf: Record<string,string> = {}
+      ;(profs || []).forEach((p: any) => { mapaProf[p.id] = p.nome })
+      return {
+        filtros: { status, minhas: !!args.minhas },
+        total: data?.length || 0,
+        campanhas: (data || []).map((c: any) => ({
+          id: c.id, nome: c.nome, tipo: c.tipo, status: c.status,
+          inicio: c.data_inicio, fim: c.data_fim,
+          responsavel: mapaProf[c.responsavel_id] || null,
+          objetivo: c.objetivo, meta: c.meta_tipo ? `${c.meta_tipo}: ${c.meta_valor}` : null,
+          oferta_principal: c.oferta_principal, argumento_central: c.argumento_central,
+          produtos_foco: c.produtos_foco,
+        }))
+      }
+    }
+
+    if (nome === 'detalhe_campanha_interna') {
+      let q = supabaseAdmin.from('campanhas_internas').select('*')
+      if (args.id) q = q.eq('id', args.id)
+      else if (args.nome) q = q.ilike('nome', `%${args.nome}%`)
+      else return { erro: 'Passe id OU nome' }
+      const { data: camps, error } = await q.limit(1)
+      if (error) return { erro: error.message }
+      if (!camps?.length) return { erro: 'Campanha não encontrada' }
+      const c = camps[0]
+
+      // Membros com funções
+      const { data: membros } = await supabaseAdmin.from('campanha_interna_membros')
+        .select('profile_id, funcoes, status, observacao').eq('campanha_id', c.id)
+      const membroIds = (membros || []).map((m: any) => m.profile_id)
+      const { data: profsMembros } = membroIds.length
+        ? await supabaseAdmin.from('profiles').select('id, nome').in('id', membroIds)
+        : { data: [] } as any
+      const mapNomes: Record<string,string> = {}
+      ;(profsMembros || []).forEach((p: any) => { mapNomes[p.id] = p.nome })
+
+      // Expedições
+      const { data: expeds } = await supabaseAdmin.from('campanha_expedicoes')
+        .select('tipo_destino, destinatario_nome, data_envio, status, brinde_nome, compra_minima, desconto_pct')
+        .eq('campanha_id', c.id).order('data_envio').limit(20)
+
+      // Últimos 5 comentários
+      const { data: coms } = await supabaseAdmin.from('campanha_interna_comentarios')
+        .select('texto, autor_nome, created_at').eq('campanha_id', c.id)
+        .order('created_at', { ascending: false }).limit(5)
+
+      // Materiais
+      const { data: mats } = await supabaseAdmin.from('campanha_interna_materiais')
+        .select('nome, link, tipo').eq('campanha_id', c.id).limit(20)
+
+      return {
+        campanha: {
+          id: c.id, nome: c.nome, tipo: c.tipo, status: c.status,
+          inicio: c.data_inicio, fim: c.data_fim,
+          objetivo: c.objetivo, meta: c.meta_tipo ? `${c.meta_tipo}: ${c.meta_valor}` : null,
+          publico_alvo: c.publico_alvo, canais: c.canais,
+          oferta_principal: c.oferta_principal,
+          produtos_foco: c.produtos_foco,
+          argumento_central: c.argumento_central,
+          risco: c.risco_gargalo,
+        },
+        equipe: (membros || []).map((m: any) => ({
+          nome: mapNomes[m.profile_id] || '(desconhecido)',
+          funcoes: m.funcoes, status: m.status, observacao: m.observacao,
+        })),
+        expedicoes: expeds || [],
+        comentarios_recentes: coms || [],
+        materiais_anexados: mats || [],
+      }
+    }
+
     if (nome === 'buscar_notas_c360') {
       const dias = Math.min(+args.dias_recentes || 30, 180)
       const limite = Math.min(+args.limite || 10, 50)
@@ -949,6 +1080,8 @@ Ferramentas específicas (use primeiro pra perguntas comuns):
 - buscar_contato: cliente por nome + histórico
 - info_produto: estoque, preço, busca por código/nome
 - minha_carteira: APENAS pros clientes vinculados ao vendedor logado. Use SEMPRE que a pergunta for sobre "meus clientes", "minha carteira", "meu top", "meus VIPs", etc. Se o usuário for vendedor, essa é a ferramenta primária pra qualquer pergunta sobre clientes dele.
+- listar_campanhas_internas: lista as CAMPANHAS INTERNAS (organização interna de equipe por campanha — não confunda com Campanhas Ads do DMS). Use pra "campanhas internas ativas", "em que campanhas estou", "quais estão em produção", "próximas expedições", "campanhas da Manuela". Filtro "minhas=true" pega só as que o usuário é membro/responsável.
+- detalhe_campanha_interna: detalhes completos de uma campanha interna (equipe com funções, expedições, comentários, materiais, timeline). Use por nome aproximado ou id. Perfeito pra "me fala tudo sobre a campanha X", "quem tá na campanha Y", "o que falta fazer na campanha Z".
 
 IMPORTANTE: se o usuário for cargo=vendedor, ele SÓ tem acesso à própria carteira. Quando ele perguntar genericamente sobre "clientes" (ex: "qual cliente tem melhor score", "meus VIPs", "quem sumiu"), assuma que se refere à carteira dele e use minha_carteira. Não use resumo_cliente360, listar_segmentos_c360 ou buscar_contato pra perguntas de vendedor — essas retornam dados globais que ele não deve ver.
 
