@@ -4672,19 +4672,35 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
       updateEmpresaToggleUI();
       const authOK = await initSupabase();
       if (!authOK) return;
-      wireSearchAndFilters();
-      // Paralelo: lista + dashboard + mencionaveis (preload)
-      await Promise.all([loadClientes(), loadDashboardResumo(), loadMencionaveis()]);
-      // Subscribe realtime pra notas, segmentos e campanhas
-      subscribeRealtimeNotas();
-      subscribeRealtimeSegmentos();
-      subscribeRealtimeCampanhas();
-      subscribeRealtimeSync();
-      // Setup Meus Clientes (nav + page) se tiver permissao
-      await mcSetupNav();
+
+      // PRIMEIRO: permissoes (injeta Meus Clientes + esconde abas bloqueadas).
+      // Critico porque se qualquer loadClientes/loadDashboard falhar (ex: RLS
+      // bloqueando cargo=vendedor), o sidebar precisa ja estar configurado.
+      // Em paralelo pra ser rapido.
+      await Promise.allSettled([
+        mcSetupNav(),
+        mcApplyTabPermissions(),
+      ]);
       mcSubscribeRealtime();
-      // Aplica permissoes granulares (esconde abas sem permissao via cargo_permissoes)
+
+      wireSearchAndFilters();
+
+      // Dados do dashboard/lista (podem falhar pra vendedor sem quebrar o UI)
+      await Promise.allSettled([
+        loadClientes().catch(e => console.warn('[c360] loadClientes:', e?.message || e)),
+        loadDashboardResumo().catch(e => console.warn('[c360] loadDashboardResumo:', e?.message || e)),
+        loadMencionaveis().catch(e => console.warn('[c360] loadMencionaveis:', e?.message || e)),
+      ]);
+
+      // Subscribe realtime pra notas, segmentos e campanhas (tbm resiliente)
+      try { subscribeRealtimeNotas(); } catch(e) { console.warn('subscribeRealtimeNotas:', e?.message); }
+      try { subscribeRealtimeSegmentos(); } catch(e) { console.warn('subscribeRealtimeSegmentos:', e?.message); }
+      try { subscribeRealtimeCampanhas(); } catch(e) { console.warn('subscribeRealtimeCampanhas:', e?.message); }
+      try { subscribeRealtimeSync(); } catch(e) { console.warn('subscribeRealtimeSync:', e?.message); }
+
+      // Reaplica permissoes (pode ter corrida com renderDashboard substituindo HTML)
       await mcApplyTabPermissions();
+
       // Se veio deep-link via sessionStorage, abre o cliente/aba certa
       await checkDeepLink();
     } catch (e) {
