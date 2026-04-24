@@ -7899,9 +7899,10 @@ updateDynamicField('foto');
       <div id="bv-materiais-list"></div>
     </div>
 
-    <div style="display:flex;gap:8px;margin-top:16px;border-top:1px solid var(--border);padding-top:16px" id="bv-modal-actions">
+    <div style="display:flex;gap:8px;margin-top:16px;border-top:1px solid var(--border);padding-top:16px;flex-wrap:wrap" id="bv-modal-actions">
       <button class="btn btn-ghost btn-sm" onclick="imprimirBriefing()">🖨 Imprimir</button>
       <button class="btn btn-ghost btn-sm" onclick="abrirModalDuplicar()" id="bv-btn-duplicar">📋 Duplicar</button>
+      <button class="btn btn-ghost btn-sm" onclick="bvGerarMockupIA()" id="bv-btn-aia">🎨 Mockup IA</button>
       <button class="btn btn-ghost btn-sm" onclick="abrirModalExcluir()" id="bv-btn-excluir" style="color:var(--red)">🗑 Excluir</button>
       <button class="btn btn-primary btn-sm" onclick="closeModal('ver-briefing')" style="margin-left:auto">Fechar</button>
     </div>
@@ -9866,8 +9867,10 @@ function abrirBriefing(id) {
   // Aplica permissões nos botões
   const btnDup = document.getElementById('bv-btn-duplicar');
   const btnDel = document.getElementById('bv-btn-excluir');
+  const btnAia = document.getElementById('bv-btn-aia');
   if (btnDup) btnDup.style.display = podeCriarBriefing() ? '' : 'none';
   if (btnDel) btnDel.style.display = podeExcluirBriefing() ? '' : 'none';
+  if (btnAia) btnAia.style.display = (currentProfile?.cargo === 'admin' || userPermissoes['avatares_ia_gerar'] !== false) ? '' : 'none';
 
   // Resetar seção de link e carregar materiais deste briefing
   const addLinkEl = document.getElementById('bv-mat-add-link');
@@ -9879,6 +9882,37 @@ function abrirBriefing(id) {
   loadMateriaisBriefing(id);
 
   openModal('ver-briefing');
+}
+
+function bvGerarMockupIA() {
+  if (!_briefingAtivoId) { showToast('Nenhum briefing aberto'); return; }
+  const b = _briefingsCache.find(x => x.id === _briefingAtivoId);
+  if (!b) return;
+  const contexto = [
+    b.conceito && `core concept: ${b.conceito}`,
+    b.oferta && `offer: ${b.oferta}`,
+    b.publico && `audience: ${b.publico}`,
+    b.quote && `message: ${b.quote}`,
+  ].filter(Boolean).join('. ');
+  const prompt = `Concept mockup for a Brazilian medical uniform brand (Dana Jalecos, premium medical lab coats and scrubs). ${contexto}. Editorial lifestyle photography, Brazilian healthcare professionals in white premium uniforms, sophisticated modern setting, warm natural lighting, beige and cream color palette, photorealistic, brand campaign aesthetic, aspirational feel.`;
+  window.gerarImagemIA({
+    titulo: `Mockup IA · ${b.titulo}`,
+    subtitulo: 'Visual de referência para o designer',
+    prompt,
+    contexto: 'briefing',
+    contextoRefId: b.id,
+    onSave: async (url) => {
+      await sb.from('materiais_briefing').insert({
+        briefing_id: b.id,
+        tipo: 'imagem',
+        url, nome: `🎨 Mockup IA · ${new Date().toLocaleDateString('pt-BR')}`,
+        mime_type: 'image/png',
+        criado_por: currentUser?.id,
+        criado_por_nome: currentProfile?.nome,
+      }).catch(e => console.warn('[bv] vincular material falhou', e));
+      if (typeof loadMateriaisBriefing === 'function') loadMateriaisBriefing(b.id);
+    },
+  });
 }
 
 function imprimirBriefing() {
@@ -19300,6 +19334,7 @@ const aiChatInterval = setInterval(() => {
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               ${podeEditarC ? `<button class="btn btn-ghost" onclick="document.getElementById('modal-ci-view').remove();ciEditarCampanha('${c.id}')">✏️ Editar</button>` : ''}
               <button class="btn btn-ghost" onclick="ciExportarPDF('${c.id}')">🖨 Exportar PDF</button>
+              ${(currentProfile?.cargo === 'admin' || userPermissoes['avatares_ia_gerar'] !== false) ? `<button class="btn btn-ghost" onclick="ciGerarVisualIA('${c.id}')">🎨 Visual IA</button>` : ''}
               ${ciPodeExcluir() ? `<button class="btn btn-ghost" style="color:#ef4444;border-color:rgba(239,68,68,0.3)" onclick="ciApagar('${c.id}')">🗑 Apagar</button>` : ''}
             </div>
             <button class="btn btn-ghost" onclick="document.getElementById('modal-ci-view').remove()">Fechar</button>
@@ -20077,6 +20112,44 @@ const aiChatInterval = setInterval(() => {
     if (error) { showToast('Erro: ' + error.message); return; }
     await ciLoadComentarios(campanhaId);
     ciRefrescarViewAberta();
+  };
+
+  // ══════════════════════════════════
+  // GERAR VISUAL IA da campanha
+  // ══════════════════════════════════
+  window.ciGerarVisualIA = function(campanhaId) {
+    const c = ciState.campanhas.find(x => x.id === campanhaId);
+    if (!c) return;
+    const tipoLabel = { venda:'sales promotion', branding:'brand building', lancamento:'product launch', clearance:'clearance sale', institucional:'institutional' }[c.tipo] || 'marketing';
+    const contexto = [
+      c.oferta_principal && `offer: ${c.oferta_principal}`,
+      c.produtos_foco && `featured products: ${c.produtos_foco}`,
+      c.argumento_central && `core message: ${c.argumento_central}`,
+      c.publico_alvo && `target audience: ${c.publico_alvo}`,
+    ].filter(Boolean).join('. ');
+    const prompt = `Concept visual mockup for a Brazilian medical uniform brand campaign (Dana Jalecos, luxury medical lab coats and scrubs). Campaign type: ${tipoLabel}. ${contexto}. Elegant editorial photography style, Brazilian healthcare professionals wearing premium white lab coats and scrubs, modern clinical or spa environment, warm sophisticated lighting, beige and soft white color palette, photorealistic, commercial campaign aesthetic, 3:2 aspect ratio, inspirational luxury feel.`;
+    window.gerarImagemIA({
+      titulo: `Visual IA · ${c.nome}`,
+      subtitulo: 'Mockup conceitual pra apresentação e briefing',
+      prompt,
+      contexto: 'campanha_interna',
+      contextoRefId: campanhaId,
+      onSave: async (url) => {
+        // Salva como material vinculado
+        await sb.from('campanha_interna_materiais').insert({
+          campanha_id: campanhaId,
+          tipo: 'link',
+          url, nome: `🎨 Visual conceitual · ${new Date().toLocaleDateString('pt-BR')}`,
+          descricao: 'Gerado via IA',
+          mime_type: 'image/png',
+          adicionado_por: currentUser?.id,
+          adicionado_por_nome: currentProfile?.nome,
+        });
+        await ciRegistrarHistorico(campanhaId, 'add_material', 'Visual IA gerado e vinculado', null, { url });
+        await ciLoadMateriais(campanhaId);
+        ciRefrescarViewAberta();
+      },
+    });
   };
 
   // ══════════════════════════════════
