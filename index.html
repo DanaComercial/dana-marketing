@@ -19027,8 +19027,9 @@ const aiChatInterval = setInterval(() => {
             ${ciRenderTimelineSecao(id)}
           </div>
           <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap">
-            <div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
               ${podeEditarC ? `<button class="btn btn-ghost" onclick="document.getElementById('modal-ci-view').remove();ciEditarCampanha('${c.id}')">✏️ Editar</button>` : ''}
+              <button class="btn btn-ghost" onclick="ciExportarPDF('${c.id}')">🖨 Exportar PDF</button>
             </div>
             <button class="btn btn-ghost" onclick="document.getElementById('modal-ci-view').remove()">Fechar</button>
           </div>
@@ -19805,6 +19806,155 @@ const aiChatInterval = setInterval(() => {
     if (error) { showToast('Erro: ' + error.message); return; }
     await ciLoadComentarios(campanhaId);
     ciRefrescarViewAberta();
+  };
+
+  // ══════════════════════════════════
+  // EXPORT PDF
+  // ══════════════════════════════════
+  window.ciExportarPDF = async function(campanhaId) {
+    const c = ciState.campanhas.find(x => x.id === campanhaId);
+    if (!c) return;
+    const membros = ciState.membrosByCamp[campanhaId] || [];
+    const expedicoes = ciState.expedicoesByCamp[campanhaId] || [];
+    const materiais = ciMateriais[campanhaId] || [];
+    // Garante historico carregado
+    if (!ciHistorico[campanhaId]) await ciLoadHistorico(campanhaId);
+    const historico = ciHistorico[campanhaId] || [];
+
+    const tipo = CI_TIPOS.find(t => t.v === c.tipo)?.l || c.tipo;
+    const status = CI_STATUS.find(s => s.v === c.status);
+    const canaisTxt = (c.canais || []).map(v => CI_CANAIS.find(x => x.v === v)?.l || v).join(', ') || '—';
+    const metaTipo = CI_META_TIPOS.find(m => m.v === c.meta_tipo);
+    const metaTxt = c.meta_valor ? (c.meta_tipo === 'faturamento' ? ciFmtBRL(c.meta_valor) : `${Number(c.meta_valor).toLocaleString('pt-BR')} ${metaTipo?.l || ''}`) : '—';
+
+    const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Plano · ${esc(c.nome)}</title>
+<style>
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: 'DM Sans', Arial, sans-serif; color:#0a0a0a; margin:0; padding:30px 40px; font-size:12px; line-height:1.5; }
+  h1 { font-family:'Playfair Display', serif; font-size:28px; margin:0 0 4px; }
+  h2 { font-family:'Syne', sans-serif; font-size:15px; margin:22px 0 10px; padding-bottom:6px; border-bottom:2px solid #0a0a0a; }
+  h3 { font-family:'Syne', sans-serif; font-size:12.5px; margin:12px 0 6px; color:#444 }
+  .sub { color:#666; font-size:13px; margin-bottom:10px }
+  .badge { display:inline-block; padding:3px 10px; border-radius:4px; font-size:11px; font-weight:600; border:1px solid #e5e7eb; background:#f9f9f9 }
+  .meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; margin:8px 0 }
+  .meta-grid > div { padding:4px 0; border-bottom:1px dashed #e5e7eb }
+  .meta-label { color:#666; font-size:10.5px; text-transform:uppercase; letter-spacing:0.4px }
+  .box { padding:10px 12px; background:#fafafa; border-left:3px solid #fbbf24; border-radius:4px; margin:8px 0 }
+  .box.azul { border-left-color:#60a5fa }
+  .box.roxo { border-left-color:#a78bfa }
+  .box.ver { border-left-color:#22c55e }
+  .box.vermelho { border-left-color:#ef4444; background:#fef2f2 }
+  table { width:100%; border-collapse:collapse; font-size:11.5px; margin-top:6px }
+  th, td { padding:6px 8px; border:1px solid #e5e7eb; text-align:left; vertical-align:top }
+  th { background:#f9f9f9; font-weight:700; font-size:10.5px; text-transform:uppercase; letter-spacing:0.3px }
+  .footer { margin-top:30px; padding-top:10px; border-top:1px solid #e5e7eb; font-size:10px; color:#999; text-align:center }
+  @media print { body { padding:20px 30px } h2 { page-break-after:avoid } }
+</style></head><body>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+    <div>
+      <h1>${esc(c.nome)}</h1>
+      <div class="sub">${tipo} · <span class="badge" style="background:${status?.cor}22;color:${status?.cor};border-color:${status?.cor}66">${status?.l || c.status}</span></div>
+    </div>
+    <div style="text-align:right;font-size:10.5px;color:#666">
+      <div>Dana Jalecos Exclusivos</div>
+      <div>Gerado em ${new Date().toLocaleString('pt-BR')}</div>
+    </div>
+  </div>
+
+  <h2>📋 Informações da campanha</h2>
+  <div class="meta-grid">
+    <div><span class="meta-label">Responsável</span><br>${esc(c.responsavel_nome || '—')}</div>
+    <div><span class="meta-label">Período</span><br>${ciFmtDateBR(c.data_inicio)} → ${ciFmtDateBR(c.data_fim)}</div>
+    <div><span class="meta-label">Público-alvo</span><br>${esc(c.publico_alvo || '—')}</div>
+    <div><span class="meta-label">Meta</span><br>${esc(metaTxt)}</div>
+    <div style="grid-column:1/-1"><span class="meta-label">Canais</span><br>${esc(canaisTxt)}</div>
+    ${c.briefing_link ? `<div style="grid-column:1/-1"><span class="meta-label">Briefing</span><br><a href="${esc(c.briefing_link)}" style="color:#1d4ed8">${esc(c.briefing_link)}</a></div>` : ''}
+  </div>
+
+  ${c.objetivo ? `<h3>Objetivo</h3><div>${esc(c.objetivo)}</div>` : ''}
+
+  <h2>✨ Estratégia</h2>
+  ${c.oferta_principal ? `<div class="box"><strong>💰 Oferta principal</strong><br>${esc(c.oferta_principal)}</div>` : ''}
+  ${c.produtos_foco ? `<div class="box azul"><strong>🎯 Produtos foco</strong><br>${esc(c.produtos_foco)}</div>` : ''}
+  ${c.argumento_central ? `<div class="box roxo"><strong>💡 Argumento central</strong><br>${esc(c.argumento_central)}</div>` : ''}
+  ${c.risco ? `<div class="box vermelho"><strong>⚠️ Risco / gargalo</strong><br>${esc(c.risco)}</div>` : ''}
+  ${!c.oferta_principal && !c.produtos_foco && !c.argumento_central && !c.risco ? '<div style="color:#999">Nenhuma informação estratégica cadastrada.</div>' : ''}
+
+  <h2>👥 Equipe (${membros.length})</h2>
+  ${membros.length === 0 ? '<div style="color:#999">Nenhum membro atribuído.</div>' : `
+    <table>
+      <thead><tr><th>Pessoa</th><th>Funções</th><th>Status</th><th>Observação</th></tr></thead>
+      <tbody>
+        ${membros.map(m => `<tr>
+          <td><strong>${esc(m.profile_nome || '—')}</strong></td>
+          <td>${(m.funcoes||[]).map(f => CI_FUNCOES.find(x=>x.v===f)?.l || f).join(', ')}</td>
+          <td>${CI_MEM_STATUS.find(s=>s.v===(m.status||'pendente'))?.l || m.status || '—'}</td>
+          <td style="font-size:10.5px;color:#666">${esc(m.observacao || '')}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `}
+
+  ${expedicoes.length > 0 ? `
+    <h2>📦 Expedição (${expedicoes.length})</h2>
+    <table>
+      <thead><tr><th>Destino</th><th>Tipo</th><th>Data</th><th>Brinde</th><th>Condição</th><th>Status</th></tr></thead>
+      <tbody>
+        ${expedicoes.map(e => {
+          const condPartes = [];
+          if (e.compra_minima) condPartes.push(`mín R$${e.compra_minima}`);
+          if (e.desconto_pct) condPartes.push(`${e.desconto_pct}% off`);
+          if (e.frete_gratis) condPartes.push('frete grátis');
+          return `<tr>
+            <td><strong>${esc(e.destino_nome)}</strong>${e.destino_contato?`<br><span style="font-size:10px;color:#666">${esc(e.destino_contato)}</span>`:''}</td>
+            <td>${EXP_DESTINO_TIPOS.find(d=>d.v===e.tipo_destino)?.l || e.tipo_destino}</td>
+            <td>${ciFmtDateBR(e.data_envio_estimada)}</td>
+            <td>${e.brinde_tipo==='nenhum'||!e.brinde_tipo?'—':esc(e.brinde_produto_nome || e.brinde_descricao || 'Brinde')}${e.brinde_quantidade>1?` × ${e.brinde_quantidade}`:''}</td>
+            <td style="font-size:10.5px">${condPartes.join(' · ') || '—'}${e.condicao_observacao?`<br><em style="color:#666">${esc(e.condicao_observacao)}</em>`:''}</td>
+            <td>${EXP_STATUS.find(s=>s.v===e.status)?.l || e.status}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  ` : ''}
+
+  ${materiais.length > 0 ? `
+    <h2>📎 Anexos & Links (${materiais.length})</h2>
+    <table>
+      <thead><tr><th>Nome</th><th>Link</th><th>Descrição</th></tr></thead>
+      <tbody>
+        ${materiais.map(m => `<tr>
+          <td><strong>${esc(m.nome)}</strong></td>
+          <td style="font-size:10.5px;word-break:break-all"><a href="${esc(m.url)}" style="color:#1d4ed8">${esc(m.url.slice(0, 80))}${m.url.length > 80 ? '...' : ''}</a></td>
+          <td style="font-size:10.5px;color:#666">${esc(m.descricao || '')}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  ` : ''}
+
+  ${historico.length > 0 ? `
+    <h2>📜 Histórico (últimos ${Math.min(historico.length, 20)})</h2>
+    <table>
+      <thead><tr><th>Quando</th><th>Quem</th><th>Ação</th></tr></thead>
+      <tbody>
+        ${historico.slice(0, 20).map(h => `<tr>
+          <td style="white-space:nowrap;font-size:10.5px">${new Date(h.created_at).toLocaleString('pt-BR')}</td>
+          <td>${esc(h.user_nome || '—')}</td>
+          <td>${ciHistTipoIcone(h.tipo)} ${esc(h.descricao)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  ` : ''}
+
+  <div class="footer">Plano da campanha gerado pelo DMS (Dana Marketing System) · ${new Date().toLocaleDateString('pt-BR')}</div>
+</body></html>`;
+
+    const w = window.open('', '_blank');
+    if (!w) { showToast('Bloqueado pelo navegador. Permita pop-ups.'); return; }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => w.print(), 400);
   };
 
   // Load inicial quando a sessao estabilizar (pra pegar a badge)
