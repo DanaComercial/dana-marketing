@@ -18527,6 +18527,10 @@ const aiChatInterval = setInterval(() => {
           const campId = p.new?.campanha_id || p.old?.campanha_id;
           if (campId) { await ciLoadComentarios(campId); ciRefrescarViewAberta(); }
         })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'campanha_interna_materiais' }, async (p) => {
+          const campId = p.new?.campanha_id || p.old?.campanha_id;
+          if (campId) { await ciLoadMateriais(campId); ciRefrescarViewAberta(); }
+        })
         .subscribe();
     }
   };
@@ -18791,8 +18795,9 @@ const aiChatInterval = setInterval(() => {
     if (!c) { showToast('Campanha não encontrada'); return; }
     const profiles = await ciLoadProfiles();
     const membros = ciState.membrosByCamp[id] || [];
-    // Carrega comentarios em paralelo (nao bloqueia render)
+    // Carrega comentarios e materiais em paralelo (nao bloqueia render)
     ciLoadComentarios(id).catch(() => {});
+    ciLoadMateriais(id).catch(() => {});
     const podeEditarC = ciPodeEditar(c);
     const tipo = CI_TIPOS.find(t => t.v === c.tipo);
     const canaisTxt = (c.canais || []).map(v => CI_CANAIS.find(x => x.v === v)?.l || v).join(', ') || '—';
@@ -18848,6 +18853,8 @@ const aiChatInterval = setInterval(() => {
             </div>
 
             ${ciRenderExpedicaoSecao(id, podeEditarC)}
+
+            ${ciRenderMateriaisSecao(id, podeEditarC)}
 
             ${ciRenderComentariosSecao(id)}
           </div>
@@ -19259,6 +19266,128 @@ const aiChatInterval = setInterval(() => {
     if (error) { showToast('Erro: ' + error.message); return; }
     showToast('Envio apagado');
     await ciLoad();
+    ciRefrescarViewAberta();
+  };
+
+  // ══════════════════════════════════
+  // MATERIAIS / ANEXOS
+  // ══════════════════════════════════
+  const ciMateriais = {}; // por campanha_id
+
+  async function ciLoadMateriais(campanhaId) {
+    const { data } = await sb.from('campanha_interna_materiais')
+      .select('*').eq('campanha_id', campanhaId).order('created_at', { ascending: false });
+    ciMateriais[campanhaId] = data || [];
+    return ciMateriais[campanhaId];
+  }
+
+  function ciIconePorMime(mime, nome) {
+    if (!mime && !nome) return '📎';
+    const s = (mime || '') + ' ' + (nome || '').toLowerCase();
+    if (s.match(/pdf/)) return '📄';
+    if (s.match(/image|png|jpg|jpeg|gif|webp/)) return '🖼';
+    if (s.match(/video|mp4|mov/)) return '🎬';
+    if (s.match(/audio|mp3|wav/)) return '🎵';
+    if (s.match(/zip|rar|7z/)) return '🗜';
+    if (s.match(/doc|word/)) return '📝';
+    if (s.match(/xls|sheet|csv/)) return '📊';
+    if (s.match(/ppt|presentation/)) return '📽';
+    if (s.match(/figma/)) return '🎨';
+    return '📎';
+  }
+
+  function ciRenderMateriaisSecao(campanhaId, podeEditar) {
+    const mats = ciMateriais[campanhaId] || [];
+    const cards = mats.length === 0
+      ? '<div style="padding:14px;text-align:center;color:var(--text3);font-size:12.5px;background:var(--surface);border-radius:8px">Sem anexos ou links.</div>'
+      : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">${mats.map(m => `
+          <div class="card" style="padding:10px;display:flex;gap:8px;align-items:flex-start">
+            <div style="font-size:22px;flex-shrink:0">${ciIconePorMime(m.mime_type, m.nome)}</div>
+            <div style="flex:1;min-width:0">
+              <a href="${esc(m.url)}" target="_blank" rel="noopener" style="font-weight:600;font-size:12.5px;color:var(--text);text-decoration:none;word-break:break-word">${esc(m.nome)}</a>
+              <div style="font-size:10.5px;color:var(--text3);margin-top:2px">${esc(m.adicionado_por_nome || '')} · ${ciTempoRelativo(m.created_at)}</div>
+              ${m.descricao ? `<div style="font-size:11px;color:var(--text2);margin-top:3px">${esc(m.descricao)}</div>` : ''}
+            </div>
+            ${podeEditar ? `<button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:11px;color:#ef4444" onclick="ciApagarMaterial('${m.id}','${campanhaId}')">🗑</button>` : ''}
+          </div>
+        `).join('')}</div>`;
+    return `
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px">📎 Anexos & Links (${mats.length})</div>
+          ${podeEditar ? `<button class="btn btn-primary btn-sm" onclick="ciAbrirModalMaterial('${campanhaId}')">+ Adicionar</button>` : ''}
+        </div>
+        ${cards}
+      </div>
+    `;
+  }
+
+  window.ciAbrirModalMaterial = function(campanhaId) {
+    document.getElementById('modal-ci-mat')?.remove();
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay open" id="modal-ci-mat">
+        <div class="modal" style="max-width:520px">
+          <div class="modal-header">
+            <div class="modal-title">+ Adicionar material</div>
+            <button class="modal-close" onclick="document.getElementById('modal-ci-mat').remove()">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-field">
+              <label>Nome *</label>
+              <input id="ci-mat-nome" class="input" placeholder='Ex: "Briefing Figma", "Apresentação final"'>
+            </div>
+            <div class="form-field">
+              <label>URL / link *</label>
+              <input id="ci-mat-url" type="url" class="input" placeholder="https://drive.google.com/... ou https://figma.com/...">
+            </div>
+            <div class="form-field">
+              <label>Descrição (opcional)</label>
+              <textarea id="ci-mat-desc" class="input" rows="2"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+            <button class="btn btn-ghost" onclick="document.getElementById('modal-ci-mat').remove()">Cancelar</button>
+            <button class="btn btn-primary" id="ci-mat-save" onclick="ciSalvarMaterial('${campanhaId}')">Adicionar</button>
+          </div>
+        </div>
+      </div>
+    `);
+    setTimeout(() => document.getElementById('ci-mat-nome')?.focus(), 100);
+  };
+
+  window.ciSalvarMaterial = async function(campanhaId) {
+    const btn = document.getElementById('ci-mat-save');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+    try {
+      const nome = (document.getElementById('ci-mat-nome')?.value || '').trim();
+      const url = (document.getElementById('ci-mat-url')?.value || '').trim();
+      const desc = (document.getElementById('ci-mat-desc')?.value || '').trim() || null;
+      if (!nome || !url) { showToast('Nome e URL são obrigatórios'); if (btn) { btn.disabled = false; btn.textContent = 'Adicionar'; } return; }
+      const { error } = await sb.from('campanha_interna_materiais').insert({
+        campanha_id: campanhaId,
+        tipo: 'link',
+        url, nome, descricao: desc,
+        adicionado_por: currentUser?.id,
+        adicionado_por_nome: currentProfile?.nome,
+      });
+      if (error) throw error;
+      showToast('Material adicionado');
+      document.getElementById('modal-ci-mat')?.remove();
+      await ciLoadMateriais(campanhaId);
+      ciRefrescarViewAberta();
+    } catch (e) {
+      console.error('[ci] mat salvar', e);
+      showToast('Erro: ' + (e.message || e));
+      if (btn) { btn.disabled = false; btn.textContent = 'Adicionar'; }
+    }
+  };
+
+  window.ciApagarMaterial = async function(matId, campanhaId) {
+    if (!confirm('Apagar este material?')) return;
+    const { error } = await sb.from('campanha_interna_materiais').delete().eq('id', matId);
+    if (error) { showToast('Erro: ' + error.message); return; }
+    showToast('Material apagado');
+    await ciLoadMateriais(campanhaId);
     ciRefrescarViewAberta();
   };
 
