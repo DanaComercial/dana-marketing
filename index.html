@@ -16213,6 +16213,24 @@ async function doLogin() {
   currentUser = data.user;
   await loadProfile();
   showApp();
+  // Redireciona pra primeira view permitida pelo cargo.
+  // Sem isso, view-home (hardcoded active no HTML) fica visivel mesmo pra
+  // vendedor que nao tem permissao — e a pessoa cai no Dashboard geral.
+  try {
+    const activeEl = document.querySelector('.view.active');
+    const activeView = activeEl ? activeEl.id.replace(/^view-/, '') : null;
+    const naoPode = activeView && activeView !== 'perfil' && userPermissoes[activeView] === false;
+    const adminBloq = activeView && ADMIN_ONLY_VIEWS.includes(activeView) && currentProfile?.cargo !== 'admin';
+    if (!activeView || naoPode || adminBloq || currentProfile?.cargo !== 'admin') {
+      // Sempre redireciona pra firstAllowed — garante que vendedor cai em cliente360
+      // Admin cai em home (firstAllowedView retorna 'home' pra admin)
+      const target = firstAllowedView();
+      if (target) {
+        const navEl = document.querySelector('[onclick*="\''+target+'\'"]');
+        go(navEl, target);
+      }
+    }
+  } catch(e) { console.warn('Post-login redirect:', e); }
   // SPA puro — precisa recarregar dados do novo usuário (init da página não roda de novo)
   try {
     if (typeof loadAlertas === 'function') loadAlertas();
