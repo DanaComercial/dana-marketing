@@ -3680,6 +3680,19 @@ ${msgExemplo ? `<div class="msg-box"><div class="msg-title">💬 Mensagem modelo
         const active = document.querySelector('.page-section.active');
         if (active?.id === 'page-meus-clientes') await renderMeusClientesPage();
       })
+      // Pedido novo/editado -> faturamento, ranking, carteira de cada vendedor mudam.
+      // Debounce 8s porque sync do Bling pode gerar rajada de eventos.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => {
+        clearTimeout(state.mcPedidosDebounce);
+        state.mcPedidosDebounce = setTimeout(async () => {
+          mcInvalidateCache();
+          const active = document.querySelector('.page-section.active');
+          if (active?.id === 'page-meus-clientes') await renderMeusClientesPage();
+          if (active?.id === 'page-dashboard' && typeof window.c360ReloadDashboard === 'function') {
+            window.c360ReloadDashboard();
+          }
+        }, 8000);
+      })
       .subscribe();
   }
 
