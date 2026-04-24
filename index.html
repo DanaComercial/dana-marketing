@@ -18619,14 +18619,14 @@ const aiChatInterval = setInterval(() => {
     }
     if (btn?._revertTimer) clearTimeout(btn._revertTimer);
     if (btn) { btn.disabled = true; btn.innerHTML = '...'; }
-    // Soft-delete: marca status como 'apagado_usuario'
-    const { error, data } = await sb.from('avatares_ia_log').update({ status: 'apagado_usuario' }).eq('id', logId).select();
+    // Hard delete (RLS garante que só o dono ou admin consegue)
+    const { error, count } = await sb.from('avatares_ia_log').delete({ count: 'exact' }).eq('id', logId);
     if (error) {
       showToast('Erro: ' + error.message);
       if (btn) { btn.disabled = false; btn.innerHTML = '🗑'; delete btn.dataset.confirm; }
       return;
     }
-    if (!data || data.length === 0) {
+    if (count === 0) {
       showToast('⚠ Sem permissão pra apagar (RLS)');
       if (btn) { btn.disabled = false; btn.innerHTML = '🗑'; delete btn.dataset.confirm; }
       return;
