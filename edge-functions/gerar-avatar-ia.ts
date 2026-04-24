@@ -152,6 +152,9 @@ Deno.serve(async (req) => {
 
     parts.push({ text: promptFinal })
 
+    // Aspect ratio: default 1:1, ou '9:16' pra personas (corpo todo vertical), '16:9' pra mockups de campanha
+    const aspectRatio = body.aspect_ratio || (contexto === 'persona' ? '9:16' : contexto === 'campanha_interna' ? '16:9' : '1:1')
+
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_IMAGE_KEY}`,
       {
@@ -159,7 +162,10 @@ Deno.serve(async (req) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ role: 'user', parts }],
-          generationConfig: { responseModalities: ['IMAGE'] }
+          generationConfig: {
+            responseModalities: ['IMAGE'],
+            imageConfig: { aspectRatio }
+          }
         })
       }
     )
