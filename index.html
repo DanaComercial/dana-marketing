@@ -8523,7 +8523,7 @@ updateDynamicField('foto');
         <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#dcfce7;color:#15803d;font-size:16px">📅</span>
         Novo Evento
       </div>
-      <button class="modal-close" onclick="closeModal('novo-evento')">×</button>
+      <button class="modal-close" onclick="closeModal('novo-evento');resetarFormNovoEvento()">×</button>
     </div>
     <div class="form-row"><label class="label">Título</label><input class="input" type="text" id="evt-titulo" placeholder="Nome do evento ou campanha"></div>
     <div class="form-row-2" style="margin-bottom:12px">
@@ -8564,7 +8564,7 @@ updateDynamicField('foto');
     </div>
     <div class="form-row"><label class="label">Descrição <span style="font-size:10px;color:var(--text4)">(opcional)</span></label><textarea class="input" id="evt-desc" rows="3" placeholder="Detalhes do evento..."></textarea></div>
     <div style="display:flex;gap:8px;margin-top:4px">
-      <button class="btn btn-ghost" onclick="closeModal('novo-evento')" style="flex:1">Cancelar</button>
+      <button class="btn btn-ghost" onclick="closeModal('novo-evento');resetarFormNovoEvento()" style="flex:1">Cancelar</button>
       <button class="btn btn-primary" onclick="salvarEvento()" style="flex:2">Salvar Evento</button>
     </div>
   </div>
@@ -8999,6 +8999,7 @@ updateDynamicField('foto');
     <div style="display:flex;gap:8px" id="ve-actions">
       <button class="btn btn-ghost" onclick="closeModal('ver-evento')" style="flex:1">Fechar</button>
       <button class="btn btn-primary" id="ve-c360-open-btn" onclick="irParaCliente360Campanhas()" style="display:none;flex:1">📢 Abrir no Cliente 360</button>
+      <button class="btn btn-primary" id="ve-edit-btn" onclick="editarEventoAtual()" style="display:none">Editar</button>
       <button class="btn btn-ghost" id="ve-cor-btn" onclick="mudarCorEvento()" style="display:none">🎨 Cor</button>
       <button class="btn btn-ghost" id="ve-delete-btn" onclick="excluirEventoAtual()" style="color:var(--red);border-color:var(--red);display:none">Excluir</button>
     </div>
@@ -9432,7 +9433,11 @@ function topbarAction() {
     if (typeof showToast === 'function') showToast('🚫 Sem permissão');
     return;
   }
-  if(views[id]) openModal(views[id]);
+  if(views[id]) {
+    // Reset form de novo-evento se vier do calendário (evita herdar dados de uma edição)
+    if (id === 'calendario' && typeof resetarFormNovoEvento === 'function') resetarFormNovoEvento();
+    openModal(views[id]);
+  }
   else if(id==='construtor') document.querySelector('[onclick*=construtor]')?.click();
   else if(id==='campanhas-internas') { if (typeof abrirNovaCampanhaInterna === 'function') abrirNovaCampanhaInterna(); }
   else if(id==='provasocial') { if (typeof psAbrirModal === 'function') psAbrirModal(); }
@@ -14181,7 +14186,46 @@ function editarEvento(id) {
   const canEditCor = !isGerenciada && (userPermissoes['calendario_criar'] !== false || currentProfile?.cargo === 'admin');
   document.getElementById('ve-cor-btn').style.display = canEditCor ? '' : 'none';
 
+  // Botão Editar — mesma permissão de criar E nao for evento gerenciado
+  const canEdit = !isGerenciada && (userPermissoes['calendario_criar'] !== false || currentProfile?.cargo === 'admin');
+  const editBtn = document.getElementById('ve-edit-btn');
+  if (editBtn) editBtn.style.display = canEdit ? '' : 'none';
+
   openModal('ver-evento');
+}
+
+// Estado de edição do modal novo-evento
+let _editingEventoId = null;
+
+function editarEventoAtual() {
+  if (!_viewingEventoId) return;
+  if (!podeCriarEvento()) { showToast('Sem permissão pra editar'); return; }
+  const evt = _eventosCache.find(e => e.id === _viewingEventoId);
+  if (!evt) return;
+  // Marca modo edição + preenche o modal de novo-evento
+  _editingEventoId = evt.id;
+  document.getElementById('evt-titulo').value = evt.titulo || '';
+  const tipoEl = document.getElementById('evt-tipo');
+  if (tipoEl) tipoEl.value = evt.tipo || 'campanha';
+  document.getElementById('evt-inicio').value = evt.data_inicio ? evt.data_inicio.slice(0,10) : '';
+  const fimEl = document.getElementById('evt-fim');
+  if (fimEl) fimEl.value = evt.data_fim ? evt.data_fim.slice(0,10) : '';
+  document.getElementById('evt-desc').value = evt.descricao || '';
+  // Marca a cor atual
+  const corAtual = (evt.cor || '').toLowerCase();
+  const hidden = document.getElementById('evt-cor');
+  if (hidden) hidden.value = corAtual || '';
+  document.querySelectorAll('#evt-cores .evt-cor-btn').forEach(b => {
+    const bc = (b.getAttribute('data-cor') || '').toLowerCase();
+    b.classList.toggle('active', bc === corAtual || (!corAtual && b === document.querySelector('#evt-cores .evt-cor-btn')));
+  });
+  // Atualiza título e botão do modal pra deixar claro que é edição
+  const modalTitle = document.querySelector('#modal-novo-evento .modal-title, #modal-novo-evento h3, #modal-novo-evento h2');
+  if (modalTitle) modalTitle.textContent = 'Editar Evento';
+  const saveBtn = document.querySelector('#modal-novo-evento .btn-primary');
+  if (saveBtn) saveBtn.textContent = 'Salvar Alterações';
+  closeModal('ver-evento');
+  openModal('novo-evento');
 }
 
 // Navega pra Campanhas Internas + abre modal da campanha especifica
@@ -14259,6 +14303,7 @@ function abrirNovoEvento() {
 
 function calDiaClick(dateStr) {
   if (!podeCriarEvento()) return; // Clicar no dia não faz nada se não tem permissão
+  resetarFormNovoEvento(); // garante modo "criar" (não edição)
   document.getElementById('evt-inicio').value = dateStr;
   openModal('novo-evento');
 }
@@ -14291,14 +14336,41 @@ async function salvarEvento() {
   const cor = document.getElementById('evt-cor')?.value?.trim() || null;
   if(!titulo || !inicio) { showToast('Preencha título e data'); return; }
 
-  await sb.from('calendario').insert({ titulo, tipo, data_inicio: inicio, data_fim: fim, descricao: desc, cor });
+  const payload = { titulo, tipo, data_inicio: inicio, data_fim: fim, descricao: desc, cor };
+
+  if (_editingEventoId) {
+    // Modo edição — UPDATE
+    const editingId = _editingEventoId;
+    const { error } = await sb.from('calendario').update(payload).eq('id', editingId);
+    if (error) { showToast('Erro ao salvar: ' + error.message); return; }
+    showToast('Evento atualizado');
+    logActivity('editou_evento', titulo + ' (' + tipo + ')', 'calendario');
+    _editingEventoId = null;
+  } else {
+    // Modo criação — INSERT
+    const { error } = await sb.from('calendario').insert(payload);
+    if (error) { showToast('Erro ao criar: ' + error.message); return; }
+    showToast('Evento criado');
+    logActivity('criou_evento', titulo + ' (' + tipo + ')', 'calendario');
+  }
+
   closeModal('novo-evento');
-  document.getElementById('evt-titulo').value = '';
-  document.getElementById('evt-desc').value = '';
-  resetarCoresModal();
+  resetarFormNovoEvento();
   loadCalendario();
-  showToast('Evento criado');
-  logActivity('criou_evento', titulo + ' (' + tipo + ')', 'calendario');
+}
+
+// Reseta o form do modal novo-evento + restaura textos de "criação"
+function resetarFormNovoEvento() {
+  _editingEventoId = null;
+  const titulo = document.getElementById('evt-titulo'); if (titulo) titulo.value = '';
+  const desc = document.getElementById('evt-desc'); if (desc) desc.value = '';
+  const fim = document.getElementById('evt-fim'); if (fim) fim.value = '';
+  resetarCoresModal();
+  // Restaura textos do modal pra modo criação
+  const modalTitle = document.querySelector('#modal-novo-evento .modal-title, #modal-novo-evento h3, #modal-novo-evento h2');
+  if (modalTitle) modalTitle.textContent = 'Novo Evento';
+  const saveBtn = document.querySelector('#modal-novo-evento .btn-primary');
+  if (saveBtn) saveBtn.textContent = 'Salvar';
 }
 
 function mudarCorEvento() {
