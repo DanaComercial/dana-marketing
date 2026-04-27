@@ -7872,6 +7872,18 @@ updateDynamicField('foto');
 
   <!-- Tab: Briefings Salvos -->
   <div id="bv-tab-salvos" class="bv-tab-panel">
+
+    <!-- Seção: Campanhas aguardando briefing (carregada dinamicamente) -->
+    <div id="bv-aguardando-wrap" style="display:none;margin-bottom:24px;padding:14px 16px;background:linear-gradient(135deg,#fef3c7 0%,#fde68a 100%);border:1px solid #fbbf24;border-radius:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#78350f">⏳ Campanhas aguardando briefing</div>
+          <div style="font-size:11.5px;color:#92400e;margin-top:2px" id="bv-aguardando-sub">Campanhas internas criadas sem briefing ainda</div>
+        </div>
+      </div>
+      <div id="bv-aguardando-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px"></div>
+    </div>
+
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap">
       <div>
         <div class="card-title" style="font-size:14px">Briefings Salvos</div>
@@ -8083,6 +8095,7 @@ updateDynamicField('foto');
     <div style="display:flex;gap:8px;margin-top:16px;border-top:1px solid var(--border);padding-top:16px;flex-wrap:wrap" id="bv-modal-actions">
       <button class="btn btn-ghost btn-sm" onclick="imprimirBriefing()">🖨 Imprimir</button>
       <button class="btn btn-ghost btn-sm" onclick="abrirModalDuplicar()" id="bv-btn-duplicar">📋 Duplicar</button>
+      <button class="btn btn-ghost btn-sm" onclick="bvVincularACampanha()" id="bv-btn-vincular-camp" style="color:#7c3aed">🎯 Vincular a campanha</button>
       <button class="btn btn-ghost btn-sm" onclick="bvGerarMockupIA()" id="bv-btn-aia">🎨 Mockup IA</button>
       <button class="btn btn-ghost btn-sm" onclick="bvAbrirHistoricoIA()" id="bv-btn-aia-hist">📚 Histórico IA</button>
       <button class="btn btn-ghost btn-sm" onclick="abrirModalExcluir()" id="bv-btn-excluir" style="color:var(--red)">🗑 Excluir</button>
@@ -10282,10 +10295,25 @@ async function saveBriefing() {
       showToast('✓ Briefing salvo! A campanha está em "Campanhas".');
     }
 
+    // Se tem campanha interna aguardando → linka briefing recém-criado
+    if (campanhaId && _aguardandoCampanhaPendente?.id) {
+      try {
+        await sb.from('campanhas_internas')
+          .update({ briefing_id: campanhaId })
+          .eq('id', _aguardandoCampanhaPendente.id);
+        showToast(`✓ Briefing vinculado à campanha "${_aguardandoCampanhaPendente.nome}"`);
+        _aguardandoCampanhaPendente = null;
+        document.getElementById('construtor-vinculo-banner')?.remove();
+      } catch (eVinc) {
+        console.warn('[saveBriefing] vincular campanha aguardando falhou:', eVinc);
+      }
+    }
+
     logActivity('criou_briefing', titulo, 'briefingvisual');
     if (typeof loadBriefings === 'function') loadBriefings();
     if (typeof loadCampanhasFromBriefings === 'function') loadCampanhasFromBriefings();
     if (typeof loadTarefas === 'function') loadTarefas();
+    if (typeof ciLoad === 'function') { ciLoad().then(() => { if (typeof ciRender === 'function') ciRender(); }); }
     // Limpa estado local de to-dos após salvar
     cbData.todos = [];
     cbData.observacoes = null;
@@ -10345,6 +10373,97 @@ async function brfPedirColunaKanban(qtd) {
 // ── BRIEFING VISUAL (Fase 1: Briefings Salvos) ──
 let _briefingsCache = [];
 let _briefingAtivoId = null;
+// Quando o user clica "Criar briefing →" numa campanha aguardando, guardamos o ID aqui.
+// saveBriefing() detecta esse contexto e linka o briefing recém-criado à campanha.
+let _aguardandoCampanhaPendente = null;
+
+// Handler: clicou "Criar briefing →" numa campanha aguardando
+window.aguardandoCriarBriefing = function(campanhaId, campanhaNome) {
+  if (!podeCriarBriefing()) { showToast('Sem permissão pra criar briefing'); return; }
+  _aguardandoCampanhaPendente = { id: campanhaId, nome: campanhaNome || '' };
+  // Navega para o Construtor
+  const navEl = document.querySelector('[onclick*=construtor]');
+  if (navEl) go(navEl, 'construtor');
+  // Pré-preenche o nome da campanha no Construtor (campo #camp-name)
+  setTimeout(() => {
+    const campNameEl = document.getElementById('camp-name');
+    if (campNameEl && campanhaNome) campNameEl.value = campanhaNome;
+    // Mostra banner indicando vínculo
+    let banner = document.getElementById('construtor-vinculo-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'construtor-vinculo-banner';
+      banner.style.cssText = 'background:linear-gradient(135deg,#fef3c7,#fde68a);border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin:0 0 14px 0;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap';
+      const view = document.getElementById('view-construtor');
+      if (view) view.insertBefore(banner, view.firstChild);
+    }
+    banner.innerHTML = `
+      <div style="font-size:12.5px;color:#78350f">
+        <strong>⏳ Vinculando à campanha:</strong> ${(campanhaNome || '').replace(/</g,'&lt;')}
+        <div style="font-size:11px;color:#92400e;margin-top:2px">Ao salvar este briefing, ele será automaticamente vinculado a essa campanha interna.</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="aguardandoCancelarVinculo()" style="font-size:11px">Cancelar vínculo</button>
+    `;
+    showToast('Construtor pré-preenchido. Salve o briefing pra vincular à campanha.');
+  }, 100);
+};
+
+window.aguardandoCancelarVinculo = function() {
+  _aguardandoCampanhaPendente = null;
+  document.getElementById('construtor-vinculo-banner')?.remove();
+  showToast('Vínculo cancelado');
+};
+
+// Handler: clicou "Selecionar existente" numa campanha aguardando
+window.aguardandoVincularExistente = async function(campanhaId) {
+  try {
+    const { data, error } = await sb.from('briefings_campanha')
+      .select('id,titulo,publico,created_at')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    if (!data || !data.length) {
+      showToast('Nenhum briefing existente. Use "Criar briefing →"');
+      return;
+    }
+    const opts = data.map(b => {
+      const dt = b.created_at ? new Date(b.created_at).toLocaleDateString('pt-BR') : '';
+      const label = `${b.titulo || 'Sem título'}${b.publico ? ' · ' + b.publico : ''}${dt ? ' (' + dt + ')' : ''}`;
+      return `<option value="${b.id}">${label.replace(/</g,'&lt;')}</option>`;
+    }).join('');
+    const html = `
+      <div class="modal-overlay show" id="modal-vincular-brief" style="z-index:10001">
+        <div class="modal" style="max-width:480px">
+          <div class="modal-header"><div class="modal-title">Vincular briefing existente</div></div>
+          <div style="font-size:12.5px;color:var(--text2);margin-bottom:12px">Selecione um briefing para vincular a esta campanha interna:</div>
+          <select id="vincular-brief-select" class="input">${opts}</select>
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button class="btn btn-ghost" id="vincular-brief-cancel" style="flex:1">Cancelar</button>
+            <button class="btn btn-primary" id="vincular-brief-ok" style="flex:1">Vincular</button>
+          </div>
+        </div>
+      </div>
+    `;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    const modal = wrap.firstElementChild;
+    document.body.appendChild(modal);
+    document.getElementById('vincular-brief-cancel').onclick = () => modal.remove();
+    document.getElementById('vincular-brief-ok').onclick = async () => {
+      const briefingId = document.getElementById('vincular-brief-select').value;
+      if (!briefingId) { showToast('Selecione um briefing'); return; }
+      const { error: errUpd } = await sb.from('campanhas_internas').update({ briefing_id: briefingId }).eq('id', campanhaId);
+      if (errUpd) { showToast('Erro: ' + errUpd.message); return; }
+      modal.remove();
+      showToast('✓ Briefing vinculado à campanha');
+      loadBriefings();
+      if (typeof ciLoad === 'function') { await ciLoad(); if (typeof ciRender === 'function') ciRender(); }
+    };
+  } catch (e) {
+    console.warn('[bv] aguardandoVincularExistente', e);
+    showToast('Erro: ' + (e.message || e));
+  }
+};
 
 function switchBriefingTab(btn, tab) {
   // Só considera as tabs top-level da view Briefing Visual (não os filtros da aba Materiais)
@@ -10374,7 +10493,50 @@ function irParaConstrutor() {
   if (navEl) go(navEl, 'construtor');
 }
 
+async function loadCampanhasAguardandoBriefing() {
+  const wrap = document.getElementById('bv-aguardando-wrap');
+  const list = document.getElementById('bv-aguardando-list');
+  const sub = document.getElementById('bv-aguardando-sub');
+  if (!wrap || !list) return;
+  try {
+    const { data, error } = await sb.from('campanhas_internas')
+      .select('id,nome,tipo,data_inicio,data_fim,publico_alvo,briefing_id,briefing_link,status')
+      .is('briefing_id', null)
+      .or('briefing_link.is.null,briefing_link.eq.')
+      .neq('status', 'finalizada')
+      .neq('status', 'cancelada')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    const aguardando = (data || []).filter(c => !c.briefing_id && (!c.briefing_link || c.briefing_link.trim() === ''));
+    if (!aguardando.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    if (sub) sub.textContent = `${aguardando.length} campanha${aguardando.length>1?'s':''} interna${aguardando.length>1?'s':''} sem briefing`;
+    const fmtDt = (s) => s ? new Date(s).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) : '';
+    list.innerHTML = aguardando.map(c => {
+      const periodo = c.data_inicio || c.data_fim ? `${fmtDt(c.data_inicio)}${c.data_fim ? ' → ' + fmtDt(c.data_fim) : ''}` : '';
+      return `
+        <div style="background:white;border:1px solid #fbbf24;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px">
+          <div style="font-weight:700;font-size:13px;color:#1a1a1a;line-height:1.3">${esc(c.nome || 'Sem nome')}</div>
+          ${c.publico_alvo ? `<div style="font-size:11.5px;color:#666">${esc(c.publico_alvo)}</div>` : ''}
+          ${periodo ? `<div style="font-size:11px;color:#92400e;font-weight:600">📅 ${periodo}</div>` : ''}
+          <div style="display:flex;gap:6px;margin-top:4px">
+            <button class="btn btn-primary btn-sm" style="flex:1;font-size:11.5px" onclick="aguardandoCriarBriefing('${c.id}', ${JSON.stringify(c.nome||'').replace(/"/g,'&quot;')})">Criar briefing →</button>
+            <button class="btn btn-ghost btn-sm" style="font-size:11.5px" onclick="aguardandoVincularExistente('${c.id}')">Selecionar existente</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    console.warn('[bv] loadCampanhasAguardandoBriefing falhou', e);
+    wrap.style.display = 'none';
+  }
+}
+
 async function loadBriefings() {
+  // Carrega também as campanhas aguardando (não bloqueia)
+  loadCampanhasAguardandoBriefing();
+
   const list = document.getElementById('bv-briefings-list');
   const countSub = document.getElementById('bv-count-sub');
   const btnNovo = document.getElementById('bv-btn-novo');
@@ -10477,9 +10639,15 @@ function abrirBriefing(id) {
   const btnDup = document.getElementById('bv-btn-duplicar');
   const btnDel = document.getElementById('bv-btn-excluir');
   const btnAia = document.getElementById('bv-btn-aia');
+  const btnVincCamp = document.getElementById('bv-btn-vincular-camp');
   if (btnDup) btnDup.style.display = podeCriarBriefing() ? '' : 'none';
   if (btnDel) btnDel.style.display = podeExcluirBriefing() ? '' : 'none';
   if (btnAia) btnAia.style.display = (currentProfile?.cargo === 'admin' || userPermissoes['avatares_ia_gerar'] !== false) ? '' : 'none';
+  // Vincular a campanha — só pra quem pode editar campanhas internas
+  if (btnVincCamp) {
+    const podeVinc = currentProfile?.cargo === 'admin' || userPermissoes['campanha_interna_editar'] !== false;
+    btnVincCamp.style.display = podeVinc ? '' : 'none';
+  }
   const btnAiaHist = document.getElementById('bv-btn-aia-hist');
   if (btnAiaHist) btnAiaHist.style.display = (currentProfile?.cargo === 'admin' || userPermissoes['avatares_ia_gerar'] !== false) ? '' : 'none';
 
@@ -10504,6 +10672,67 @@ function bvAbrirHistoricoIA() {
     contextoRefId: _briefingAtivoId,
   });
 }
+
+// Vincula este briefing a uma campanha interna existente (ou desvincula)
+window.bvVincularACampanha = async function() {
+  if (!_briefingAtivoId) { showToast('Nenhum briefing aberto'); return; }
+  const briefingId = _briefingAtivoId;
+  try {
+    const { data: campanhas, error } = await sb.from('campanhas_internas')
+      .select('id,nome,briefing_id,status,data_inicio,data_fim')
+      .order('created_at', { ascending: false })
+      .limit(300);
+    if (error) throw error;
+    if (!campanhas || !campanhas.length) {
+      showToast('Nenhuma campanha interna encontrada. Crie uma primeiro.');
+      return;
+    }
+    // Detecta se este briefing já está vinculado a alguma campanha
+    const jaVinculadas = campanhas.filter(c => c.briefing_id === briefingId);
+    const fmtDt = (s) => s ? new Date(s).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) : '';
+    const opts = ['<option value="">— Selecionar campanha —</option>'];
+    campanhas.forEach(c => {
+      const periodo = c.data_inicio || c.data_fim ? ` (${fmtDt(c.data_inicio)}${c.data_fim ? '→'+fmtDt(c.data_fim) : ''})` : '';
+      const flag = c.briefing_id === briefingId ? ' ✓ vinculada' : (c.briefing_id ? ' [já tem outro briefing]' : '');
+      opts.push(`<option value="${c.id}">${(c.nome||'Sem nome').replace(/</g,'&lt;')}${periodo}${flag}</option>`);
+    });
+    const html = `
+      <div class="modal-overlay show" id="modal-bv-vincular" style="z-index:10001">
+        <div class="modal" style="max-width:480px">
+          <div class="modal-header"><div class="modal-title">🎯 Vincular briefing a campanha</div></div>
+          <div style="font-size:12.5px;color:var(--text2);margin-bottom:12px">Selecione a campanha interna para vincular este briefing:</div>
+          <select id="bv-vincular-select" class="input">${opts.join('')}</select>
+          ${jaVinculadas.length ? `<div style="margin-top:10px;padding:8px 10px;background:#fef3c7;border-radius:6px;font-size:11.5px;color:#78350f">⚠ Este briefing já está vinculado a: <strong>${jaVinculadas.map(c=>c.nome).join(', ').replace(/</g,'&lt;')}</strong></div>` : ''}
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button class="btn btn-ghost" id="bv-vincular-cancel" style="flex:1">Cancelar</button>
+            <button class="btn btn-primary" id="bv-vincular-ok" style="flex:1">Vincular</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('modal-bv-vincular')?.remove();
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    const modal = wrap.firstElementChild;
+    document.body.appendChild(modal);
+    document.getElementById('bv-vincular-cancel').onclick = () => modal.remove();
+    document.getElementById('bv-vincular-ok').onclick = async () => {
+      const campId = document.getElementById('bv-vincular-select').value;
+      if (!campId) { showToast('Selecione uma campanha'); return; }
+      const { error: errUpd } = await sb.from('campanhas_internas').update({ briefing_id: briefingId }).eq('id', campId);
+      if (errUpd) { showToast('Erro: ' + errUpd.message); return; }
+      modal.remove();
+      const camp = campanhas.find(c => c.id === campId);
+      showToast(`✓ Briefing vinculado à campanha "${camp?.nome || ''}"`);
+      logActivity('vinculou_briefing_campanha', camp?.nome || '', 'briefingvisual');
+      if (typeof loadBriefings === 'function') loadBriefings();
+      if (typeof ciLoad === 'function') { await ciLoad(); if (typeof ciRender === 'function') ciRender(); }
+    };
+  } catch (e) {
+    console.warn('[bv] vincular a campanha falhou', e);
+    showToast('Erro: ' + (e.message || e));
+  }
+};
 
 function bvGerarMockupIA() {
   if (!_briefingAtivoId) { showToast('Nenhum briefing aberto'); return; }
@@ -20564,8 +20793,30 @@ const aiChatInterval = setInterval(() => {
                 </div>
               </div>
               <div class="form-field" style="grid-column:1 / -1">
-                <label>Link do briefing (Drive / Notion / Figma)</label>
-                <input id="ci-briefing" class="input" type="url" value="${esc(c?.briefing_link || '')}" placeholder="https://...">
+                <label>Briefing</label>
+                <div style="display:flex;flex-direction:column;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px">
+                  <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;font-weight:500">
+                    <input type="radio" name="ci-brief-mode" value="none" ${(!c?.briefing_id && !c?.briefing_link) ? 'checked' : ''} onchange="ciBriefMode('none')">
+                    Sem briefing ainda — vincular depois
+                  </label>
+                  <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;font-weight:500">
+                    <input type="radio" name="ci-brief-mode" value="select" ${c?.briefing_id ? 'checked' : ''} onchange="ciBriefMode('select')">
+                    Selecionar briefing existente
+                  </label>
+                  <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;font-weight:500">
+                    <input type="radio" name="ci-brief-mode" value="external" ${c?.briefing_link ? 'checked' : ''} onchange="ciBriefMode('external')">
+                    Link externo (Drive / Notion / Figma)
+                  </label>
+                </div>
+                <div id="ci-brief-select-wrap" style="margin-top:8px;display:${c?.briefing_id ? 'block' : 'none'}">
+                  <select id="ci-briefing-id" class="input" onchange="ciBriefSelectChange()">
+                    <option value="">— Carregando briefings… —</option>
+                  </select>
+                  <div style="font-size:11px;color:var(--text3);margin-top:4px">Mostra TODOS os briefings (avulsos + já vinculados a outras campanhas)</div>
+                </div>
+                <div id="ci-brief-external-wrap" style="margin-top:8px;display:${c?.briefing_link ? 'block' : 'none'}">
+                  <input id="ci-briefing" class="input" type="url" value="${esc(c?.briefing_link || '')}" placeholder="https://...">
+                </div>
               </div>
               <div class="form-field" style="grid-column:1 / -1">
                 <label style="font-weight:700;color:var(--text);margin-top:10px">✨ Estratégia (diferencial Dana)</label>
@@ -20607,6 +20858,7 @@ const aiChatInterval = setInterval(() => {
     const profiles = await ciLoadProfiles();
     document.getElementById('modal-ci-form')?.remove();
     document.body.insertAdjacentHTML('beforeend', ciModalHtml(null, profiles));
+    ciCarregarBriefingsParaSelect();
   };
 
   window.ciEditarCampanha = async function(id) {
@@ -20616,7 +20868,43 @@ const aiChatInterval = setInterval(() => {
     const profiles = await ciLoadProfiles();
     document.getElementById('modal-ci-form')?.remove();
     document.body.insertAdjacentHTML('beforeend', ciModalHtml(c, profiles));
+    ciCarregarBriefingsParaSelect(c?.briefing_id || null);
   };
+
+  // Toggle entre os 3 modos de briefing no modal Nova Campanha Interna
+  window.ciBriefMode = function(mode) {
+    const selWrap = document.getElementById('ci-brief-select-wrap');
+    const extWrap = document.getElementById('ci-brief-external-wrap');
+    if (selWrap) selWrap.style.display = mode === 'select' ? 'block' : 'none';
+    if (extWrap) extWrap.style.display = mode === 'external' ? 'block' : 'none';
+    if (mode === 'select') ciCarregarBriefingsParaSelect();
+  };
+
+  window.ciBriefSelectChange = function() { /* placeholder pra futura preview */ };
+
+  // Carrega TODOS os briefings (avulsos + vinculados) no <select>
+  async function ciCarregarBriefingsParaSelect(selectedId) {
+    const sel = document.getElementById('ci-briefing-id');
+    if (!sel) return;
+    try {
+      const { data, error } = await sb.from('briefings_campanha')
+        .select('id,titulo,publico,created_at')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      const opts = ['<option value="">— Selecionar briefing —</option>'];
+      (data || []).forEach(b => {
+        const dt = b.created_at ? new Date(b.created_at).toLocaleDateString('pt-BR') : '';
+        const label = `${b.titulo || 'Sem título'}${b.publico ? ' · ' + b.publico : ''}${dt ? ' (' + dt + ')' : ''}`;
+        const sel = (selectedId && selectedId === b.id) ? ' selected' : '';
+        opts.push(`<option value="${b.id}"${sel}>${label.replace(/</g,'&lt;')}</option>`);
+      });
+      sel.innerHTML = opts.join('');
+    } catch (e) {
+      console.warn('[ci] carregar briefings falhou', e);
+      sel.innerHTML = '<option value="">— Erro ao carregar —</option>';
+    }
+  }
 
   window.fecharModalCI = function() { document.getElementById('modal-ci-form')?.remove(); };
 
@@ -20630,6 +20918,14 @@ const aiChatInterval = setInterval(() => {
       const profiles = await ciLoadProfiles();
       const respProf = profiles.find(p => p.id === respId);
       const canais = Array.from(document.querySelectorAll('.ci-canal:checked')).map(c => c.value);
+      // Resolve modo de briefing (sem / selecionar existente / link externo)
+      const briefMode = document.querySelector('input[name="ci-brief-mode"]:checked')?.value || 'none';
+      let briefingId = null, briefingLink = null;
+      if (briefMode === 'select') {
+        briefingId = document.getElementById('ci-briefing-id')?.value || null;
+      } else if (briefMode === 'external') {
+        briefingLink = document.getElementById('ci-briefing')?.value || null;
+      }
       const payload = {
         nome,
         tipo: document.getElementById('ci-tipo')?.value || 'outro',
@@ -20641,7 +20937,8 @@ const aiChatInterval = setInterval(() => {
         meta_valor: parseFloat(document.getElementById('ci-meta-valor')?.value) || null,
         publico_alvo: document.getElementById('ci-publico')?.value || null,
         canais: canais.length ? canais : null,
-        briefing_link: document.getElementById('ci-briefing')?.value || null,
+        briefing_link: briefingLink,
+        briefing_id: briefingId,
         responsavel_id: respId,
         responsavel_nome: respProf?.nome || null,
         oferta_principal: document.getElementById('ci-oferta')?.value || null,
