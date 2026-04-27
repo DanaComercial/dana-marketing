@@ -6855,7 +6855,7 @@ updateDynamicField('foto');
   <!-- Funil de Vendas -->
   <div class="card mb20">
     <div class="card-header">
-      <div><div class="card-title">Funil de Vendas</div><div class="card-sub">Conversão entre etapas — dados Bling em tempo real</div></div>
+      <div><div class="card-title">Funil de Vendas</div><div class="card-sub">Distribuição dos pedidos por status do mês — dados Bling em tempo real</div></div>
       <div style="display:flex;gap:8px">
         <select id="funil-mes" onchange="loadFunilVendas()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface)">
         </select>
@@ -13769,25 +13769,27 @@ function renderFunil(t) {
   ];
 
   const max = Math.max(...stages.map(s => s.value), 1);
+  // Total do mês = soma de todos os estados (snapshot, não cumulativo histórico)
+  const totalMes = stages.reduce((acc, s) => acc + (s.value || 0), 0) + (t.cancelado || 0);
 
-  container.innerHTML = stages.map((s, i) => {
+  container.innerHTML = stages.map(s => {
     const pct = Math.round(s.value / max * 100);
-    const conv = i > 0 && stages[i-1].value > 0 ? Math.round(s.value / stages[i-1].value * 100) : null;
+    const pctTotal = totalMes > 0 ? Math.round(s.value / totalMes * 100) : 0;
     return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
       <div style="width:180px;font-size:12px;font-weight:500;text-align:right;color:var(--text2)">${s.label}</div>
       <div style="flex:1;height:28px;background:var(--surface3);border-radius:6px;overflow:hidden;position:relative">
         <div style="height:100%;width:${pct}%;background:${s.color};border-radius:6px;transition:width 0.6s ease"></div>
         <div style="position:absolute;top:50%;right:8px;transform:translateY(-50%);font-size:11px;font-weight:700">${s.value}</div>
       </div>
-      ${conv !== null ? '<div style="font-size:10px;color:var(--text3);width:50px;text-align:center">'+conv+'%</div>' : '<div style="width:50px"></div>'}
+      <div style="font-size:10px;color:var(--text3);width:50px;text-align:center" title="${pctTotal}% do total de pedidos do mês">${pctTotal}%</div>
     </div>`;
   }).join('') + `<div style="display:flex;align-items:center;gap:12px;margin-top:4px;opacity:0.6">
     <div style="width:180px;font-size:12px;font-weight:500;text-align:right;color:var(--red)">Cancelado</div>
     <div style="flex:1;height:20px;background:var(--red-bg);border-radius:6px;overflow:hidden;position:relative">
-      <div style="height:100%;width:${Math.round(t.cancelado/max*100)}%;background:var(--red);border-radius:6px;opacity:0.6"></div>
-      <div style="position:absolute;top:50%;right:8px;transform:translateY(-50%);font-size:10px;font-weight:600;color:var(--red)">${t.cancelado}</div>
+      <div style="height:100%;width:${Math.round((t.cancelado||0)/max*100)}%;background:var(--red);border-radius:6px;opacity:0.6"></div>
+      <div style="position:absolute;top:50%;right:8px;transform:translateY(-50%);font-size:10px;font-weight:600;color:var(--red)">${t.cancelado||0}</div>
     </div>
-    <div style="width:50px"></div>
+    <div style="font-size:10px;color:var(--red);width:50px;text-align:center;opacity:0.7">${totalMes>0?Math.round((t.cancelado||0)/totalMes*100):0}%</div>
   </div>`;
 }
 
