@@ -10197,30 +10197,57 @@ function aplicarSugestaoIA(scope) {
     if (s.conceito_msg) { const el = document.getElementById('camp-msg'); if (el) el.value = s.conceito_msg; }
     if (s.hashtag) { const el = document.getElementById('camp-hashtag'); if (el) el.value = s.hashtag; }
   } else if (scope === 'oferta') {
+    // Normaliza string: lowercase + remove acentos + remove pontuação
+    const normStr = (str) => (str || '').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove diacríticos
+      .replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
     if (s.oferta_tipo) {
+      const ofertaNorm = normStr(s.oferta_tipo);
+      const ofertaPrimeiraPalavra = ofertaNorm.split(' ')[0];
       const cards = document.querySelectorAll('.offer-card');
-      let matched = false;
+      let matched = null;
+      // Pass 1: match exato normalizado
       cards.forEach(c => {
-        const nome = c.querySelector('.offer-name')?.textContent?.trim() || '';
-        // Match exato OU primeira palavra
-        if (nome === s.oferta_tipo || nome.toLowerCase().startsWith(s.oferta_tipo.split(' ')[0].toLowerCase())) {
-          cards.forEach(o => o.classList.remove('selected'));
-          c.classList.add('selected');
-          matched = true;
-        }
+        if (matched) return;
+        const nomeNorm = normStr(c.querySelector('.offer-name')?.textContent || '');
+        if (nomeNorm === ofertaNorm) matched = c;
       });
-      // Se gerou argumento, mostra como tooltip/banner no topo do step
-      if (s.oferta_argumento) {
-        let banner = document.getElementById('cb-oferta-arg-banner');
-        if (!banner) {
-          banner = document.createElement('div');
-          banner.id = 'cb-oferta-arg-banner';
-          banner.style.cssText = 'background:#ede9fe;border:1px solid #c4b5fd;border-radius:8px;padding:10px 14px;margin:0 0 14px 0;font-size:12.5px;color:#5b21b6';
-          const grid = document.querySelector('#cb-3 .offer-grid');
-          if (grid && grid.parentNode) grid.parentNode.insertBefore(banner, grid);
-        }
-        banner.innerHTML = `<strong>✨ IA sugere:</strong> ${s.oferta_argumento.replace(/</g,'&lt;')}`;
+      // Pass 2: contains (qualquer direção)
+      if (!matched) {
+        cards.forEach(c => {
+          if (matched) return;
+          const nomeNorm = normStr(c.querySelector('.offer-name')?.textContent || '');
+          if (nomeNorm.includes(ofertaNorm) || ofertaNorm.includes(nomeNorm)) matched = c;
+        });
       }
+      // Pass 3: primeira palavra
+      if (!matched && ofertaPrimeiraPalavra && ofertaPrimeiraPalavra.length >= 3) {
+        cards.forEach(c => {
+          if (matched) return;
+          const nomeNorm = normStr(c.querySelector('.offer-name')?.textContent || '');
+          if (nomeNorm.startsWith(ofertaPrimeiraPalavra) || ofertaPrimeiraPalavra.startsWith(nomeNorm.split(' ')[0])) matched = c;
+        });
+      }
+      if (matched) {
+        cards.forEach(o => o.classList.remove('selected'));
+        matched.classList.add('selected');
+        console.log('[ia-oferta] selecionado:', matched.querySelector('.offer-name')?.textContent, 'baseado em:', s.oferta_tipo);
+      } else {
+        console.warn('[ia-oferta] nenhum card bate com', s.oferta_tipo, '— cards disponíveis:',
+          [...cards].map(c => c.querySelector('.offer-name')?.textContent.trim()));
+      }
+    }
+    // Banner com argumento da IA (sempre, mesmo se não casou nenhum card)
+    if (s.oferta_argumento) {
+      let banner = document.getElementById('cb-oferta-arg-banner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'cb-oferta-arg-banner';
+        banner.style.cssText = 'background:#ede9fe;border:1px solid #c4b5fd;border-radius:8px;padding:10px 14px;margin:0 0 14px 0;font-size:12.5px;color:#5b21b6';
+        const grid = document.querySelector('#cb-3 .offer-grid');
+        if (grid && grid.parentNode) grid.parentNode.insertBefore(banner, grid);
+      }
+      banner.innerHTML = `<strong>✨ IA sugere:</strong> ${s.oferta_argumento.replace(/</g,'&lt;')}`;
     }
   } else if (scope === 'copy') {
     if (s.gancho) { const el = document.getElementById('copy-gancho'); if (el) el.value = s.gancho; }
