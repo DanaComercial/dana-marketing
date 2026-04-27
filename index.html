@@ -9777,25 +9777,29 @@ function dragOver(e) {
 }
 
 async function drop(e, colId) {
-  if (!window.dragId) return;
+  console.log('[drop] STEP 1 entered · dragId=', window.dragId);
+  if (!window.dragId) { console.warn('[drop] sem dragId, abort'); return; }
   e.preventDefault();
   e.stopPropagation();
   document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
 
+  console.log('[drop] STEP 2 buscando card pelo id:', window.dragId);
   const dragged = document.getElementById(window.dragId);
-  if (!dragged) { window.dragId = null; _removePlaceholder(); return; }
+  console.log('[drop] STEP 3 dragged el:', dragged);
+  if (!dragged) { console.warn('[drop] card nao achado'); window.dragId = null; _removePlaceholder(); return; }
 
-  // Resolve body alvo + posição (do placeholder ou _getCardAfter)
+  // Resolve body alvo
   const colBody = _resolveColBody(e) || document.getElementById('col-' + colId);
-  if (!colBody) { window.dragId = null; _removePlaceholder(); return; }
+  console.log('[drop] STEP 4 colBody:', colBody?.id);
+  if (!colBody) { console.warn('[drop] colBody null'); window.dragId = null; _removePlaceholder(); return; }
   const colunaFinal = colBody.id.replace(/^col-/, '');
 
   // Insere o card na posição do placeholder
+  console.log('[drop] STEP 5 inserindo card no DOM');
   const ph = document.getElementById('kanban-drop-placeholder');
   if (ph && ph.parentNode === colBody) {
     colBody.insertBefore(dragged, ph);
   } else {
-    // Fallback: calcula pela posição do mouse
     const afterEl = _getCardAfter(colBody, e.clientY);
     if (afterEl == null) colBody.appendChild(dragged);
     else colBody.insertBefore(dragged, afterEl);
@@ -9804,23 +9808,27 @@ async function drop(e, colId) {
   dragged.classList.remove('dragging');
 
   // Lê ordem final + monta UPSERT
+  console.log('[drop] STEP 6 lendo cards pra upsert');
   const cards = [...colBody.querySelectorAll('.k-card')];
+  console.log('[drop] STEP 6.1 total cards na coluna:', cards.length);
   const updates = cards.map((card, idx) => ({
     id: card.dataset.id,
     posicao: idx,
     coluna: colunaFinal,
   })).filter(u => u.id);
 
-  console.log('[kanban] drop em', colunaFinal, '→', updates.length, 'cards atualizados');
+  console.log('%c[kanban] drop em ' + colunaFinal + ' → ' + updates.length + ' cards atualizados', 'color:#16a34a;font-weight:bold');
 
-  if (!updates.length) { window.dragId = null; return; }
+  if (!updates.length) { console.warn('[drop] nenhum update'); window.dragId = null; return; }
 
   // Silencia realtime durante save pra evitar saltos
   window._dragSilenceRealtime = true;
   setTimeout(() => { window._dragSilenceRealtime = false; }, 1500);
 
   try {
-    const { error } = await sb.from('tarefas').upsert(updates, { onConflict: 'id' });
+    console.log('[drop] STEP 7 chamando sb.upsert com', updates.length, 'rows');
+    const { error, data } = await sb.from('tarefas').upsert(updates, { onConflict: 'id' });
+    console.log('[drop] STEP 8 upsert respondeu · error:', error, '· data:', data);
     if (error) {
       console.error('[kanban] erro ao salvar:', error);
       showToast('Erro ao salvar ordem: ' + error.message);
