@@ -13898,9 +13898,15 @@ async function loadPerfTopProdutos() {
       .gte('data', anoAtual+'-'+String(mesAtual).padStart(2,'0')+'-01'));
     if(!data) return;
 
-    // Por status
-    const statusMap = { 9:'Atendido', 6:'Em aberto', 12:'Cancelado', 15:'Verificado', 21:'Em digitação', 35734:'Costura', 35736:'Bordado', 17008:'Confeccionado' };
-    const statusChip = { 9:'ativo', 6:'prod', 12:'pause', 15:'plan', 21:'plan', 35734:'rev', 35736:'rev', 17008:'prod' };
+    // Por status — Matriz e BC tem custom statuses (>10000)
+    const statusMap = {
+      9:'Atendido', 6:'Em aberto', 12:'Cancelado', 15:'Verificado', 21:'Em digitação',
+      // Matriz custom
+      35734:'Costura', 35736:'Bordado', 17008:'Confeccionado',
+      // BC custom (nomes a confirmar com cliente)
+      26884:'Status BC #26884', 35749:'Status BC #35749', 35750:'Status BC #35750', 35751:'Status BC #35751',
+    };
+    const statusChip = { 9:'ativo', 6:'prod', 12:'pause', 15:'plan', 21:'plan', 35734:'rev', 35736:'rev', 17008:'prod', 26884:'plan', 35749:'plan', 35750:'plan', 35751:'plan' };
     const porStatus = {};
     data.forEach(p => {
       const sid = p.situacao_id;
