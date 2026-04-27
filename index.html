@@ -9826,9 +9826,17 @@ async function drop(e, colId) {
   setTimeout(() => { window._dragSilenceRealtime = false; }, 1500);
 
   try {
-    console.log('[drop] STEP 7 chamando sb.upsert com', updates.length, 'rows');
-    const { error, data } = await sb.from('tarefas').upsert(updates, { onConflict: 'id' });
-    console.log('[drop] STEP 8 upsert respondeu · error:', error, '· data:', data);
+    console.log('[drop] STEP 7 chamando UPDATE em paralelo p/', updates.length, 'rows');
+    // UPDATE individual em paralelo (upsert dava erro de NOT NULL no titulo
+    // porque tentava INSERT em conflito antes de resolver). Como sabemos que
+    // as rows existem, basta UPDATE de cada uma.
+    const results = await Promise.all(
+      updates.map(u => sb.from('tarefas')
+        .update({ posicao: u.posicao, coluna: u.coluna })
+        .eq('id', u.id))
+    );
+    const error = results.find(r => r.error)?.error;
+    console.log('[drop] STEP 8 updates respondidos · error:', error || 'none');
     if (error) {
       console.error('[kanban] erro ao salvar:', error);
       showToast('Erro ao salvar ordem: ' + error.message);
