@@ -9763,7 +9763,12 @@ function _resolveColBody(e) {
 }
 
 function dragOver(e) {
-  if (!window.dragId) return; // não interfere se não estamos arrastando card
+  // DEBUG: log primeiro de tudo
+  if (!window._dragOverLogged) {
+    console.log('%c[kanban] DRAGOVER fired (1st time)', 'color:#a855f7;font-weight:bold', 'target:', e.target.tagName, e.target.className);
+    window._dragOverLogged = true;
+  }
+  if (!window.dragId) { console.log('[dragOver] sem dragId, abort'); return; }
   e.preventDefault();
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
   const colBody = _resolveColBody(e);
@@ -9863,30 +9868,37 @@ document.addEventListener('dragstart', (e) => {
   }
 }, true); // capture phase
 
-// FALLBACK GLOBAL: se inline ondragover nao funcionar, este captura no document
+// FALLBACK GLOBAL: dragover capture phase (antes de qualquer stopPropagation)
+let _globalDragOverLogged = false;
 document.addEventListener('dragover', (e) => {
+  if (!_globalDragOverLogged) {
+    console.log('%c[kanban GLOBAL] dragover (1st)', 'color:#06b6d4;font-weight:bold', 'target:', e.target.tagName, e.target.className, 'dragId:', window.dragId);
+    _globalDragOverLogged = true;
+  }
   if (!window.dragId) return;
-  const colBody = e.target.closest && e.target.closest('.kanban-body');
-  const col = e.target.closest && e.target.closest('.kanban-col');
-  if (!colBody && !col) return;
+  // SEMPRE preventDefault em qualquer lugar do kanban-board pra permitir drop
+  const board = e.target.closest && e.target.closest('#kanban-board');
+  if (!board) return;
   e.preventDefault();
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-  const target = colBody || col.querySelector('.kanban-body');
+  const colBody = e.target.closest && e.target.closest('.kanban-body');
+  const col = e.target.closest && e.target.closest('.kanban-col');
+  const target = colBody || (col && col.querySelector('.kanban-body'));
   if (target) _placePlaceholder(target, e.clientY);
-});
+}, true); // ← CAPTURE PHASE: roda ANTES de qualquer stopPropagation
 
-// FALLBACK GLOBAL: drop em qualquer lugar do kanban-board
+// FALLBACK GLOBAL: drop em qualquer lugar do kanban-board (capture phase)
 document.addEventListener('drop', async (e) => {
+  console.log('%c[kanban GLOBAL] DROP fired', 'color:#dc2626;font-weight:bold', 'target:', e.target.tagName, e.target.className);
   if (!window.dragId) return;
   const col = e.target.closest && e.target.closest('.kanban-col');
   if (!col) return;
   const colId = col.getAttribute('data-col');
   if (!colId) return;
-  console.log('[kanban GLOBAL] drop fallback ativado em coluna', colId);
+  console.log('[kanban GLOBAL] drop em coluna', colId);
   e.preventDefault();
-  // Chama o drop normal
   drop(e, colId);
-});
+}, true); // CAPTURE PHASE
 function updateKanbanCounts() {
   // Counts são gerados dinamicamente pelo loadTarefas
 }
