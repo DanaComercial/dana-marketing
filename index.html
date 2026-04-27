@@ -8760,8 +8760,13 @@ updateDynamicField('foto');
   <!-- Step 3 -->
   <div class="cb-panel" id="cb-2">
     <div class="cb-rule"><div class="cb-rule-icon">3</div><strong>Pilar 3 — Conceito da Campanha:</strong> Nome forte + mensagem: PROBLEMA + IMPACTO + SOLUÇÃO DANA.</div>
-    <div class="cb-title">Defina o conceito criativo da campanha</div>
-    <div class="cb-sub">O conceito é a ideia-mestre que vai guiar todos os criativos, copies e conteúdos.</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+      <div>
+        <div class="cb-title" style="margin:0">Defina o conceito criativo da campanha</div>
+        <div class="cb-sub" style="margin:4px 0 0 0">A IA gera nome + mensagem + hashtag baseado no público + dor selecionados. Edite livremente.</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="gerarEstrategiaComIA(true,'conceito')" style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;white-space:nowrap;font-size:12px">🔄 Regenerar com IA</button>
+    </div>
     <div class="form-row"><label class="label">Nome da campanha (forte e memorável)</label><input class="input" id="camp-name" placeholder="Ex: Poder do Jaleco, Imagem é Tudo, #VemPraDana" value="A Profissional Que Você É"></div>
     <div class="form-row"><label class="label">Mensagem central (problema + impacto + solução)</label><textarea class="input" id="camp-msg" rows="3" placeholder="A sua imagem profissional é o primeiro diagnóstico que o paciente faz de você. Com o jaleco certo, você transmite autoridade antes mesmo de abrir a boca.">A sua imagem profissional é o primeiro diagnóstico que o paciente faz de você. Com o jaleco certo, você transmite autoridade antes mesmo de abrir a boca.</textarea></div>
     <div class="form-row"><label class="label">Hashtag / CTA de campanha</label><input class="input" id="camp-hashtag" value="#VemPraDana #JalecoQueTransmiteAutoridade"></div>
@@ -8771,7 +8776,13 @@ updateDynamicField('foto');
   <!-- Step 4 -->
   <div class="cb-panel" id="cb-3">
     <div class="cb-rule"><div class="cb-rule-icon">4</div><strong>Pilar 4 — Estrutura de Venda:</strong> Projeto, combo ou benefício. NUNCA apenas desconto como principal argumento.</div>
-    <div class="cb-title">Qual é a estrutura de oferta?</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+      <div>
+        <div class="cb-title" style="margin:0">Qual é a estrutura de oferta?</div>
+        <div class="cb-sub" style="margin:4px 0 0 0">A IA destaca o tipo de oferta ideal pro seu público. Você pode trocar manualmente.</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="gerarEstrategiaComIA(true,'oferta')" style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;white-space:nowrap;font-size:12px">🔄 Regenerar com IA</button>
+    </div>
     <div class="offer-grid">
       <div class="offer-card selected" onclick="selOffer(this)"><div class="offer-name">Produto Principal</div><div class="offer-desc">Um produto como herói — ex: "Jaleco Isabel, o jaleco da mulher que sabe o que quer"</div></div>
       <div class="offer-card" onclick="selOffer(this)"><div class="offer-name">Combo Exclusivo</div><div class="offer-desc">Jaleco + Scrub + Acessório com vantagem perceptível de valor (sem chamar de desconto)</div></div>
@@ -8804,7 +8815,13 @@ updateDynamicField('foto');
   <!-- Step 6 -->
   <div class="cb-panel" id="cb-5">
     <div class="cb-rule"><div class="cb-rule-icon">6</div><strong>Pilar 6 — Estrutura 360°:</strong> Online + Offline + Endomarketing + CX. Marque todos os canais que vão receber esta campanha.</div>
-    <div class="cb-title">Distribuição da campanha</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+      <div>
+        <div class="cb-title" style="margin:0">Distribuição da campanha</div>
+        <div class="cb-sub" style="margin:4px 0 0 0">A IA marca os canais ideais pro perfil escolhido (B2B vs B2C, jovem vs premium). Marque/desmarque livremente.</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="gerarEstrategiaComIA(true,'360')" style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;white-space:nowrap;font-size:12px">🔄 Regenerar com IA</button>
+    </div>
     <div class="pillars-grid">
       <div class="pillar"><div class="pillar-head">Online</div><div class="pillar-body">
         <div class="pillar-item on" onclick="togglePillar(this)"><div class="p-check">✓</div>Reels Instagram</div>
@@ -10074,68 +10091,70 @@ function goStep(n) {
   conns.forEach((c,i) => c.classList.toggle('done', i<n));
   currentStep = n;
   if(n===7) updateBriefing();
-  // Hook IA: ao chegar no Step 5 (Copy, index 4) pela primeira vez,
-  // auto-gera copy personalizada baseado em publico+problema+conceito acumulados
-  if (n === 4 && !cbData.aiCopyGerado) {
+  // Hook IA: ao chegar nos Steps com IA pela primeira vez, gera+aplica
+  // Indices: 2=Conceito, 3=Oferta, 4=Copy, 5=360°
+  if (!cbData.aiStepsAplicados) cbData.aiStepsAplicados = {};
+  const SCOPE = { 2: 'conceito', 3: 'oferta', 4: 'copy', 5: '360' };
+  if (SCOPE[n] && !cbData.aiStepsAplicados[n]) {
     const temContexto = (cbData.publicos && cbData.publicos.length) || cbData.prob;
-    if (temContexto) gerarCopyComIA(false);
+    if (temContexto) gerarEstrategiaComIA(false, SCOPE[n]);
   }
 }
 function nextStep() { goStep(currentStep+1); }
 function prevStep() { goStep(currentStep-1); }
 
-// Gera copy personalizada via Edge Function construtor-ai (Groq + Gemini fallback)
-async function gerarCopyComIA(force) {
-  const panel = document.getElementById('cb-4');
+// ════ IA do CONSTRUTOR ════
+// Gera estratégia completa (Conceito + Oferta + Copy + 360°) via Edge Function construtor-ai
+// scope: 'conceito' | 'oferta' | 'copy' | '360' — só aplica os campos do scope
+// force: true = re-chama API ignorando cache; false = usa cache se existir
+async function gerarEstrategiaComIA(force, scope) {
+  const panelMap = { conceito: 'cb-2', oferta: 'cb-3', copy: 'cb-4', '360': 'cb-5' };
+  const panel = document.getElementById(panelMap[scope] || 'cb-2');
   if (!panel) return;
-  // Captura referências dos inputs
-  const fields = {
-    gancho: document.getElementById('copy-gancho'),
-    realidade: document.getElementById('copy-real'),
-    autoridade: document.getElementById('copy-aut'),
-    solucao: document.getElementById('copy-sol'),
-    cta: document.getElementById('copy-cta'),
-  };
+  // Garante spinner CSS
+  if (!document.getElementById('cb-ai-spin-style')) {
+    const st = document.createElement('style');
+    st.id = 'cb-ai-spin-style';
+    st.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(st);
+  }
+  // Se tem cache e não é regeneração forçada → só aplica
+  if (!force && cbData.aiSugestao) {
+    aplicarSugestaoIA(scope);
+    if (!cbData.aiStepsAplicados) cbData.aiStepsAplicados = {};
+    const stepIdx = { conceito: 2, oferta: 3, copy: 4, '360': 5 }[scope];
+    cbData.aiStepsAplicados[stepIdx] = true;
+    return;
+  }
   // Overlay de loading
-  const overlayId = 'cb-ai-overlay';
-  let overlay = document.getElementById(overlayId);
+  let overlay = panel.querySelector('.cb-ai-overlay');
   if (!overlay) {
     overlay = document.createElement('div');
-    overlay.id = overlayId;
+    overlay.className = 'cb-ai-overlay';
     overlay.style.cssText = 'position:absolute;inset:0;background:rgba(255,255,255,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;border-radius:8px;gap:10px';
+    const labelMap = { conceito: 'conceito da campanha', oferta: 'estrutura de oferta', copy: 'copy personalizada', '360': 'distribuição 360°' };
     overlay.innerHTML = `
       <div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#7c3aed;border-radius:50%;animation:spin 0.8s linear infinite"></div>
-      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:#1a1a1a">✨ Gerando copy personalizada...</div>
-      <div style="font-size:12px;color:var(--text3)" id="cb-ai-overlay-sub">Adaptando estratégia ao público + problema selecionados</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:#1a1a1a">✨ Gerando ${labelMap[scope] || 'estratégia'}...</div>
+      <div style="font-size:12px;color:var(--text3)">Adaptando ao público + problema selecionados</div>
     `;
     panel.style.position = 'relative';
     panel.appendChild(overlay);
-    // Anima spinner se ainda não tiver
-    if (!document.getElementById('cb-ai-spin-style')) {
-      const st = document.createElement('style');
-      st.id = 'cb-ai-spin-style';
-      st.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
-      document.head.appendChild(st);
-    }
   }
   overlay.style.display = 'flex';
 
   try {
-    // Pega conceito atual (se já preencheu manual ou tem default)
-    const conceitoNome = document.getElementById('camp-name')?.value?.trim() || null;
-    const conceitoMsg = document.getElementById('camp-msg')?.value?.trim() || null;
-    const ofertaSel = document.querySelector('.offer-card.selected .offer-name')?.textContent?.trim() || null;
     const publicos = (cbData.publicos && cbData.publicos.length) ? cbData.publicos : (cbData.pub ? [cbData.pub] : []);
-
+    const conceitoNomeAtual = document.getElementById('camp-name')?.value?.trim() || null;
+    const conceitoMsgAtual = document.getElementById('camp-msg')?.value?.trim() || null;
+    const ofertaSelAtual = document.querySelector('.offer-card.selected .offer-name')?.textContent?.trim() || null;
     const payload = {
       publicos,
       problema: cbData.prob || null,
-      conceito_nome: conceitoNome,
-      conceito_msg: conceitoMsg,
-      oferta_tipo: ofertaSel,
+      conceito_nome: conceitoNomeAtual,
+      conceito_msg: conceitoMsgAtual,
+      oferta_tipo: ofertaSelAtual,
     };
-
-    // Chama edge function (auth via anon key)
     const SUPABASE_URL_LOCAL = (typeof SUPABASE_URL !== 'undefined') ? SUPABASE_URL : 'https://wltmiqbhziefusnzmmkt.supabase.co';
     const ANON_KEY_LOCAL = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
     const res = await fetch(`${SUPABASE_URL_LOCAL}/functions/v1/construtor-ai`, {
@@ -10154,23 +10173,82 @@ async function gerarCopyComIA(force) {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    // Preenche inputs
-    if (fields.gancho && data.gancho) fields.gancho.value = data.gancho;
-    if (fields.realidade && data.realidade) fields.realidade.value = data.realidade;
-    if (fields.autoridade && data.autoridade) fields.autoridade.value = data.autoridade;
-    if (fields.solucao && data.solucao) fields.solucao.value = data.solucao;
-    if (fields.cta && data.cta) fields.cta.value = data.cta;
-
-    cbData.aiCopyGerado = true;
-    cbData.aiProvider = data.provider || 'unknown';
-    showToast(`✨ Copy gerada via ${data.provider || 'IA'}`);
+    cbData.aiSugestao = data;
+    cbData.aiProvider = data.provider || 'IA';
+    aplicarSugestaoIA(scope);
+    if (!cbData.aiStepsAplicados) cbData.aiStepsAplicados = {};
+    const stepIdx = { conceito: 2, oferta: 3, copy: 4, '360': 5 }[scope];
+    cbData.aiStepsAplicados[stepIdx] = true;
+    showToast(`✨ ${scope.charAt(0).toUpperCase() + scope.slice(1)} gerado via ${data.provider || 'IA'}`);
   } catch (e) {
     console.warn('[construtor-ai] falhou:', e);
-    showToast('IA indisponível: usando copy padrão. Você pode editar manualmente.');
+    showToast('IA indisponível: mantendo conteúdo atual. Edite manual ou tente regenerar.');
   } finally {
     overlay.style.display = 'none';
   }
 }
+
+// Aplica os campos do scope a partir do cache cbData.aiSugestao
+function aplicarSugestaoIA(scope) {
+  const s = cbData.aiSugestao;
+  if (!s) return;
+  if (scope === 'conceito') {
+    if (s.conceito_nome) { const el = document.getElementById('camp-name'); if (el) el.value = s.conceito_nome; }
+    if (s.conceito_msg) { const el = document.getElementById('camp-msg'); if (el) el.value = s.conceito_msg; }
+    if (s.hashtag) { const el = document.getElementById('camp-hashtag'); if (el) el.value = s.hashtag; }
+  } else if (scope === 'oferta') {
+    if (s.oferta_tipo) {
+      const cards = document.querySelectorAll('.offer-card');
+      let matched = false;
+      cards.forEach(c => {
+        const nome = c.querySelector('.offer-name')?.textContent?.trim() || '';
+        // Match exato OU primeira palavra
+        if (nome === s.oferta_tipo || nome.toLowerCase().startsWith(s.oferta_tipo.split(' ')[0].toLowerCase())) {
+          cards.forEach(o => o.classList.remove('selected'));
+          c.classList.add('selected');
+          matched = true;
+        }
+      });
+      // Se gerou argumento, mostra como tooltip/banner no topo do step
+      if (s.oferta_argumento) {
+        let banner = document.getElementById('cb-oferta-arg-banner');
+        if (!banner) {
+          banner = document.createElement('div');
+          banner.id = 'cb-oferta-arg-banner';
+          banner.style.cssText = 'background:#ede9fe;border:1px solid #c4b5fd;border-radius:8px;padding:10px 14px;margin:0 0 14px 0;font-size:12.5px;color:#5b21b6';
+          const grid = document.querySelector('#cb-3 .offer-grid');
+          if (grid && grid.parentNode) grid.parentNode.insertBefore(banner, grid);
+        }
+        banner.innerHTML = `<strong>✨ IA sugere:</strong> ${s.oferta_argumento.replace(/</g,'&lt;')}`;
+      }
+    }
+  } else if (scope === 'copy') {
+    if (s.gancho) { const el = document.getElementById('copy-gancho'); if (el) el.value = s.gancho; }
+    if (s.realidade) { const el = document.getElementById('copy-real'); if (el) el.value = s.realidade; }
+    if (s.autoridade) { const el = document.getElementById('copy-aut'); if (el) el.value = s.autoridade; }
+    if (s.solucao) { const el = document.getElementById('copy-sol'); if (el) el.value = s.solucao; }
+    if (s.cta) { const el = document.getElementById('copy-cta'); if (el) el.value = s.cta; }
+  } else if (scope === '360') {
+    if (Array.isArray(s.canais_360) && s.canais_360.length) {
+      const items = document.querySelectorAll('#cb-5 .pillar-item');
+      items.forEach(it => {
+        const nome = (it.textContent || '').trim();
+        const sugerido = s.canais_360.some(c => nome === c || nome.toLowerCase().includes(c.toLowerCase().slice(0, 8)));
+        const wasOn = it.classList.contains('on');
+        if (sugerido && !wasOn) {
+          it.classList.add('on');
+          const ck = it.querySelector('.p-check'); if (ck) ck.textContent = '✓';
+        } else if (!sugerido && wasOn) {
+          it.classList.remove('on');
+          const ck = it.querySelector('.p-check'); if (ck) ck.textContent = '';
+        }
+      });
+    }
+  }
+}
+
+// Alias retrocompat (botão antigo do Step Copy)
+window.gerarCopyComIA = function(force) { return gerarEstrategiaComIA(force, 'copy'); };
 
 // Multi-seleção de públicos (em vez de selecionar UM, agora pode selecionar VÁRIOS)
 function selectAud(el, pub, avatar, prob, promise) {
@@ -10221,7 +10299,9 @@ function toggleAllAud() {
     const m = onclick.match(/selectAud\(this,'[^']*','[^']*','([^']*)','([^']*)'\)/);
     if (m) { cbData.prob = m[1]; cbData.promise = m[2]; }
   } else { cbData.pub = null; cbData.prob = null; cbData.promise = null; }
-  // Mudou seleção → invalida copy IA
+  // Mudou seleção → invalida sugestão IA (todos os steps)
+  cbData.aiSugestao = null;
+  cbData.aiStepsAplicados = {};
   cbData.aiCopyGerado = false;
   // Atualiza label do botão
   const btn = document.getElementById('aud-select-all-btn');
@@ -10236,7 +10316,9 @@ function selPain(el) {
   document.querySelectorAll('.pain-item').forEach(p=>p.classList.remove('selected'));
   el.classList.add('selected');
   cbData.prob = el.querySelector('.pain-title').textContent;
-  // Mudou problema → invalida copy IA pra regenerar no próximo avanço
+  // Mudou problema → invalida sugestão IA (todos os steps)
+  cbData.aiSugestao = null;
+  cbData.aiStepsAplicados = {};
   cbData.aiCopyGerado = false;
 }
 function selOffer(el) {
