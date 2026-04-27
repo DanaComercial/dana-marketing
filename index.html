@@ -8786,7 +8786,13 @@ updateDynamicField('foto');
   <!-- Step 5 -->
   <div class="cb-panel" id="cb-4">
     <div class="cb-rule"><div class="cb-rule-icon">5</div><strong>Pilar 5 — Copy:</strong> Gancho → Realidade → Autoridade → Solução → CTA.</div>
-    <div class="cb-title">Construção de copy estruturado</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+      <div>
+        <div class="cb-title" style="margin:0">Construção de copy estruturado</div>
+        <div class="cb-sub" style="margin:4px 0 0 0">A IA personaliza esses 5 campos baseado no <strong>público + problema + conceito</strong> que você selecionou. Edite livremente depois.</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="gerarCopyComIA(true)" style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;white-space:nowrap;font-size:12px">🔄 Regenerar com IA</button>
+    </div>
     <div class="copy-block"><div class="copy-step-label"><span>1 — Gancho (primeiros 3 segundos)</span><span>Pare o scroll</span></div><input class="input" id="copy-gancho" value="Você sabia que o jaleco que você usa faz parte do diagnóstico que seus pacientes fazem de você?"></div>
     <div class="copy-block"><div class="copy-step-label"><span>2 — Realidade (dor)</span><span>Crie identificação</span></div><input class="input" id="copy-real" value="A maioria das profissionais de saúde usa jalecos que não refletem quem elas são — e isso custa credibilidade."></div>
     <div class="copy-block"><div class="copy-step-label"><span>3 — Autoridade (Dana)</span><span>Posicione a marca</span></div><input class="input" id="copy-aut" value="Dana Jalecos Exclusivos — desenvolvido por e para profissionais que entendem que imagem é poder."></div>
@@ -10068,9 +10074,103 @@ function goStep(n) {
   conns.forEach((c,i) => c.classList.toggle('done', i<n));
   currentStep = n;
   if(n===7) updateBriefing();
+  // Hook IA: ao chegar no Step 5 (Copy, index 4) pela primeira vez,
+  // auto-gera copy personalizada baseado em publico+problema+conceito acumulados
+  if (n === 4 && !cbData.aiCopyGerado) {
+    const temContexto = (cbData.publicos && cbData.publicos.length) || cbData.prob;
+    if (temContexto) gerarCopyComIA(false);
+  }
 }
 function nextStep() { goStep(currentStep+1); }
 function prevStep() { goStep(currentStep-1); }
+
+// Gera copy personalizada via Edge Function construtor-ai (Groq + Gemini fallback)
+async function gerarCopyComIA(force) {
+  const panel = document.getElementById('cb-4');
+  if (!panel) return;
+  // Captura referências dos inputs
+  const fields = {
+    gancho: document.getElementById('copy-gancho'),
+    realidade: document.getElementById('copy-real'),
+    autoridade: document.getElementById('copy-aut'),
+    solucao: document.getElementById('copy-sol'),
+    cta: document.getElementById('copy-cta'),
+  };
+  // Overlay de loading
+  const overlayId = 'cb-ai-overlay';
+  let overlay = document.getElementById(overlayId);
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = overlayId;
+    overlay.style.cssText = 'position:absolute;inset:0;background:rgba(255,255,255,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;border-radius:8px;gap:10px';
+    overlay.innerHTML = `
+      <div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#7c3aed;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:#1a1a1a">✨ Gerando copy personalizada...</div>
+      <div style="font-size:12px;color:var(--text3)" id="cb-ai-overlay-sub">Adaptando estratégia ao público + problema selecionados</div>
+    `;
+    panel.style.position = 'relative';
+    panel.appendChild(overlay);
+    // Anima spinner se ainda não tiver
+    if (!document.getElementById('cb-ai-spin-style')) {
+      const st = document.createElement('style');
+      st.id = 'cb-ai-spin-style';
+      st.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(st);
+    }
+  }
+  overlay.style.display = 'flex';
+
+  try {
+    // Pega conceito atual (se já preencheu manual ou tem default)
+    const conceitoNome = document.getElementById('camp-name')?.value?.trim() || null;
+    const conceitoMsg = document.getElementById('camp-msg')?.value?.trim() || null;
+    const ofertaSel = document.querySelector('.offer-card.selected .offer-name')?.textContent?.trim() || null;
+    const publicos = (cbData.publicos && cbData.publicos.length) ? cbData.publicos : (cbData.pub ? [cbData.pub] : []);
+
+    const payload = {
+      publicos,
+      problema: cbData.prob || null,
+      conceito_nome: conceitoNome,
+      conceito_msg: conceitoMsg,
+      oferta_tipo: ofertaSel,
+    };
+
+    // Chama edge function (auth via anon key)
+    const SUPABASE_URL_LOCAL = (typeof SUPABASE_URL !== 'undefined') ? SUPABASE_URL : 'https://wltmiqbhziefusnzmmkt.supabase.co';
+    const ANON_KEY_LOCAL = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
+    const res = await fetch(`${SUPABASE_URL_LOCAL}/functions/v1/construtor-ai`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': ANON_KEY_LOCAL,
+        'Authorization': `Bearer ${ANON_KEY_LOCAL}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errTxt = await res.text();
+      throw new Error(`HTTP ${res.status}: ${errTxt.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    // Preenche inputs
+    if (fields.gancho && data.gancho) fields.gancho.value = data.gancho;
+    if (fields.realidade && data.realidade) fields.realidade.value = data.realidade;
+    if (fields.autoridade && data.autoridade) fields.autoridade.value = data.autoridade;
+    if (fields.solucao && data.solucao) fields.solucao.value = data.solucao;
+    if (fields.cta && data.cta) fields.cta.value = data.cta;
+
+    cbData.aiCopyGerado = true;
+    cbData.aiProvider = data.provider || 'unknown';
+    showToast(`✨ Copy gerada via ${data.provider || 'IA'}`);
+  } catch (e) {
+    console.warn('[construtor-ai] falhou:', e);
+    showToast('IA indisponível: usando copy padrão. Você pode editar manualmente.');
+  } finally {
+    overlay.style.display = 'none';
+  }
+}
 
 // Multi-seleção de públicos (em vez de selecionar UM, agora pode selecionar VÁRIOS)
 function selectAud(el, pub, avatar, prob, promise) {
@@ -10087,6 +10187,8 @@ function selectAud(el, pub, avatar, prob, promise) {
   cbData.publicos = sels.map(c => c.querySelector('.aud-card-name')?.textContent.trim()).filter(Boolean);
   // Sincroniza pub (string única, último selecionado) com publicos (array)
   if (cbData.publicos.length === 0) { cbData.pub = null; cbData.prob = null; cbData.promise = null; }
+  // Mudou público → invalida copy IA
+  cbData.aiCopyGerado = false;
   // Atualiza contador no botão "Selecionar todos"
   const btnAll = document.getElementById('aud-select-all-btn');
   if (btnAll) {
@@ -10119,6 +10221,8 @@ function toggleAllAud() {
     const m = onclick.match(/selectAud\(this,'[^']*','[^']*','([^']*)','([^']*)'\)/);
     if (m) { cbData.prob = m[1]; cbData.promise = m[2]; }
   } else { cbData.pub = null; cbData.prob = null; cbData.promise = null; }
+  // Mudou seleção → invalida copy IA
+  cbData.aiCopyGerado = false;
   // Atualiza label do botão
   const btn = document.getElementById('aud-select-all-btn');
   if (btn) {
@@ -10132,10 +10236,14 @@ function selPain(el) {
   document.querySelectorAll('.pain-item').forEach(p=>p.classList.remove('selected'));
   el.classList.add('selected');
   cbData.prob = el.querySelector('.pain-title').textContent;
+  // Mudou problema → invalida copy IA pra regenerar no próximo avanço
+  cbData.aiCopyGerado = false;
 }
 function selOffer(el) {
   document.querySelectorAll('.offer-card').forEach(o=>o.classList.remove('selected'));
   el.classList.add('selected');
+  // Mudou oferta → invalida copy IA
+  cbData.aiCopyGerado = false;
 }
 function togglePillar(el) { el.classList.toggle('on'); el.querySelector('.p-check').textContent = el.classList.contains('on') ? '✓' : ''; }
 
