@@ -13899,8 +13899,8 @@ async function loadPerfTopProdutos() {
     if(!data) return;
 
     // Por status
-    const statusMap = { 9:'Atendido', 6:'Em aberto', 12:'Cancelado', 21:'Em digitação', 35734:'Costura', 35736:'Bordado', 17008:'Confeccionado' };
-    const statusChip = { 9:'ativo', 6:'prod', 12:'pause', 21:'plan', 35734:'rev', 35736:'rev', 17008:'prod' };
+    const statusMap = { 9:'Atendido', 6:'Em aberto', 12:'Cancelado', 15:'Verificado', 21:'Em digitação', 35734:'Costura', 35736:'Bordado', 17008:'Confeccionado' };
+    const statusChip = { 9:'ativo', 6:'prod', 12:'pause', 15:'plan', 21:'plan', 35734:'rev', 35736:'rev', 17008:'prod' };
     const porStatus = {};
     data.forEach(p => {
       const sid = p.situacao_id;
@@ -13918,9 +13918,35 @@ async function loadPerfTopProdutos() {
       </tbody></table>`;
     }
 
-    // Top produtos placeholder
+    // Top produtos do mês — view top_produtos_mes (ano+mes+empresa)
     const prodContainer = document.getElementById('perf-top-produtos');
-    if(prodContainer) prodContainer.innerHTML = '<div style="font-size:12px;color:var(--text3)">Dados de produtos por item requerem detalhes do pedido — em breve</div>';
+    if(prodContainer) {
+      try {
+        const { data: tops } = await sb
+          .from('top_produtos_mes')
+          .select('produto,total_quantidade,total_pedidos,total_receita,preco_medio')
+          .eq('empresa', empresaAtual())
+          .eq('ano', anoAtual)
+          .eq('mes', mesAtual)
+          .order('total_quantidade', { ascending: false })
+          .limit(10);
+        if(tops && tops.length) {
+          prodContainer.innerHTML = `<table style="width:100%;font-size:12px"><thead>
+            <tr><th style="text-align:left">Produto</th><th style="text-align:right">Qtd</th><th style="text-align:right">Pedidos</th><th style="text-align:right">Receita</th></tr>
+          </thead><tbody>${tops.map((p,i) => `<tr>
+            <td class="em" style="padding:6px 0;">${i+1}. ${esc(String(p.produto||'').slice(0,45))}</td>
+            <td style="text-align:right;padding:6px 0;">${p.total_quantidade}</td>
+            <td style="text-align:right;padding:6px 0;color:var(--text3)">${p.total_pedidos}</td>
+            <td class="good" style="text-align:right;padding:6px 0;">R$${Math.round(p.total_receita).toLocaleString('pt-BR')}</td>
+          </tr>`).join('')}</tbody></table>`;
+        } else {
+          prodContainer.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:20px;text-align:center">Sem dados de produtos no mês ainda. Aguarde o próximo sync do Bling.</div>';
+        }
+      } catch(err) {
+        prodContainer.innerHTML = '<div style="font-size:12px;color:var(--red)">Erro ao carregar top produtos.</div>';
+        console.warn('TopProd error:', err.message);
+      }
+    }
   } catch(e) { console.warn('PerfTop error:', e.message); }
 }
 
