@@ -9697,19 +9697,33 @@ function toggleCheck(el) {
   saveData();
 }
 
-// ── KANBAN DRAG & DROP (com reordenação posicional) ──
-let dragId = null;
-let _dragSilenceRealtime = false; // bloqueia loadTarefas no realtime durante drag pra evitar saltos
+// ── KANBAN DRAG & DROP v2 (reordenação posicional robusta com indicador visual) ──
+// window.dragId fica em window. pra ser acessível em inline handlers (ex: ondragover) sem ambiguidade
+window.dragId = null;
+window._dragSilenceRealtime = false;
+
+function _ensureKanbanPlaceholder() {
+  let ph = document.getElementById('kanban-drop-placeholder');
+  if (!ph) {
+    ph = document.createElement('div');
+    ph.id = 'kanban-drop-placeholder';
+    ph.style.cssText = 'height:3px;background:linear-gradient(90deg,var(--blue,#3b82f6) 0%,var(--blue-dark,#1e40af) 100%);border-radius:2px;margin:2px 0;box-shadow:0 0 6px rgba(59,130,246,.5);pointer-events:none;transition:opacity .12s;';
+  }
+  return ph;
+}
 
 function drag(e) {
   const card = e.target.closest('.k-card');
   if (!card) return;
-  dragId = card.id;
+  window.dragId = card.id;
   card.classList.add('dragging');
-  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', window.dragId); } catch(_) {} // alguns browsers exigem
+  }
 }
 
-// Acha o card cuja MID-LINE está abaixo do mouse (ou null = soltar no fim)
+// Acha o card mais próximo abaixo do cursor (mid-line) ou null = inserir no fim
 function _getCardAfter(container, y) {
   const cards = [...container.querySelectorAll('.k-card:not(.dragging)')];
   return cards.reduce((closest, card) => {
@@ -9720,36 +9734,69 @@ function _getCardAfter(container, y) {
   }, { offset: -Infinity, el: null }).el;
 }
 
-function dragOver(e) {
-  e.preventDefault();
-  // Move o card visualmente conforme mouse passa por outros cards
-  const dragging = document.querySelector('.k-card.dragging');
-  if (!dragging) return;
-  const colBody = e.target.closest('.kanban-body');
-  if (!colBody) return;
-  const afterEl = _getCardAfter(colBody, e.clientY);
+// Posiciona o placeholder visual onde o card vai cair
+function _placePlaceholder(colBody, y) {
+  const ph = _ensureKanbanPlaceholder();
+  const afterEl = _getCardAfter(colBody, y);
   if (afterEl == null) {
-    if (colBody.lastElementChild !== dragging) colBody.appendChild(dragging);
-  } else if (afterEl !== dragging) {
-    colBody.insertBefore(dragging, afterEl);
+    colBody.appendChild(ph);
+  } else if (afterEl !== ph) {
+    colBody.insertBefore(ph, afterEl);
   }
 }
 
-async function drop(e, colId) {
+function _removePlaceholder() {
+  const ph = document.getElementById('kanban-drop-placeholder');
+  if (ph && ph.parentNode) ph.parentNode.removeChild(ph);
+}
+
+// Resolve o body alvo: se evento veio de dentro do body, usa ele; senão da coluna inteira
+function _resolveColBody(e) {
+  let body = e.target.closest('.kanban-body');
+  if (body) return body;
+  // Caso comum: cursor sobre o "+ Adicionar" ou borda — pega body da coluna pai
+  const col = e.target.closest('.kanban-col');
+  if (col) return col.querySelector('.kanban-body');
+  return null;
+}
+
+function dragOver(e) {
+  if (!window.dragId) return; // não interfere se não estamos arrastando card
   e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  const colBody = _resolveColBody(e);
+  if (!colBody) return;
+  _placePlaceholder(colBody, e.clientY);
+}
+
+async function drop(e, colId) {
+  if (!window.dragId) return;
+  e.preventDefault();
+  e.stopPropagation();
   document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
-  if (!dragId) return;
 
-  const dragged = document.getElementById(dragId);
-  if (!dragged) { dragId = null; return; }
-  dragged.classList.remove('dragging');
+  const dragged = document.getElementById(window.dragId);
+  if (!dragged) { window.dragId = null; _removePlaceholder(); return; }
 
-  // Coluna alvo (por causa do dragOver, o card já está no DOM da coluna certa)
-  const colBody = dragged.closest('.kanban-body') || document.getElementById('col-' + colId);
-  if (!colBody) { dragId = null; return; }
+  // Resolve body alvo + posição (do placeholder ou _getCardAfter)
+  const colBody = _resolveColBody(e) || document.getElementById('col-' + colId);
+  if (!colBody) { window.dragId = null; _removePlaceholder(); return; }
   const colunaFinal = colBody.id.replace(/^col-/, '');
 
-  // Lê ordem atual dos cards na coluna alvo + atualiza posicao+coluna no banco
+  // Insere o card na posição do placeholder
+  const ph = document.getElementById('kanban-drop-placeholder');
+  if (ph && ph.parentNode === colBody) {
+    colBody.insertBefore(dragged, ph);
+  } else {
+    // Fallback: calcula pela posição do mouse
+    const afterEl = _getCardAfter(colBody, e.clientY);
+    if (afterEl == null) colBody.appendChild(dragged);
+    else colBody.insertBefore(dragged, afterEl);
+  }
+  _removePlaceholder();
+  dragged.classList.remove('dragging');
+
+  // Lê ordem final + monta UPSERT
   const cards = [...colBody.querySelectorAll('.k-card')];
   const updates = cards.map((card, idx) => ({
     id: card.dataset.id,
@@ -9757,37 +9804,42 @@ async function drop(e, colId) {
     coluna: colunaFinal,
   })).filter(u => u.id);
 
-  if (!updates.length) { dragId = null; return; }
+  console.log('[kanban] drop em', colunaFinal, '→', updates.length, 'cards atualizados');
 
-  // Silencia o realtime brevemente pra não disparar re-render que reverte ou salta
-  _dragSilenceRealtime = true;
-  setTimeout(() => { _dragSilenceRealtime = false; }, 1500);
+  if (!updates.length) { window.dragId = null; return; }
+
+  // Silencia realtime durante save pra evitar saltos
+  window._dragSilenceRealtime = true;
+  setTimeout(() => { window._dragSilenceRealtime = false; }, 1500);
 
   try {
-    // Bulk update via upsert (preserva outros campos via PostgREST default)
     const { error } = await sb.from('tarefas').upsert(updates, { onConflict: 'id' });
     if (error) {
-      console.warn('Erro ao reordenar tarefas:', error);
-      showToast('Erro ao salvar ordem');
+      console.error('[kanban] erro ao salvar:', error);
+      showToast('Erro ao salvar ordem: ' + error.message);
+    } else {
+      // Atualiza cache local
+      if (window._tarefasCache) {
+        updates.forEach(u => {
+          const t = _tarefasCache.find(x => x.id === u.id);
+          if (t) { t.posicao = u.posicao; t.coluna = u.coluna; }
+        });
+      }
+      updateKanbanCounts();
     }
-    // Atualiza cache local pra UI ficar consistente até próximo loadTarefas
-    if (window._tarefasCache) {
-      updates.forEach(u => {
-        const t = _tarefasCache.find(x => x.id === u.id);
-        if (t) { t.posicao = u.posicao; t.coluna = u.coluna; }
-      });
-    }
-    updateKanbanCounts();
   } catch(err) {
-    console.warn('drop error:', err);
+    console.error('[kanban] drop exception:', err);
+    showToast('Erro: ' + err.message);
   }
 
-  dragId = null;
+  window.dragId = null;
 }
 
 document.addEventListener('dragend', () => {
   document.querySelectorAll('.k-card').forEach(c => c.classList.remove('dragging'));
   document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
+  _removePlaceholder();
+  window.dragId = null;
 });
 function updateKanbanCounts() {
   // Counts são gerados dinamicamente pelo loadTarefas
@@ -12149,7 +12201,10 @@ async function loadTarefas() {
       const cards = _tarefasCache.filter(t => t.coluna === col);
       const color = COL_COLORS[col] || 'var(--grey5)';
       const label = COL_LABELS[col] || col;
-      const colDrag = canCreate ? `ondragover="dragColOver(event,'${col}')" ondragleave="dragColLeave(event)" ondrop="dragColDrop(event,'${col}')"` : `ondragover="dragOver(event)" ondrop="drop(event,'${col}')"`;
+      // Quando canCreate: a coluna gerencia drag DE COLUNAS; mas se for drag de CARD, fallback pro card-handler
+      const colDrag = canCreate
+        ? `ondragover="if(window.dragId){dragOver(event)}else{dragColOver(event,'${col}')}" ondragleave="dragColLeave(event)" ondrop="if(window.dragId){drop(event,'${col}')}else{dragColDrop(event,'${col}')}"`
+        : `ondragover="dragOver(event)" ondrop="drop(event,'${col}')"`;
       const headDrag = canCreate ? `draggable="true" ondragstart="dragColStart(event,'${col}')" ondragend="dragColEnd()" style="cursor:grab;user-select:none"` : '';
       return `<div class="kanban-col" data-col="${col}" ${colDrag}>
         <div class="kanban-col-head" ${headDrag} title="${canCreate ? 'Arraste a coluna para reordenar' : ''}"><div class="kanban-col-title"><div class="k-dot" style="background:${color}"></div>${esc(label)}</div><div class="kanban-count">${cards.length}</div></div>
