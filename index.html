@@ -8374,9 +8374,14 @@ updateDynamicField('foto');
 <!-- ════════ CALENDARIO ════════ -->
 <div class="view" id="view-calendario">
 <div style="padding:24px 28px">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap">
     <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">Calendário de Campanhas</div><div style="font-size:12.5px;color:var(--text3);margin-top:3px">Planeje promoções, lançamentos e eventos</div></div>
-    <button class="btn btn-primary btn-sm" onclick="abrirNovoEvento()" id="btn-novo-evento">+ Novo Evento</button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="cal-filtro-campanha" onchange="renderCalendario()" style="font-size:11.5px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);min-width:200px">
+        <option value="">Todas as campanhas</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="abrirNovoEvento()" id="btn-novo-evento">+ Novo Evento</button>
+    </div>
   </div>
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
@@ -8563,6 +8568,7 @@ updateDynamicField('foto');
       <style>.evt-cor-btn.active{border-color:var(--text2)!important;box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--text2)}</style>
     </div>
     <div class="form-row"><label class="label">Descrição <span style="font-size:10px;color:var(--text4)">(opcional)</span></label><textarea class="input" id="evt-desc" rows="3" placeholder="Detalhes do evento..."></textarea></div>
+    <div class="form-row"><label class="label">Vincular à campanha (opcional)</label><select class="input" id="evt-campanha"><option value="">— Sem campanha —</option></select></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-ghost" onclick="closeModal('novo-evento');resetarFormNovoEvento()" style="flex:1">Cancelar</button>
       <button class="btn btn-primary" onclick="salvarEvento()" style="flex:2">Salvar Evento</button>
@@ -8573,9 +8579,12 @@ updateDynamicField('foto');
 <!-- ════════ TAREFAS / KANBAN ════════ -->
 <div class="view" id="view-tarefas">
 <div style="padding:24px 28px">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap">
     <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">Tarefas e Kanban</div><div style="font-size:12.5px;color:var(--text3);margin-top:3px">Arraste os cards entre colunas · scroll horizontal para ver mais</div></div>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="kanban-filtro-campanha" onchange="loadTarefas()" style="font-size:11.5px;padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface);min-width:200px">
+        <option value="">Todas as campanhas</option>
+      </select>
       <button class="btn btn-ghost btn-sm" onclick="abrirGerenciarColunas()" id="btn-gerenciar-cols">⚙ Gerenciar Colunas</button>
       <button class="btn btn-primary btn-sm" onclick="abrirNovaTarefa()" id="btn-nova-tarefa">+ Nova tarefa</button>
     </div>
@@ -8985,6 +8994,7 @@ updateDynamicField('foto');
         <div><label class="label">Prazo</label><input class="input" type="date" id="new-task-due"></div>
       </div>
       <div class="form-row"><label class="label">Tag</label><input class="input" id="new-task-tag" placeholder="Ex: Campanha, Roteiro..."></div>
+      <div class="form-row"><label class="label">Vincular à campanha (opcional)</label><select class="input" id="new-task-campanha"><option value="">— Sem campanha —</option></select></div>
     </div>
 
     <!-- Campos Link -->
@@ -8992,6 +9002,7 @@ updateDynamicField('foto');
       <div class="form-row"><label class="label">URL do link *</label><input class="input" id="new-link-url" placeholder="https://..." onblur="autoFillLinkTitle()"></div>
       <div class="form-row"><label class="label">Título (opcional)</label><input class="input" id="new-link-title" placeholder="Deixe vazio para usar o nome do site"></div>
       <div class="form-row"><label class="label">Coluna</label><select class="input" id="new-link-col"></select></div>
+      <div class="form-row"><label class="label">Vincular à campanha (opcional)</label><select class="input" id="new-link-campanha"><option value="">— Sem campanha —</option></select></div>
     </div>
 
     <div style="display:flex;gap:8px;margin-top:4px">
@@ -9023,6 +9034,7 @@ updateDynamicField('foto');
       <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Descrição</label>
       <div id="ve-desc" style="font-size:13px;color:var(--text2);line-height:1.6;padding:10px;background:var(--surface2);border-radius:8px;max-height:200px;overflow-y:auto"></div>
     </div>
+    <div id="ve-campanha-link" style="display:none;font-size:12px;color:#6d28d9;background:#ede9fe;border:1px solid #c4b5fd;border-radius:7px;padding:8px 12px;margin-bottom:14px"></div>
     <div id="ve-c360-lock" style="display:none;margin-bottom:14px;padding:12px 14px;background:#ffedd5;border:1px solid #f97316;border-radius:8px;font-size:12px">
       <span style="font-size:16px;margin-right:8px">🔒</span>
       <div style="display:inline-block;vertical-align:top;width:calc(100% - 36px)">
@@ -9470,6 +9482,9 @@ function topbarAction() {
   if(views[id]) {
     // Reset form de novo-evento se vier do calendário (evita herdar dados de uma edição)
     if (id === 'calendario' && typeof resetarFormNovoEvento === 'function') resetarFormNovoEvento();
+    // Popula dropdowns de campanha conforme o modal sendo aberto
+    if (id === 'calendario') popularSelectCampanhas('evt-campanha');
+    if (id === 'tarefas') { popularSelectCampanhas('new-task-campanha'); popularSelectCampanhas('new-link-campanha'); }
     openModal(views[id]);
   }
   else if(id==='construtor') document.querySelector('[onclick*=construtor]')?.click();
@@ -12444,10 +12459,64 @@ const COL_COLORS = {
   semana_consumidor:'#d97706', campanhas_q1:'#d97706',
 };
 
+// ── CACHE GLOBAL DE CAMPANHAS (briefings_campanha) ──
+window._campanhasCache = window._campanhasCache || [];
+
+async function loadCampanhasCache(force = false) {
+  if (!force && window._campanhasCache.length) return window._campanhasCache;
+  try {
+    const { data } = await sb.from('briefings_campanha')
+      .select('id,titulo,publico,publicos,created_at')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    window._campanhasCache = data || [];
+    return window._campanhasCache;
+  } catch (e) {
+    console.warn('loadCampanhasCache:', e.message);
+    return [];
+  }
+}
+
+// Popula um <select id=...> com as campanhas (mantém valor selecionado se já estiver)
+async function popularSelectCampanhas(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const valorAtual = sel.value;
+  const camps = await loadCampanhasCache();
+  sel.innerHTML = '<option value="">— Sem campanha —</option>' + camps.map(c =>
+    `<option value="${c.id}">${esc(c.titulo || 'Sem título')}</option>`
+  ).join('');
+  if (valorAtual) sel.value = valorAtual;
+}
+
+// Popula TODOS os dropdowns de campanha conhecidos
+async function popularTodosSelectsCampanha() {
+  await loadCampanhasCache(true); // force refresh
+  ['new-task-campanha','new-link-campanha','evt-campanha'].forEach(id => {
+    if (document.getElementById(id)) popularSelectCampanhas(id);
+  });
+}
+
 async function loadTarefas() {
   try {
     const { data } = await sb.from('tarefas').select('*').order('posicao');
     _tarefasCache = data || [];
+
+    // Carrega cache de campanhas + popula select de filtro
+    await loadCampanhasCache();
+    const filtroSel = document.getElementById('kanban-filtro-campanha');
+    if (filtroSel) {
+      const valorAtual = filtroSel.value;
+      filtroSel.innerHTML = '<option value="">Todas as campanhas</option>' +
+        '<option value="__sem__">— Sem campanha —</option>' +
+        window._campanhasCache.map(c => `<option value="${c.id}">${esc(c.titulo || 'Sem título')}</option>`).join('');
+      filtroSel.value = valorAtual;
+    }
+
+    // Aplica filtro de campanha (filtragem em memória)
+    const filtroCamp = filtroSel?.value || '';
+    if (filtroCamp === '__sem__') _tarefasCache = _tarefasCache.filter(t => !t.campanha_id);
+    else if (filtroCamp) _tarefasCache = _tarefasCache.filter(t => t.campanha_id === filtroCamp);
 
     // Descobrir colunas únicas (preservar ordem)
     const colOrder = ['backlog','doing','review','done','referencias','materiais','campanhas','producao','cronograma','crono_abril','todo','roteiros','campanhas_ativas','todo_reuniao','black_friday','info_jaleco_box','10_anos','campanhas_q1'];
@@ -12577,6 +12646,14 @@ function renderKanbanCard(t) {
 
   // Card normal
   let badges = '';
+  // Badge de campanha (se vinculada)
+  if (t.campanha_id) {
+    const camp = (window._campanhasCache || []).find(c => c.id === t.campanha_id);
+    if (camp) {
+      const nome = (camp.titulo || 'Campanha').slice(0, 22);
+      badges += `<span style="font-size:10px;padding:1px 6px;background:#ede9fe;border-radius:4px;color:#6d28d9;font-weight:600" title="Vinculada à campanha: ${esc(camp.titulo)}">🎯 ${esc(nome)}${camp.titulo && camp.titulo.length > 22 ? '…' : ''}</span>`;
+    }
+  }
   if (hasDesc) badges += '<span style="font-size:10px;padding:1px 5px;background:var(--surface3);border-radius:4px;color:var(--text3)" title="Descrição">📝</span>';
   if (hasLinks) badges += '<span style="font-size:10px;padding:1px 5px;background:#dbeafe;border-radius:4px;color:#1d4ed8">🔗 '+t.links.length+'</span>';
   if (hasCheck) {
@@ -13080,9 +13157,14 @@ async function toggleConcluido(id, event) {
 }
 
 // Helper: clica no "+ Adicionar" da coluna → preenche campo + abre modal
-function addCard(col) {
+async function addCard(col) {
   const colInput = document.getElementById('new-task-col');
   if (colInput) colInput.value = col;
+  // Popula dropdowns de campanha
+  await Promise.all([
+    popularSelectCampanhas('new-task-campanha'),
+    popularSelectCampanhas('new-link-campanha'),
+  ]);
   openModal('nova-tarefa');
 }
 
@@ -13095,9 +13177,11 @@ async function createTask() {
     const coluna = document.getElementById('new-link-col')?.value || 'backlog';
     const titulo = customTitle || url;
 
+    const campId = document.getElementById('new-link-campanha')?.value || null;
     await sb.from('tarefas').insert({
       titulo, descricao: '', tag: 'link', prioridade: 'media', coluna,
-      posicao: _tarefasCache.length, links: [url]
+      posicao: _tarefasCache.length, links: [url],
+      campanha_id: campId || null,
     });
     closeModal('nova-tarefa');
     document.getElementById('new-link-url').value = '';
@@ -13119,10 +13203,12 @@ async function createTask() {
   const responsavel = document.getElementById('new-task-resp')?.value || null;
   const responsavelId = getSelectedProfileId('new-task-resp');
 
+  const campId = document.getElementById('new-task-campanha')?.value || null;
   const { data: inserted, error } = await sb.from('tarefas').insert({
     titulo, descricao: desc, tag, prioridade: prio, prazo, coluna, responsavel,
     posicao: _tarefasCache.length,
     links: _ntAttachments.length ? _ntAttachments : null,
+    campanha_id: campId || null,
   }).select().single();
 
   // Notifica o responsável atribuído (se diferente do criador)
@@ -14429,6 +14515,18 @@ async function loadCalendario() {
   try {
     const { data } = await sb.from('calendario').select('*').order('data_inicio');
     _eventosCache = data || [];
+
+    // Carrega cache de campanhas + popula filtro
+    await loadCampanhasCache();
+    const filtroSel = document.getElementById('cal-filtro-campanha');
+    if (filtroSel) {
+      const valorAtual = filtroSel.value;
+      filtroSel.innerHTML = '<option value="">Todas as campanhas</option>' +
+        '<option value="__sem__">— Sem campanha —</option>' +
+        window._campanhasCache.map(c => `<option value="${c.id}">${esc(c.titulo || 'Sem título')}</option>`).join('');
+      filtroSel.value = valorAtual;
+    }
+
     renderCalendario();
     // Mostrar/esconder botão Novo Evento conforme permissão
     const btn = document.getElementById('btn-novo-evento');
@@ -14447,9 +14545,17 @@ function renderCalendario() {
   const diasNoMes = new Date(calAno, calMes, 0).getDate();
   const hoje = new Date();
 
-  // Coletar tarefas com prazo
+  // Filtro de campanha
+  const filtroCamp = document.getElementById('cal-filtro-campanha')?.value || '';
+  const matchCampanha = (campId) => {
+    if (!filtroCamp) return true;
+    if (filtroCamp === '__sem__') return !campId;
+    return campId === filtroCamp;
+  };
+
+  // Coletar tarefas com prazo (respeita filtro de campanha)
   const tarefasPorDia = {};
-  (_tarefasCache || []).forEach(t => {
+  (_tarefasCache || []).filter(t => matchCampanha(t.campanha_id)).forEach(t => {
     const data = t.prazo || t.data_fim;
     if (!data) return;
     const dataStr = data.substring(0, 10);
@@ -14468,7 +14574,7 @@ function renderCalendario() {
   for(let d = 1; d <= diasNoMes; d++) {
     const dateStr = calAno + '-' + String(calMes).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     const isToday = hoje.getFullYear()===calAno && hoje.getMonth()+1===calMes && hoje.getDate()===d;
-    const eventos = _eventosCache.filter(e => e.data_inicio <= dateStr && (e.data_fim ? e.data_fim >= dateStr : e.data_inicio === dateStr));
+    const eventos = _eventosCache.filter(e => e.data_inicio <= dateStr && (e.data_fim ? e.data_fim >= dateStr : e.data_inicio === dateStr) && matchCampanha(e.campanha_id));
     const tarefas = tarefasPorDia[dateStr] || [];
     const todayStyle = isToday ? 'font-weight:800;color:var(--green)' : '';
     const tiposCor = { campanha:'var(--black)', campanha_c360:'#f97316', campanha_interna:'#a855f7', promocao:'var(--green)', lancamento:'var(--blue)', evento:'var(--amber)', deadline:'var(--red)', feriado:'#999' };
@@ -14551,6 +14657,19 @@ function editarEvento(id) {
     descCont.style.display = 'none';
   }
 
+  // Badge de vinculo com campanha
+  const veCamp = document.getElementById('ve-campanha-link');
+  if (veCamp) {
+    if (evt.campanha_id) {
+      const camp = (window._campanhasCache || []).find(c => c.id === evt.campanha_id);
+      const nomeCamp = camp ? (camp.titulo || 'Campanha') : 'Campanha não encontrada';
+      veCamp.style.display = '';
+      veCamp.innerHTML = `🎯 Vinculado à campanha: <strong>${esc(nomeCamp)}</strong>`;
+    } else {
+      veCamp.style.display = 'none';
+    }
+  }
+
   // Campanhas do Cliente 360 sao READ-ONLY aqui — so podem ser editadas/apagadas via Cliente 360
   const isC360 = evt.tipo === 'campanha_c360';
   const isCI = evt.tipo === 'campanha_interna';
@@ -14597,7 +14716,7 @@ function editarEvento(id) {
 // Estado de edição do modal novo-evento
 let _editingEventoId = null;
 
-function editarEventoAtual() {
+async function editarEventoAtual() {
   if (!_viewingEventoId) return;
   if (!podeCriarEvento()) { showToast('Sem permissão pra editar'); return; }
   const evt = _eventosCache.find(e => e.id === _viewingEventoId);
@@ -14611,6 +14730,10 @@ function editarEventoAtual() {
   const fimEl = document.getElementById('evt-fim');
   if (fimEl) fimEl.value = evt.data_fim ? evt.data_fim.slice(0,10) : '';
   document.getElementById('evt-desc').value = evt.descricao || '';
+  // Popula dropdown de campanha + seleciona a vinculada (se houver)
+  await popularSelectCampanhas('evt-campanha');
+  const campSel = document.getElementById('evt-campanha');
+  if (campSel) campSel.value = evt.campanha_id || '';
   // Marca a cor atual
   const corAtual = (evt.cor || '').toLowerCase();
   const hidden = document.getElementById('evt-cor');
@@ -14701,10 +14824,11 @@ function abrirNovoEvento() {
   openModal('novo-evento');
 }
 
-function calDiaClick(dateStr) {
-  if (!podeCriarEvento()) return; // Clicar no dia não faz nada se não tem permissão
-  resetarFormNovoEvento(); // garante modo "criar" (não edição)
+async function calDiaClick(dateStr) {
+  if (!podeCriarEvento()) return;
+  resetarFormNovoEvento();
   document.getElementById('evt-inicio').value = dateStr;
+  await popularSelectCampanhas('evt-campanha');
   openModal('novo-evento');
 }
 
@@ -14736,7 +14860,8 @@ async function salvarEvento() {
   const cor = document.getElementById('evt-cor')?.value?.trim() || null;
   if(!titulo || !inicio) { showToast('Preencha título e data'); return; }
 
-  const payload = { titulo, tipo, data_inicio: inicio, data_fim: fim, descricao: desc, cor };
+  const campId = document.getElementById('evt-campanha')?.value || null;
+  const payload = { titulo, tipo, data_inicio: inicio, data_fim: fim, descricao: desc, cor, campanha_id: campId || null };
 
   if (_editingEventoId) {
     // Modo edição — UPDATE
