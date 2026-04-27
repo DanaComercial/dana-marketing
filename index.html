@@ -8680,7 +8680,10 @@ updateDynamicField('foto');
   <div class="cb-panel active" id="cb-0">
     <div class="cb-rule"><div class="cb-rule-icon">1</div><strong>Pilar 1 — Segmentação:</strong> Escolha o público estratégico da campanha. Dana não vende roupa — vende "A forma como você é percebido profissionalmente".</div>
     <div class="cb-title">Qual é o público-alvo desta campanha?</div>
-    <div class="cb-sub">Cada público tem uma dor central, um gatilho e uma promessa específica. Escolha com intenção.</div>
+    <div class="cb-sub">Cada público tem uma dor central, um gatilho e uma promessa específica. Pode selecionar 1 ou vários — clica no card pra marcar/desmarcar.</div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button id="aud-select-all-btn" class="btn btn-ghost btn-sm" onclick="toggleAllAud()" style="font-size:11.5px">Selecionar todos os públicos</button>
+    </div>
     <div class="aud-grid">
       <div class="aud-card" onclick="selectAud(this,'Clínicas','Dra. Mariana Gestora','O Caos da Padronização','Uniformização Sem Estresse')">
         <div class="aud-card-tag">B2B · Clínicas de Saúde</div>
@@ -8828,6 +8831,15 @@ updateDynamicField('foto');
   <!-- Step 8 — Briefing -->
   <div class="cb-panel" id="cb-7">
     <div class="cb-rule"><div class="cb-rule-icon">8</div><strong>Briefing Completo:</strong> Documento final da campanha pronto para execução pela equipe.</div>
+
+    <!-- Sub-abas: Briefing | Observações & To-dos -->
+    <div style="display:flex;gap:0;border-bottom:1.5px solid var(--border);margin-bottom:16px">
+      <button id="brief-tab-main" class="brief-tab-btn active" onclick="brfTab('main')" style="padding:10px 18px;background:transparent;border:none;border-bottom:2.5px solid var(--black);font-size:12.5px;font-weight:700;cursor:pointer;color:var(--black)">Briefing</button>
+      <button id="brief-tab-obs" class="brief-tab-btn" onclick="brfTab('obs')" style="padding:10px 18px;background:transparent;border:none;border-bottom:2.5px solid transparent;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--text3)">Observações &amp; To-dos</button>
+    </div>
+
+    <!-- Conteúdo: Briefing principal -->
+    <div id="brief-content-main">
     <div class="summary-card" id="briefing-card">
       <div class="summary-eyebrow">Briefing de Campanha · Dana Jalecos Exclusivos</div>
       <div class="summary-headline" id="brief-headline">A Profissional Que Você É</div>
@@ -8854,6 +8866,28 @@ updateDynamicField('foto');
         <div class="p-item"><div class="p-bullet r"></div>Desconto sem contexto de valor</div>
       </div>
     </div>
+    </div><!-- /brief-content-main -->
+
+    <!-- Conteúdo: Observações & To-dos -->
+    <div id="brief-content-obs" style="display:none">
+      <div class="form-row">
+        <label class="label" style="font-size:11.5px;font-weight:700">📝 Observações da campanha</label>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Anotações livres, decisões, contexto. Texto que ajuda a equipe a entender melhor a campanha.</div>
+        <textarea id="brief-observacoes" class="input" rows="6" placeholder="Ex: Essa campanha é parte da estratégia de Q3, foco em reconquistar clientes da loja física que não compram há 6+ meses. Atenção: evitar comunicação muito agressiva, esses clientes valorizam relação."></textarea>
+      </div>
+
+      <div style="margin-top:18px">
+        <label class="label" style="font-size:11.5px;font-weight:700">✓ To-dos da campanha</label>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Tarefas que precisam ser feitas. Ao salvar a campanha, viram tarefas no Kanban (você escolhe a coluna). Ficam vinculadas a essa campanha.</div>
+        <div id="brief-todos-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+        <div style="display:flex;gap:6px">
+          <input id="brief-todo-input" class="input" placeholder="Nova tarefa..." style="flex:1" onkeypress="if(event.key==='Enter'){event.preventDefault();brfAddTodo()}">
+          <button class="btn btn-primary btn-sm" onclick="brfAddTodo()" style="padding:0 14px">+ Adicionar</button>
+        </div>
+        <div id="brief-todos-empty" style="font-size:11px;color:var(--text4);text-align:center;padding:14px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;margin-top:8px">Nenhum to-do ainda. Adicione um pra começar.</div>
+      </div>
+    </div><!-- /brief-content-obs -->
+
     <div class="cb-nav-row">
       <button class="btn btn-ghost" onclick="prevStep()">← Anterior</button>
       <div style="display:flex;gap:8px">
@@ -10010,11 +10044,61 @@ function goStep(n) {
 function nextStep() { goStep(currentStep+1); }
 function prevStep() { goStep(currentStep-1); }
 
+// Multi-seleção de públicos (em vez de selecionar UM, agora pode selecionar VÁRIOS)
 function selectAud(el, pub, avatar, prob, promise) {
-  document.querySelectorAll('.aud-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  cbData.pub = pub; cbData.prob = prob; cbData.promise = promise;
-  showToast('Público: ' + pub);
+  // Toggle: se já está selecionado, deseleciona; senão seleciona
+  el.classList.toggle('selected');
+  // Se for o primeiro selecionado, guarda os defaults pra dor/promessa
+  // (uso apenas o último selecionado pra problema+promessa visual no briefing)
+  if (el.classList.contains('selected')) {
+    cbData.prob = prob; cbData.promise = promise;
+    cbData.pub = pub; // mantém compat com briefing antigo (último selecionado)
+  }
+  // Atualiza array de públicos
+  const sels = [...document.querySelectorAll('.aud-card.selected')];
+  cbData.publicos = sels.map(c => c.querySelector('.aud-card-name')?.textContent.trim()).filter(Boolean);
+  // Sincroniza pub (string única, último selecionado) com publicos (array)
+  if (cbData.publicos.length === 0) { cbData.pub = null; cbData.prob = null; cbData.promise = null; }
+  // Atualiza contador no botão "Selecionar todos"
+  const btnAll = document.getElementById('aud-select-all-btn');
+  if (btnAll) {
+    const total = document.querySelectorAll('.aud-card').length;
+    const isAllSelected = cbData.publicos.length === total && total > 0;
+    btnAll.textContent = isAllSelected ? 'Limpar seleção' : 'Selecionar todos os públicos';
+    btnAll.classList.toggle('btn-primary', !isAllSelected);
+    btnAll.classList.toggle('btn-ghost', isAllSelected);
+  }
+  if (cbData.publicos.length) {
+    showToast(cbData.publicos.length === 1 ? 'Público: ' + cbData.publicos[0] : cbData.publicos.length + ' públicos selecionados');
+  }
+}
+
+// Botão "Selecionar todos os públicos" / "Limpar seleção"
+function toggleAllAud() {
+  const cards = [...document.querySelectorAll('.aud-card')];
+  const allSelected = cards.length > 0 && cards.every(c => c.classList.contains('selected'));
+  cards.forEach(c => {
+    if (allSelected) c.classList.remove('selected');
+    else c.classList.add('selected');
+  });
+  // Atualiza state
+  cbData.publicos = allSelected ? [] : cards.map(c => c.querySelector('.aud-card-name')?.textContent.trim()).filter(Boolean);
+  if (cbData.publicos.length) {
+    cbData.pub = cbData.publicos[cbData.publicos.length - 1];
+    // Pega prob/promise do último card (busca no inline onclick)
+    const lastCard = cards[cards.length - 1];
+    const onclick = lastCard.getAttribute('onclick') || '';
+    const m = onclick.match(/selectAud\(this,'[^']*','[^']*','([^']*)','([^']*)'\)/);
+    if (m) { cbData.prob = m[1]; cbData.promise = m[2]; }
+  } else { cbData.pub = null; cbData.prob = null; cbData.promise = null; }
+  // Atualiza label do botão
+  const btn = document.getElementById('aud-select-all-btn');
+  if (btn) {
+    btn.textContent = allSelected ? 'Selecionar todos os públicos' : 'Limpar seleção';
+    btn.classList.toggle('btn-primary', allSelected);
+    btn.classList.toggle('btn-ghost', !allSelected);
+  }
+  showToast(allSelected ? 'Seleção limpa' : cards.length + ' públicos selecionados');
 }
 function selPain(el) {
   document.querySelectorAll('.pain-item').forEach(p=>p.classList.remove('selected'));
@@ -10054,10 +10138,74 @@ function updateBriefing() {
   const set = (id,v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
   set('brief-headline', campName);
   set('brief-quote', campMsg);
-  set('brief-pub', cbData.pub||'—');
+  // Mostra os públicos selecionados (todos, separados por · ) ou "—"
+  const pubsLabel = (cbData.publicos && cbData.publicos.length)
+    ? cbData.publicos.join(' · ')
+    : (cbData.pub || '—');
+  set('brief-pub', pubsLabel);
   set('brief-prob', cbData.prob||'—');
   set('brief-gancho', gancho);
   set('brief-cta', cta);
+}
+
+// ── ABAS DO STEP 8 (Briefing | Observações) ──
+function brfTab(name) {
+  const main = document.getElementById('brief-content-main');
+  const obs = document.getElementById('brief-content-obs');
+  const tabMain = document.getElementById('brief-tab-main');
+  const tabObs = document.getElementById('brief-tab-obs');
+  if (name === 'obs') {
+    main.style.display = 'none'; obs.style.display = '';
+    tabMain.style.borderBottomColor = 'transparent'; tabMain.style.color = 'var(--text3)'; tabMain.style.fontWeight = '600';
+    tabObs.style.borderBottomColor = 'var(--black)'; tabObs.style.color = 'var(--black)'; tabObs.style.fontWeight = '700';
+    brfRenderTodos();
+  } else {
+    main.style.display = ''; obs.style.display = 'none';
+    tabMain.style.borderBottomColor = 'var(--black)'; tabMain.style.color = 'var(--black)'; tabMain.style.fontWeight = '700';
+    tabObs.style.borderBottomColor = 'transparent'; tabObs.style.color = 'var(--text3)'; tabObs.style.fontWeight = '600';
+  }
+}
+
+// ── TO-DOS DO BRIEFING ──
+// Estado: cbData.todos = [{ id, texto, done }]
+function brfAddTodo() {
+  const input = document.getElementById('brief-todo-input');
+  const txt = (input?.value || '').trim();
+  if (!txt) return;
+  if (!Array.isArray(cbData.todos)) cbData.todos = [];
+  cbData.todos.push({ id: 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2,6), texto: txt, done: false });
+  input.value = '';
+  brfRenderTodos();
+}
+
+function brfToggleTodo(id) {
+  const t = (cbData.todos || []).find(x => x.id === id);
+  if (t) { t.done = !t.done; brfRenderTodos(); }
+}
+
+function brfRemoveTodo(id) {
+  cbData.todos = (cbData.todos || []).filter(x => x.id !== id);
+  brfRenderTodos();
+}
+
+function brfRenderTodos() {
+  const list = document.getElementById('brief-todos-list');
+  const empty = document.getElementById('brief-todos-empty');
+  if (!list) return;
+  const todos = cbData.todos || [];
+  if (!todos.length) {
+    list.innerHTML = '';
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  list.innerHTML = todos.map(t => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
+      <div onclick="brfToggleTodo('${t.id}')" style="width:18px;height:18px;border-radius:4px;border:2px solid ${t.done?'#15803d':'var(--border2)'};background:${t.done?'#15803d':'transparent'};color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;flex-shrink:0">${t.done?'✓':''}</div>
+      <div style="flex:1;font-size:12.5px;color:${t.done?'var(--text4)':'var(--text2)'};text-decoration:${t.done?'line-through':'none'}">${esc(t.texto)}</div>
+      <div onclick="brfRemoveTodo('${t.id}')" style="cursor:pointer;color:var(--text4);font-size:14px;padding:0 4px" title="Remover">&times;</div>
+    </div>
+  `).join('');
 }
 
 async function saveBriefing() {
@@ -10068,10 +10216,22 @@ async function saveBriefing() {
   const gancho = document.getElementById('copy-gancho')?.value?.trim() || '';
   const cta = document.getElementById('copy-cta')?.value?.trim() || '';
   const orcamento = +document.getElementById('m-invest')?.value || null;
+  const observacoes = document.getElementById('brief-observacoes')?.value?.trim() || null;
+  const todosPendentes = (cbData.todos || []).filter(t => !t.done);
+
+  // Se tem to-dos, pergunta a coluna do Kanban antes de salvar
+  let colunaKanban = null;
+  if (todosPendentes.length > 0) {
+    colunaKanban = await brfPedirColunaKanban(todosPendentes.length);
+    if (colunaKanban === null) return; // user cancelou
+  }
+
+  const publicosArr = (cbData.publicos && cbData.publicos.length) ? cbData.publicos : (cbData.pub ? [cbData.pub] : []);
 
   const payload = {
     titulo,
-    publico: cbData.pub || null,
+    publico: cbData.pub || (publicosArr[0] || null), // mantém compat (string única)
+    publicos: publicosArr.length ? publicosArr : null, // novo array multi
     problema: cbData.prob || null,
     conceito: cbData.promise || null,
     headline: titulo,
@@ -10080,26 +10240,91 @@ async function saveBriefing() {
     cta,
     orcamento,
     canais: 'Meta Ads + Instagram',
+    observacoes,
     dados: { ...cbData, quote, gancho, cta, orcamento, salvoEm: new Date().toISOString() },
     criado_por: currentUser?.id || null,
     criado_por_nome: currentProfile?.nome || 'Anônimo',
   };
 
   try {
-    const { error } = await sb.from('briefings_campanha').insert(payload);
+    const { data: brief, error } = await sb.from('briefings_campanha').insert(payload).select('id').single();
     if (error) throw error;
-    showToast('✓ Briefing salvo! A campanha está em "Campanhas".');
+    const campanhaId = brief?.id;
+
+    // Cria as tarefas no Kanban vinculadas à campanha
+    if (campanhaId && todosPendentes.length > 0 && colunaKanban) {
+      const tarefas = todosPendentes.map((t, i) => ({
+        titulo: t.texto,
+        coluna: colunaKanban,
+        prioridade: 'media',
+        campanha_id: campanhaId,
+        posicao: 1000 + i, // empurra pro fim da coluna
+      }));
+      const { error: errTarefas } = await sb.from('tarefas').insert(tarefas);
+      if (errTarefas) console.warn('Erro ao criar tarefas dos to-dos:', errTarefas);
+      else showToast(`✓ Briefing salvo + ${todosPendentes.length} tarefa${todosPendentes.length>1?'s':''} criada${todosPendentes.length>1?'s':''} no Kanban!`);
+    } else {
+      showToast('✓ Briefing salvo! A campanha está em "Campanhas".');
+    }
+
     logActivity('criou_briefing', titulo, 'briefingvisual');
-    // Recarrega lista se o usuário estiver na tela Briefing Visual
     if (typeof loadBriefings === 'function') loadBriefings();
-    // Recarrega tambem view-campanhas (novo card vai aparecer la)
     if (typeof loadCampanhasFromBriefings === 'function') loadCampanhasFromBriefings();
+    if (typeof loadTarefas === 'function') loadTarefas();
+    // Limpa estado local de to-dos após salvar
+    cbData.todos = [];
+    cbData.observacoes = null;
+    const obsEl = document.getElementById('brief-observacoes'); if (obsEl) obsEl.value = '';
+    brfRenderTodos();
   } catch (e) {
     console.error('saveBriefing:', e);
     showToast('Erro ao salvar briefing: ' + (e.message || e));
   }
   closeModal('nova-campanha');
   saveData();
+}
+
+// Modal pra escolher coluna do Kanban (usado antes de salvar to-dos)
+async function brfPedirColunaKanban(qtd) {
+  // Carrega colunas disponíveis
+  let cols = [];
+  try {
+    const { data } = await sb.from('tarefas').select('coluna').limit(500);
+    cols = [...new Set((data || []).map(t => t.coluna).filter(Boolean))];
+  } catch {}
+  if (!cols.length) cols = ['backlog','doing','review','done'];
+  // Labels amigáveis
+  const COL_LABELS_LOCAL = { backlog:'Backlog', doing:'Em Andamento', review:'Em Revisão', done:'Concluído', producao:'Produção' };
+  const opts = cols.map(c => `<option value="${esc(c)}">${esc(COL_LABELS_LOCAL[c] || c)}</option>`).join('');
+
+  return new Promise(resolve => {
+    const html = `
+      <div class="modal-overlay show" id="modal-pick-col" style="z-index:10001">
+        <div class="modal" style="max-width:420px">
+          <div class="modal-header"><div class="modal-title">Onde criar as tarefas?</div></div>
+          <div style="font-size:12.5px;color:var(--text2);margin-bottom:14px">Vamos criar <strong>${qtd}</strong> tarefa${qtd>1?'s':''} no Kanban, vinculada${qtd>1?'s':''} a essa campanha. Em qual coluna?</div>
+          <div class="form-row">
+            <label class="label">Coluna do Kanban</label>
+            <select id="pick-col-select" class="input">${opts}</select>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn btn-ghost" id="pick-col-cancel" style="flex:1">Cancelar</button>
+            <button class="btn btn-primary" id="pick-col-ok" style="flex:1">Criar tarefas</button>
+          </div>
+        </div>
+      </div>
+    `;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    const modal = wrap.firstElementChild;
+    document.body.appendChild(modal);
+    document.getElementById('pick-col-cancel').onclick = () => { modal.remove(); resolve(null); };
+    document.getElementById('pick-col-ok').onclick = () => {
+      const v = document.getElementById('pick-col-select').value;
+      modal.remove();
+      resolve(v);
+    };
+  });
 }
 
 // ── BRIEFING VISUAL (Fase 1: Briefings Salvos) ──
