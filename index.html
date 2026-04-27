@@ -13837,17 +13837,30 @@ async function loadCanalAnalytics() {
         const d = atual[c.key];
         const prev = anterior[c.key];
         const ticket = d.pedidos > 0 ? Math.round(d.receita/d.pedidos) : 0;
-        const share = Math.round(d.receita/totalReceita*100);
-        const cresc = prev.receita > 0 ? Math.round((d.receita - prev.receita)/prev.receita*100) : 0;
-        const crescClass = cresc >= 0 ? 'good' : 'bad';
+        const share = totalReceita > 0 ? Math.round(d.receita/totalReceita*100) : 0;
         const barW = Math.round(d.receita/maxReceita*100);
+
+        // Crescimento — trata edge cases
+        let crescTxt, crescClass;
+        if (prev.receita === 0 && d.receita === 0) {
+          crescTxt = '—'; crescClass = ''; // sem dados em ambos os meses
+        } else if (prev.receita === 0 && d.receita > 0) {
+          crescTxt = 'Novo'; crescClass = 'good'; // canal estreou esse mês
+        } else if (prev.receita > 0 && d.receita === 0) {
+          crescTxt = 'Sem vendas'; crescClass = 'bad'; // tinha venda, agora 0
+        } else {
+          const cresc = Math.round((d.receita - prev.receita)/prev.receita*100);
+          crescTxt = (cresc>=0?'+':'')+cresc+'%';
+          crescClass = cresc >= 0 ? 'good' : 'bad';
+        }
+
         return `<tr>
           <td class="em">${c.label}</td>
           <td class="good">R$${Math.round(d.receita).toLocaleString('pt-BR')}</td>
           <td><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:8px;background:var(--surface3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${barW}%;background:var(--black);border-radius:4px"></div></div><span style="font-size:10px;font-weight:600;min-width:30px">${share}%</span></div></td>
           <td>${d.pedidos}</td>
           <td>R$${ticket.toLocaleString('pt-BR')}</td>
-          <td class="${crescClass}">${cresc>=0?'+':''}${cresc}%</td>
+          <td class="${crescClass}">${crescTxt}</td>
         </tr>`;
       }).join('')}
     </tbody></table>`;
