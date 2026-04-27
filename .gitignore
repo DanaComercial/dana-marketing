@@ -1,0 +1,35 @@
+# Tokens e credenciais — NUNCA commitar
+*TOKEN*.txt
+*TOKEN*.md
+*token*.txt
+*token*.json
+*AI_KEYS*
+*api_keys*
+*SERVICE_KEY*
+*service_role*
+TOKENS/
+
+# Scripts/backups locais
+.claude/
+_backfill_*.py
+_backup_*.py
+_run-backfill.*
+backups/
+*.gz
+*.zip
+
+# Snapshots Bling com dados sensíveis
+bling-matriz/
+bling_*.json
+
+# Env / config local
+.env
+.env.*
+.vscode/
+.idea/
+
+# Temporários
+.DS_Store
+Thumbs.db
+*.swp
+*~

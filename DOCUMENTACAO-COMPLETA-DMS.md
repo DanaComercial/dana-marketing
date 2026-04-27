@@ -1736,7 +1736,7 @@ Commit `de68098`:
 
 ### 27.9 Chave Gemini Pro + pricing Nano Banana 2 descobertos
 
-**Chave nova testada** (AIzaSyA9CR17h-whceXAtxCt0qNUx5lTa6XJFWs):
+**Chave nova testada** (<REVOGADA — ver TOKENS local>):
 - ✅ PAID/PRO — tem acesso a Gemini 2.5 Pro (chave antiga dava 429 nele)
 - ✅ `gemini-2.5-flash-image` funcionando (Nano Banana 2)
 - ❌ Imagen 3 e 4 via AI Studio endpoint: 404 (precisaria Vertex AI direto)
@@ -1958,7 +1958,7 @@ Arquivos principais:
 Credenciais:
 - Supabase PAT: .BACKUP/.Tokens nova conta supabase.txt
 - Gemini API chave antiga (free): .claude/AI_KEYS.txt
-- Gemini API chave nova (PAID, aguardando troca): AIzaSyA9CR17h-whceXAtxCt0qNUx5lTa6XJFWs
+- Gemini API chave nova (PAID, aguardando troca): <REVOGADA — ver TOKENS local>
 - Google Cloud projeto: "My First Project" (Dana conta Google)
 
 Vamos continuar de onde paramos.
@@ -2535,7 +2535,7 @@ Credenciais (arquivos locais fora do git):
 - Supabase PAT: .BACKUP/.Tokens nova conta supabase.txt
 - AI keys: .claude/AI_KEYS.txt
 - ImgBB key: ffbf2140daf4cd3ca2cc1f17885779a7 (secret IMGBB_API_KEY no Supabase)
-- Gemini PAID (imagens): AIzaSyA9CR17h-whceXAtxCt0qNUx5lTa6XJFWs (secret GEMINI_IMAGE_API_KEY)
+- Gemini PAID (imagens): <REVOGADA — ver TOKENS local> (secret GEMINI_IMAGE_API_KEY)
 
 Pendências pra atacar (seção 30.10):
 - Mapear vendedores Bling restantes (só Thamyres mapeada)
