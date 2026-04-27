@@ -2503,6 +2503,9 @@ select.input { cursor: pointer; }
     <div class="nav-item" onclick="go(this,'cliente360')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.5"/><circle cx="8" cy="6" r="2"/><path d="M3.5 13c1-2 2.7-3 4.5-3s3.5 1 4.5 3"/></svg></div>Cliente 360
     </div>
+    <div class="nav-item" onclick="go(this,'prospeccao')" data-secao="prospeccao">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="5"/><path d="M11 11l3 3"/><path d="M5 7h4M7 5v4"/></svg></div>Prospecção
+    </div>
   </div>
 
   <div class="nav-section">
@@ -7027,6 +7030,65 @@ updateDynamicField('foto');
   </div>
 </div></div>
 
+<!-- ════════ PROSPECÇÃO ════════ -->
+<div class="view" id="view-prospeccao">
+<div style="padding:24px 28px">
+  <div style="margin-bottom:18px">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">Prospecção de Clientes</div>
+    <div style="font-size:12.5px;color:var(--text3);margin-top:3px">IA busca leads B2B reais no Google + gera mensagem personalizada pra cada um. Sem duplicação automática.</div>
+  </div>
+
+  <!-- Filtros de busca -->
+  <div class="card" style="padding:16px 18px;margin-bottom:18px">
+    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;margin-bottom:12px">🔍 Buscar novos leads</div>
+    <div style="display:grid;grid-template-columns:2fr 1.5fr 0.7fr 0.8fr auto;gap:10px;align-items:end">
+      <div>
+        <label class="label" style="font-size:11px">Segmento</label>
+        <input id="prsp-segmento" class="input" placeholder="Ex: clínicas veterinárias, dentistas, estéticas" />
+      </div>
+      <div>
+        <label class="label" style="font-size:11px">Cidade</label>
+        <input id="prsp-cidade" class="input" placeholder="Ex: Balneário Camboriú" />
+      </div>
+      <div>
+        <label class="label" style="font-size:11px">Estado</label>
+        <select id="prsp-estado" class="input">
+          <option value="">Qualquer</option>
+          <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option><option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option><option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option><option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option><option value="PR">PR</option><option value="PE">PE</option><option value="PI">PI</option><option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option><option value="RO">RO</option><option value="RR">RR</option><option value="SC" selected>SC</option><option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
+        </select>
+      </div>
+      <div>
+        <label class="label" style="font-size:11px">Qtd <span id="prsp-limite-info" style="color:var(--text3)">(máx 10)</span></label>
+        <input id="prsp-qtd" class="input" type="number" min="1" max="30" value="8" />
+      </div>
+      <button id="prsp-buscar-btn" class="btn btn-primary" onclick="prospBuscar()" style="white-space:nowrap;background:linear-gradient(135deg,#7c3aed,#a855f7);border:none">✨ Buscar com IA</button>
+    </div>
+  </div>
+
+  <!-- Filtros lista existente -->
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px">Leads salvos</div>
+    <span id="prsp-count-sub" style="font-size:11.5px;color:var(--text3)">—</span>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="prsp-filtro-status" class="input" style="height:34px;padding:0 10px;font-size:12px" onchange="prospRender()">
+        <option value="">Todos status</option>
+        <option value="novo">Novo</option>
+        <option value="contatado">Contatado</option>
+        <option value="em_negociacao">Em negociação</option>
+        <option value="convertido">Convertido</option>
+        <option value="descartado">Descartado</option>
+      </select>
+      <input id="prsp-filtro-segmento" class="input" style="height:34px;padding:0 10px;font-size:12px;width:160px" placeholder="Filtrar segmento" oninput="prospRender()" />
+    </div>
+  </div>
+
+  <!-- Lista -->
+  <div id="prsp-lista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px">
+    <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12.5px;padding:40px">Carregando...</div>
+  </div>
+</div>
+</div>
+
 <!-- ════════ CLIENTE 360 ════════ -->
 <div class="view" id="view-cliente360" style="padding:0 !important">
   <iframe id="cliente360-iframe"
@@ -9456,6 +9518,7 @@ function go(el, viewId) {
   if (viewId === 'home') { if (typeof loadMinhasTarefasSemana === 'function') loadMinhasTarefasSemana(); }
   if (viewId === 'campanhas-internas') { if (typeof loadCampanhasInternas === 'function') loadCampanhasInternas(); }
   if (viewId === 'campanhas') { if (typeof loadCampanhasFromBriefings === 'function') loadCampanhasFromBriefings(); }
+  if (viewId === 'prospeccao') { if (typeof prospLoad === 'function') prospLoad(); }
   if (viewId === 'personas') { if (typeof setupPersonaAvatarButtons === 'function') setupPersonaAvatarButtons(); }
 }
 
@@ -17642,6 +17705,233 @@ const CARGO_LABELS = {
   vendedor: 'Vendedor',
   expedicao: 'Expedição',
 };
+
+// ════════ PROSPECÇÃO ════════
+let _prspCache = [];
+
+function prospPodeBuscar() {
+  return userPermissoes['prospeccao_buscar'] !== false || currentProfile?.cargo === 'admin';
+}
+function prospPodeEditar() {
+  return userPermissoes['prospeccao_editar'] !== false || currentProfile?.cargo === 'admin';
+}
+
+async function prospLoad() {
+  const lista = document.getElementById('prsp-lista');
+  if (!lista) return;
+  // Atualiza limite info conforme cargo
+  const info = document.getElementById('prsp-limite-info');
+  const inputQtd = document.getElementById('prsp-qtd');
+  if (info && inputQtd) {
+    const isAdmin = currentProfile?.cargo === 'admin';
+    const lim = isAdmin ? 30 : 10;
+    info.textContent = `(máx ${lim})`;
+    inputQtd.max = lim;
+    if (parseInt(inputQtd.value) > lim) inputQtd.value = lim;
+  }
+  // Esconde botão buscar se sem permissão
+  const btn = document.getElementById('prsp-buscar-btn');
+  if (btn) btn.style.display = prospPodeBuscar() ? '' : 'none';
+  try {
+    const { data, error } = await sb.from('prospects')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    _prspCache = data || [];
+    prospRender();
+  } catch (e) {
+    console.error('[prsp] load:', e);
+    lista.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--red);font-size:12px;padding:20px">Erro: ${esc(e.message || String(e))}</div>`;
+  }
+}
+
+function prospRender() {
+  const lista = document.getElementById('prsp-lista');
+  const sub = document.getElementById('prsp-count-sub');
+  if (!lista) return;
+  const fStatus = document.getElementById('prsp-filtro-status')?.value || '';
+  const fSeg = (document.getElementById('prsp-filtro-segmento')?.value || '').toLowerCase().trim();
+  const filtrados = _prspCache.filter(p => {
+    if (fStatus && p.status !== fStatus) return false;
+    if (fSeg && !(p.segmento || '').toLowerCase().includes(fSeg)) return false;
+    return true;
+  });
+  if (sub) sub.textContent = filtrados.length === _prspCache.length
+    ? `${_prspCache.length} no total`
+    : `${filtrados.length} de ${_prspCache.length}`;
+  if (!filtrados.length) {
+    lista.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12.5px;padding:40px;background:var(--white);border:1px dashed var(--border);border-radius:12px">
+      <div style="font-size:32px;opacity:0.3;margin-bottom:8px">🎯</div>
+      <div>Nenhum lead ${_prspCache.length ? 'com esses filtros' : 'ainda'}</div>
+      ${!_prspCache.length ? '<div style="font-size:11px;margin-top:6px">Use o formulário acima pra buscar leads reais com IA</div>' : ''}
+    </div>`;
+    return;
+  }
+  const STATUS_COR = { novo:['#dbeafe','#1e40af'], contatado:['#fef3c7','#78350f'], em_negociacao:['#ede9fe','#5b21b6'], convertido:['#d1fae5','#065f46'], descartado:['#fee2e2','#991b1b'] };
+  const STATUS_LBL = { novo:'🆕 Novo', contatado:'📞 Contatado', em_negociacao:'🤝 Em negociação', convertido:'✅ Convertido', descartado:'🚫 Descartado' };
+  lista.innerHTML = filtrados.map(p => {
+    const cor = STATUS_COR[p.status] || ['#e5e7eb','#374151'];
+    const wppLink = p.whatsapp ? `https://wa.me/55${(p.whatsapp || '').replace(/\D/g,'')}` : null;
+    const igLink = p.instagram ? `https://instagram.com/${(p.instagram || '').replace(/^@/,'')}` : null;
+    return `
+      <div class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;border-left:3px solid ${cor[1]}">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <div style="flex:1">
+            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;line-height:1.25;color:var(--text)">${esc(p.nome)}</div>
+            ${p.segmento ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">${esc(p.segmento)}${p.cidade?' · '+esc(p.cidade):''}${p.estado?'/'+esc(p.estado):''}</div>` : ''}
+          </div>
+          <span style="background:${cor[0]};color:${cor[1]};font-size:10px;font-weight:700;padding:3px 8px;border-radius:5px;white-space:nowrap">${STATUS_LBL[p.status] || p.status}</span>
+        </div>
+        ${p.ia_insight ? `<div style="font-size:11.5px;color:#5b21b6;background:#ede9fe;padding:6px 10px;border-radius:6px;line-height:1.4"><strong>💡</strong> ${esc(p.ia_insight)}</div>` : ''}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11.5px">
+          ${p.telefone ? `<span style="color:var(--text2)">📞 ${esc(p.telefone)}</span>` : ''}
+          ${p.website ? `<a href="${esc(p.website)}" target="_blank" style="color:#1d4ed8">🌐 site</a>` : ''}
+          ${igLink ? `<a href="${esc(igLink)}" target="_blank" style="color:#be185d">📷 ${esc(p.instagram)}</a>` : ''}
+        </div>
+        ${p.ia_mensagem ? `
+          <div style="background:var(--surface);border:1px dashed var(--border);border-radius:6px;padding:8px 10px;font-size:11.5px;line-height:1.4;color:var(--text2);font-style:italic">
+            ${esc(p.ia_mensagem)}
+          </div>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto">
+          ${p.ia_mensagem ? `<button class="btn btn-ghost btn-sm" onclick="prospCopiarMsg('${p.id}')" style="font-size:11px">📋 Copiar msg</button>` : ''}
+          ${wppLink && p.ia_mensagem ? `<button class="btn btn-primary btn-sm" onclick="prospAbrirWhatsApp('${p.id}')" style="font-size:11px;background:#16a34a;border:none">💬 WhatsApp</button>` : ''}
+          ${prospPodeEditar() ? `
+            <select class="input" style="font-size:11px;padding:4px 6px;height:auto;flex:1;min-width:120px" onchange="prospMudarStatus('${p.id}', this.value)">
+              <option value="">Mudar status...</option>
+              <option value="novo" ${p.status==='novo'?'disabled':''}>🆕 Novo</option>
+              <option value="contatado">📞 Contatado</option>
+              <option value="em_negociacao">🤝 Em negociação</option>
+              <option value="convertido">✅ Convertido</option>
+              <option value="descartado">🚫 Descartado</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="prospApagar('${p.id}')" style="font-size:11px;color:var(--red)">🗑</button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function prospBuscar() {
+  if (!prospPodeBuscar()) { showToast('Sem permissão pra buscar leads'); return; }
+  const segmento = document.getElementById('prsp-segmento')?.value?.trim();
+  if (!segmento) { showToast('Informe o segmento'); return; }
+  const cidade = document.getElementById('prsp-cidade')?.value?.trim() || null;
+  const estado = document.getElementById('prsp-estado')?.value || null;
+  const qtdMax = parseInt(document.getElementById('prsp-qtd')?.value) || 8;
+
+  const btn = document.getElementById('prsp-buscar-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Buscando no Google...'; }
+
+  try {
+    // Pega lista de já prospectados pra evitar duplicação
+    const jaProspectados = _prspCache
+      .filter(p => (!cidade || p.cidade === cidade) && (!estado || p.estado === estado))
+      .map(p => p.nome)
+      .slice(0, 30);
+
+    const { data: { session } } = await sb.auth.getSession();
+    const jwt = session?.access_token;
+    if (!jwt) throw new Error('Não autenticado');
+
+    const SUPABASE_URL_LOCAL = (typeof SUPABASE_URL !== 'undefined') ? SUPABASE_URL : 'https://wltmiqbhziefusnzmmkt.supabase.co';
+    const ANON_KEY_LOCAL = (typeof SUPABASE_ANON_KEY !== 'undefined') ? SUPABASE_ANON_KEY : '';
+
+    const res = await fetch(`${SUPABASE_URL_LOCAL}/functions/v1/prospectar`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': ANON_KEY_LOCAL,
+        'Authorization': `Bearer ${jwt}`,
+      },
+      body: JSON.stringify({ segmento, cidade, estado, qtd_max: qtdMax, ja_prospectados: jaProspectados }),
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`HTTP ${res.status}: ${txt.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const leads = data.leads || [];
+    if (!leads.length) {
+      showToast('IA não encontrou novos leads. Tente outro segmento/região.');
+      return;
+    }
+
+    // Insere no Supabase com upsert (UNIQUE em nome+cidade)
+    const payload = leads.map(l => ({
+      nome: l.nome,
+      segmento: l.segmento || segmento,
+      cidade: l.cidade || cidade,
+      estado: l.estado || estado,
+      endereco: l.endereco,
+      telefone: l.telefone,
+      whatsapp: l.whatsapp || l.telefone,
+      website: l.website,
+      instagram: l.instagram,
+      ia_insight: l.ia_insight,
+      ia_mensagem: l.ia_mensagem,
+      status: 'novo',
+      criado_por: currentUser?.id,
+      criado_por_nome: currentProfile?.nome,
+    }));
+    const { data: inseridos, error: errIns } = await sb.from('prospects')
+      .upsert(payload, { onConflict: 'nome,cidade', ignoreDuplicates: true })
+      .select('*');
+    if (errIns) throw errIns;
+    const novosCount = inseridos?.length || 0;
+    const dupCount = leads.length - novosCount;
+    showToast(`✨ ${novosCount} novo${novosCount===1?'':'s'} lead${novosCount===1?'':'s'}${dupCount>0?` · ${dupCount} já existiam`:''}`);
+    if (typeof logActivity === 'function') logActivity('prospectou', segmento, 'prospeccao');
+    await prospLoad();
+  } catch (e) {
+    console.error('[prsp] buscar:', e);
+    showToast('Erro: ' + (e.message || String(e)).slice(0, 150));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✨ Buscar com IA'; }
+  }
+}
+
+async function prospMudarStatus(id, novoStatus) {
+  if (!novoStatus) return;
+  if (!prospPodeEditar()) { showToast('Sem permissão'); return; }
+  const update = { status: novoStatus, updated_at: new Date().toISOString() };
+  if (novoStatus === 'contatado') update.contatado_em = new Date().toISOString();
+  const { error } = await sb.from('prospects').update(update).eq('id', id);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  showToast('Status atualizado');
+  await prospLoad();
+}
+
+async function prospApagar(id) {
+  const p = _prspCache.find(x => x.id === id);
+  if (!confirm(`Apagar o lead "${p?.nome || ''}"? Não dá pra desfazer.`)) return;
+  const { error } = await sb.from('prospects').delete().eq('id', id);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  showToast('Lead apagado');
+  await prospLoad();
+}
+
+function prospCopiarMsg(id) {
+  const p = _prspCache.find(x => x.id === id);
+  if (!p?.ia_mensagem) return;
+  navigator.clipboard?.writeText(p.ia_mensagem).then(
+    () => showToast('Mensagem copiada'),
+    () => showToast('Não foi possível copiar')
+  );
+}
+
+function prospAbrirWhatsApp(id) {
+  const p = _prspCache.find(x => x.id === id);
+  if (!p?.whatsapp) { showToast('Sem WhatsApp cadastrado'); return; }
+  const num = (p.whatsapp || '').replace(/\D/g,'');
+  const numFmt = num.length === 10 || num.length === 11 ? '55' + num : num;
+  const msg = encodeURIComponent(p.ia_mensagem || `Olá, sou da Dana Jalecos.`);
+  window.open(`https://wa.me/${numFmt}?text=${msg}`, '_blank');
+  // Marca como contatado se ainda for novo
+  if (p.status === 'novo') prospMudarStatus(id, 'contatado');
+}
 
 // ── CHECK AUTH ON LOAD ──
 async function checkAuth() {
