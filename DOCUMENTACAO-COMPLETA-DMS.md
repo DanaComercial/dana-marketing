@@ -1,6 +1,9 @@
 # DOCUMENTAÇÃO COMPLETA — DMS (Dana Marketing System)
 
-> Última atualização: 20 de abril de 2026
+> **Última atualização:** 27/04/2026 noite — ciclo 35 (polimento + campanhas globais)
+> **Repo GitHub:** https://github.com/DanaComercial/dana-marketing
+> **Site público:** https://danadash.netlify.app/ (auto-deploy via Netlify)
+> **Supabase:** `wltmiqbhziefusnzmmkt`
 > Este documento descreve TUDO que foi construído no sistema.
 > Use-o como contexto em novos chats para o Claude entender o estado atual.
 
@@ -2721,3 +2724,327 @@ Ver seção dedicada criada pelo Juan logo após o ciclo 32. Opções avaliadas:
 ---
 
 **Fim da documentação · Atualizado em 24/04/2026 (tarde) — ciclo 32 adicionado**
+
+---
+
+## 34. CICLO 27/04/2026 — INSIGHTS IA PARA VENDEDORES + BACKUP
+
+Sessão focada em fechar pendências do DMS. Não foi adicionada feature visual nova de grande porte, mas o **bot IA agora responde sobre Campanhas Internas, vendedor pode gerar Insights próprios, e o backup automatizado semanal foi implementado**.
+
+### 34.1 Insights IA agora liberados pra vendedor (com quota)
+
+**Antes:** botão "Gerar Insight" no detalhe do cliente C360 só funcionava pra admin/gerente_comercial/gerente_marketing. Vendedora clicava e tomava 403.
+
+**Agora:**
+
+| Cargo | Quota diária | Escopo |
+|---|---|---|
+| `admin` | ilimitada | qualquer cliente |
+| `gerente_comercial` / `gerente_marketing` | 20/dia | qualquer cliente |
+| `vendedor` | **5/dia** | **APENAS clientes da carteira dela** (validado via `cliente_scoring_vendedor`) |
+| outros cargos | bloqueado | — |
+
+**Kill-switch automático:** se gasto mensal `>= R$ 30`, geração pausa automaticamente. Admin pode despausar e ajustar limites.
+
+#### Schema novo (`sql-cliente-insights-quota.sql`)
+
+```sql
+CREATE TABLE cliente_insights_config (
+  id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  limite_diario_vendedor INT DEFAULT 5,
+  limite_diario_gerente INT DEFAULT 20,
+  limite_mensal_reais NUMERIC DEFAULT 30,
+  custo_por_insight_reais NUMERIC DEFAULT 0.02,
+  pausado_por_limite BOOLEAN DEFAULT false,
+  ...
+);
+```
+
+Funções SQL:
+- `cliente_insights_count_hoje(uid)` — quantos insights o usuário gerou hoje (timezone São Paulo)
+- `cliente_insights_gasto_mes()` — gasto acumulado do mês (kill-switch)
+- `cliente_insights_ranking_usuarios()` — pra dashboard admin
+
+Colunas adicionais em `cliente_insights`: `custo_estimado`, `modelo_provider` (groq/gemini), `cargo_autor`.
+
+#### Edge function `cliente360-insight` v2
+
+Novo pipeline:
+1. Auth JWT
+2. Carrega cargo do user
+3. Valida config global ativa + kill-switch
+4. **Se vendedor:** verifica que `contato_nome` está em `cliente_scoring_vendedor` com `vendedor_profile_id = userId` (escopo carteira)
+5. Conta insights de hoje, compara com limite do cargo, retorna 429 se atingiu
+6. Gera insight (Groq → fallback Gemini)
+7. Calcula custo (Groq=0, Gemini=R$ 0.02 default) e grava em `cliente_insights`
+8. Retorna quota info pra UI mostrar "3/5 hoje"
+
+#### UI no Cliente 360
+
+- Quando abre aba "Insights", chama `c360LoadInsightQuota()` antes de renderizar
+- Badge ao lado do botão:
+  - 🟢 `5/5 hoje` (sobrando)
+  - 🟡 `4/5 hoje` (quase no limite)
+  - 🔴 `5/5 hoje` (estourou) → botão fica "🚫 Indisponível"
+  - 💜 `∞ ADMIN` pra admin
+- Toast pós-geração mostra quota atualizada
+- Cache busting `cliente-360-boot.js` v=43 → v=44
+
+### 34.2 Backup automatizado semanal via GitHub Actions
+
+**Arquivos criados:**
+- `scripts/backup/backup-supabase.py` — script Python que dumpa 48 tabelas como JSON.gz usando Management API PAT (NÃO precisa DB password/URI)
+- `scripts/backup/README.md` — documentação completa
+- `.github/workflows/backup-supabase.yml` — workflow agendado (precisa ser criado manualmente pelo Juan via interface GitHub porque o PAT do git local não tem scope `workflow`)
+
+**Como funciona:**
+- Roda toda **domingo 03:07 UTC (00:07 BRT)** + manual via "Run workflow"
+- Dumpa 48 tabelas:
+  - Tabelas pesadas (pedidos, ai_chat_log, activity_log, sync_log, cliente_insights, avatares_ia_log) → janela recente (30-180 dias)
+  - Demais (contatos, produtos, briefings, criativos, etc) → completas
+- Salva em `backups/YYYY-MM-DD/` no próprio repositório
+- Schema + RLS policies + views + functions em `_schema.json.gz`
+- Manifest em `_metadata.json.gz`
+- **Rotação automática:** mantém últimas 12 semanas (~3 meses), apaga as mais antigas
+- Commit + push automático via `github-actions[bot]`
+- Rate limit local 0.6s entre queries + retry exponencial em 429
+
+**Teste local:** 48 tabelas · 121.426 rows · 4.285 KB comprimidos.
+
+**Custo:** zero (GitHub Actions free tier).
+
+**Setup pendente do Juan (1x):**
+1. Criar workflow `.github/workflows/backup-supabase.yml` via interface GitHub (cole conteúdo do arquivo local)
+2. Adicionar secrets `SUPABASE_PAT` e `PROJECT_REF`
+3. Settings → Actions → Workflow permissions → "Read and write permissions"
+
+### 34.3 PAT antigo invalidado
+
+**Descoberta:** durante a sessão, o PAT `sbp_4057fd5b...` (que estava sendo usado em todos scripts) foi revogado. Substituído pelo PAT `sbp_b77399b3...` que está válido. Salvo em `TOKENS SUPABASE.txt` da pasta Tecidos Projeto.
+
+### 34.4 Atualização do cliente_insights schema (colunas extras)
+
+`ALTER TABLE cliente_insights ADD COLUMN`:
+- `custo_estimado NUMERIC DEFAULT 0`
+- `modelo_provider TEXT` ('groq' | 'gemini' | 'desconhecido')
+- `cargo_autor TEXT`
+
+Permite calcular gasto mensal preciso (kill-switch) e ranking por usuário.
+
+### 34.5 Pendências DMS após este ciclo
+
+| Item | Status |
+|---|---|
+| 10 vendedoras avisadas pra trocar senha temp | 🔴 ação Juan |
+| GA4 Service Account JSON | 🔴 Dana |
+| Magazord API | 🔴 Dana |
+| Meta/Google/TikTok Ads (App Review) | 🟡 esperando |
+| Workflow `.github/workflows/backup-supabase.yml` criar manual + secrets | 🔴 Juan (5 min) |
+| Card Insights Custos no Admin → Custos IA (similar Avatares) | 💡 sugestão |
+
+---
+
+---
+
+## 35. CICLO 27/04/2026 (NOITE) — POLIMENTO + AUDITORIAS + CAMPANHAS GLOBAIS
+
+### 35.1 Auditoria seção Performance — bugs corrigidos
+
+**KPIs principais (Faturamento, Ticket, Melhor Canal, Total Pedidos):** todos validados contra banco. Bate exatamente.
+
+**Funil de Vendas — Bug 4529%**
+- Cálculo era `etapa_atual / etapa_anterior * 100` → para Atendido (317) vs Confeccionado (7) dava 4529%
+- Causa: as etapas são SNAPSHOT (estado atual), não histórico de transições
+- Fix: agora % é sobre o **total de pedidos do mês**
+- Subtítulo trocado: "Conversão entre etapas" → "**Distribuição dos pedidos por status do mês**"
+
+**Analytics por Canal — Edge cases de crescimento**
+- TikTok Abr R$ 530, Mar R$ 0 → mostrava `+0%` (errado)
+- Shopee Abr R$ 0, Mar R$ 204 → mostrava `-100%` (correto mas confuso)
+- Fix:
+  - `prev=0, atual>0` → mostra **"Novo"** (verde)
+  - `prev>0, atual=0` → mostra **"Sem vendas"** (vermelho)
+  - `ambos=0` → mostra `—`
+  - normal → cálculo % normal
+
+**Por Status — Mapeamento de IDs**
+- `ID 15` → "Verificado" (Bling default)
+- `ID 26884` (BC custom) → "Confeccionado" — confirmado com Manu
+- `ID 35734/35736` (Matriz) → Costura/Bordado
+- `ID 17008` (Matriz) → Confeccionado
+
+**View `funil_vendas` no DMS atualizada:**
+```sql
+CREATE OR REPLACE VIEW funil_vendas AS
+SELECT empresa, ano, mes, loja_id,
+  COUNT(*) FILTER (WHERE situacao_id = 21) AS em_digitacao,
+  COUNT(*) FILTER (WHERE situacao_id = 6)  AS em_aberto,
+  COUNT(*) FILTER (WHERE situacao_id IN (35734, 35736)) AS producao,
+  COUNT(*) FILTER (WHERE situacao_id IN (17008, 26884)) AS confeccionado, -- BC + Matriz
+  COUNT(*) FILTER (WHERE situacao_id = 9)  AS atendido,
+  COUNT(*) FILTER (WHERE situacao_id = 12) AS cancelado,
+  COUNT(*) AS total
+FROM pedidos GROUP BY empresa, ano, mes, loja_id;
+```
+
+**Top Produtos — Era TODO "em breve"**
+- Plugou na view `top_produtos_mes` que já existia
+- Filtra empresa + ano + mês → top 10 por quantidade vendida
+
+### 35.2 Calendário — Editar evento existente
+
+**Antes**: clicar num evento abria modal "Detalhes" com botões Excluir / Mudar Cor. Pra editar título/data/descrição precisava apagar e criar de novo.
+
+**Agora**: botão azul **"Editar"** no modal (visível pra quem tem `calendario_criar` OU é admin · oculto pra eventos gerenciados pelo Cliente 360 / Campanhas Internas).
+
+Implementação:
+- `_editingEventoId` global flag
+- `editarEventoAtual()` preenche modal `novo-evento` com dados existentes (título, tipo, datas, descrição, cor, campanha)
+- Modal mostra título "Editar Evento" + botão "Salvar Alterações"
+- `salvarEvento()` detecta modo edição: faz UPDATE em vez de INSERT
+- `resetarFormNovoEvento()` limpa estado ao fechar/cancelar/abrir-novo
+
+### 35.3 Kanban — Drag & Drop posicional (bug crítico)
+
+**Sintoma reportado pela Manu**: "tento arrastar uma tarefa para baixo e nada, ela não vai".
+
+**Causa raiz descoberta após debug intensivo:**
+1. Existiam **DUAS funções `drop()` no arquivo** (linhas 9779 e 13822). Em JS a última declaração ganha → a antiga sobrescrevia a nova.
+2. A drop antiga só fazia `UPDATE coluna` — não mexia em `posicao`. Por isso reordenar dentro da MESMA coluna era no-op.
+3. Tinham mais 4 duplicatas: `drag()`, `dragOver()`, `addCard()`, `createTask()` — todas residuais de versões antigas.
+
+**Fix completo:**
+- Removidas 5 duplicatas. Mantida 1 versão de cada (a com Supabase + posição).
+- `drop()` agora faz UPDATE individual em paralelo via `Promise.all` (upsert dava erro 23502 NOT NULL no `titulo` ao tentar INSERT em conflito).
+- Indicador visual: linha azul gradiente mostra onde o card vai cair (placeholder).
+- Drop fallback global na coluna inteira (não só `.kanban-body`) — capture phase pra bypass `stopPropagation()` dos inline handlers.
+- `_dragSilenceRealtime` flag por 1.5s pós-drop pra impedir saltos de UI causados pelo realtime listener.
+- Cache local `_tarefasCache` atualizado imediatamente.
+
+**Funcionalidades validadas:**
+- ✅ Reordenar dentro da mesma coluna
+- ✅ Mover entre colunas
+- ✅ Soltar entre cards específicos / topo / fim
+- ✅ Outro user vê em ~250ms via realtime
+
+### 35.4 Construtor de Campanhas — Multi-públicos + Aba Observações (Fase 1)
+
+**Pedido da Manu:**
+> "Coloca a opção pra eu selecionar todos os públicos. E a hora que ele for montar o briefing, adicionar uma aba de observações + os to-dos que precisam ser feitos."
+
+**Schema:**
+```sql
+ALTER TABLE briefings_campanha
+  ADD COLUMN observacoes TEXT,
+  ADD COLUMN publicos TEXT[];
+ALTER TABLE tarefas       ADD COLUMN campanha_id UUID REFERENCES briefings_campanha(id) ON DELETE SET NULL;
+ALTER TABLE calendario    ADD COLUMN campanha_id UUID REFERENCES briefings_campanha(id) ON DELETE SET NULL;
+CREATE INDEX idx_tarefas_campanha    ON tarefas(campanha_id);
+CREATE INDEX idx_calendario_campanha ON calendario(campanha_id);
+```
+
+**Construtor (view-construtor):**
+- Step 1 (Público) agora é **MULTI-seleção** (toggle ao clicar)
+- Botão "Selecionar todos os públicos" / "Limpar seleção"
+- Briefing final mostra todos os públicos separados por `·`
+- `cbData.publicos` array global
+
+**Step 8 (Briefing) — Sub-abas:**
+- **Briefing**: documento final (existente)
+- **Observações & To-dos** (nova):
+  - Textarea de observações livres
+  - Lista de to-dos com add/check/remove
+  - Estado em `cbData.todos = [{id, texto, done}]`
+
+**`saveBriefing()` atualizado:**
+- Se houver to-dos pendentes → modal pergunta "Qual coluna do Kanban?"
+- Salva briefing + cria N tarefas com `campanha_id` setado pra coluna escolhida
+- Toast: "✓ Briefing salvo + N tarefas criadas no Kanban!"
+
+### 35.5 Vínculo de campanha em Tarefas e Calendário (Fase 2)
+
+**Pedido da Manu:**
+> "Em qualquer área que eu for construir alguma coisa, ter a opção de marcar aquela campanha. Tanto no Tarefas, calendário."
+
+**Cache global:**
+```js
+window._campanhasCache  // [{id, titulo, publico, publicos, created_at}]
+loadCampanhasCache(force?)  // carrega/refresca
+popularSelectCampanhas(selectId)  // popula <select>
+popularTodosSelectsCampanha()  // popula todos
+```
+
+**Modais com dropdown "Vincular à campanha":**
+- Nova Tarefa (`#new-task-campanha`)
+- Novo Link/Card (`#new-link-campanha`)
+- Novo Evento (`#evt-campanha`)
+- Editar Evento — preenche dropdown com campanha vinculada
+- Modal **Ver Evento** mostra banner roxo `🎯 Vinculado à campanha: <nome>`
+
+**Persistência:**
+- `createTask`, `createTask(link)`, `salvarEvento` (insert+update) salvam `campanha_id`
+
+**Filtros no topo:**
+- Kanban: `<select id="kanban-filtro-campanha">` com Todas / Sem campanha / cada campanha → filtra `_tarefasCache` em memória antes de renderizar
+- Calendário: `<select id="cal-filtro-campanha">` mesmo padrão → filtra eventos E tarefas-com-prazo
+
+**Badges visuais:**
+- Cards do Kanban: chip roxo `🎯 <nome da campanha>` (cortado em 22 chars)
+- Modal ver-evento: banner roxo no topo
+
+**Loop fechado** que a Manu agora consegue fazer:
+1. Cria campanha no Construtor (multi-públicos + observações + to-dos)
+2. To-dos viram tarefas no Kanban com `campanha_id` setado
+3. Adiciona mais tarefas depois pelo Kanban, vinculando à mesma campanha
+4. Adiciona eventos no Calendário vinculados
+5. **Filtra Kanban ou Calendário pela campanha** → vê tudo da campanha junto
+
+### 35.6 Segurança — GEMINI_IMAGE_API_KEY exposta
+
+**Incidente:**
+- Key `AIzaSyA9CR17h-whceXAtxCt0qNUx5lTa6XJFWs` (Gemini PAID, gera imagens) estava commitada no DOC público em 3 lugares (linhas 1739, 1961, 2538).
+- Bots de scraping indexam keys do GitHub em < 1h. Risco real de uso indevido (custo financeiro).
+
+**Mitigação:**
+1. Removida do DOC + substituída por `<REVOGADA — ver TOKENS local>`
+2. Juan revogou no Google Cloud Console + criou nova: `AIzaSyCOa2-8z7JZMNIc-7JAvNvSBZBwzMAq12A`
+3. `GEMINI_IMAGE_API_KEY` atualizada no Supabase do DMS via Management API
+4. Geração de imagem testada: gemini-2.5-flash-image retornou PNG 336KB ✓
+
+**Prevenção:**
+Criado `.gitignore` no DMS (não existia!):
+```
+*TOKEN*.txt, *AI_KEYS*, TOKENS/, .claude/, bling-matriz/, .env, .env.*, etc
+```
+
+⚠️ **Histórico do git ainda contém a key (commit 34d84b1)** — mas como foi revogada no Google, fica inofensiva. Pra remover do histórico de fato precisa `git filter-repo` (operação destrutiva).
+
+### 35.7 Bot IA do estoque — chave Groq também regenerada
+
+Durante o ciclo, descobrimos que a `GROQ_API_KEY` antiga estava com valor truncado/inválido (preview `63c19083...` sem prefixo `gsk_`). Juan apagou e gerou nova: `gsk_HnzgBMG...`. Atualizada no DMS + Estoque.
+
+Também atualizada `GEMINI_API_KEY` (free tier do bot do estoque) pra `AIzaSyDb61OCa...` — usada como fallback quando Groq tá fora.
+
+### 35.8 Estado dos dados (27/04/2026 noite)
+
+| Tabela | Rows | Δ ciclo |
+|---|---|---|
+| pedidos (Matriz Abr/26) | 533 | — |
+| pedidos (BC Abr/26) | 198 | — |
+| briefings_campanha | 0 | (Manu vai criar) |
+| campanhas_internas | 0 | (idem) |
+| tarefas com `campanha_id` | 0 | (idem) |
+| calendario com `campanha_id` | 0 | (idem) |
+
+### 35.9 Pendências aguardando Manu
+
+| Pedido | Status | Próximo passo |
+|---|---|---|
+| Selecionar briefing existente / criar novo no modal Nova Campanha Interna | 🟡 Aguardando responder 2 perguntas (a/b) | — |
+| Card "Aguardando briefing" na seção Construtor | 🟡 idem | — |
+| Vincular `briefings_campanha.campanha_interna_id` (relação reversa) | 🟡 idem | — |
+
+---
+
+**Fim da documentação · Atualizado em 27/04/2026 noite — ciclo 35 adicionado · v3.0**
