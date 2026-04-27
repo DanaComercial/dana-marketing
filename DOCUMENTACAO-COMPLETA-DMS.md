@@ -1880,7 +1880,7 @@ Vendedor loga com senha → vê só a carteira dele (VIPs e clientes que atende)
 **Status**: validado tecnicamente, aguardando aprovação da Manu sobre custo recorrente.
 
 **O que foi descoberto/testado:**
-- Chave nova Gemini PAID (AIzaSyA9CR17...) funciona pra:
+- Chave nova Gemini PAID (REVOGADA — ver TOKENS local) funciona pra:
   - `gemini-2.5-flash` (bot IA texto) — ~R$ 0,009/pergunta
   - `gemini-2.5-pro` (bot IA avançado) — ~R$ 0,02/pergunta
   - `gemini-2.5-flash-image` (imagem) — R$ 0,20/imagem
@@ -3003,12 +3003,12 @@ popularTodosSelectsCampanha()  // popula todos
 ### 35.6 Segurança — GEMINI_IMAGE_API_KEY exposta
 
 **Incidente:**
-- Key `AIzaSyA9CR17h-whceXAtxCt0qNUx5lTa6XJFWs` (Gemini PAID, gera imagens) estava commitada no DOC público em 3 lugares (linhas 1739, 1961, 2538).
+- Key Gemini PAID (gera imagens) estava commitada no DOC público em 3 lugares (linhas 1739, 1961, 2538). [Detalhes em TOKENS local]
 - Bots de scraping indexam keys do GitHub em < 1h. Risco real de uso indevido (custo financeiro).
 
 **Mitigação:**
 1. Removida do DOC + substituída por `<REVOGADA — ver TOKENS local>`
-2. Juan revogou no Google Cloud Console + criou nova: `AIzaSyCOa2-8z7JZMNIc-7JAvNvSBZBwzMAq12A`
+2. Juan revogou no Google Cloud Console + criou nova [valor em TOKENS local, NÃO commitar]
 3. `GEMINI_IMAGE_API_KEY` atualizada no Supabase do DMS via Management API
 4. Geração de imagem testada: gemini-2.5-flash-image retornou PNG 336KB ✓
 
@@ -3024,7 +3024,7 @@ Criado `.gitignore` no DMS (não existia!):
 
 Durante o ciclo, descobrimos que a `GROQ_API_KEY` antiga estava com valor truncado/inválido (preview `63c19083...` sem prefixo `gsk_`). Juan apagou e gerou nova: `gsk_HnzgBMG...`. Atualizada no DMS + Estoque.
 
-Também atualizada `GEMINI_API_KEY` (free tier do bot do estoque) pra `AIzaSyDb61OCa...` — usada como fallback quando Groq tá fora.
+Também atualizada `GEMINI_API_KEY` (free tier do bot do estoque) — valor em TOKENS local. Usada como fallback quando Groq tá fora.
 
 ### 35.8 Estado dos dados (27/04/2026 noite)
 
