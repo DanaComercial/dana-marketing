@@ -9911,33 +9911,9 @@ function updateKanbanCounts() {
   // Counts são gerados dinamicamente pelo loadTarefas
 }
 
-let taskCount = 100;
-function addCard(col) {
-  document.getElementById('new-task-col').value = col;
-  openModal('nova-tarefa');
-}
-
-function createTask() {
-  const title = document.getElementById('new-task-title')?.value?.trim();
-  if(!title) return;
-  const col = document.getElementById('new-task-col')?.value || 'backlog';
-  const prio = document.getElementById('new-task-prio')?.value || 'media';
-  const resp = document.getElementById('new-task-resp')?.value || 'M';
-  const due = document.getElementById('new-task-due')?.value;
-  taskCount++;
-  const card = document.createElement('div');
-  card.className = 'k-card';
-  card.draggable = true;
-  card.id = 't'+taskCount;
-  card.ondragstart = drag;
-  const dueStr = due ? new Date(due).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : '';
-  card.innerHTML = `<div class="k-card-title">${title}</div><div class="k-meta"><div class="k-prio ${prio}">${prio.charAt(0).toUpperCase()+prio.slice(1)}</div><div class="k-person">${resp}</div>${dueStr?`<div class="k-due">${dueStr}</div>`:''}</div>`;
-  document.getElementById('col-'+col)?.appendChild(card);
-  updateKanbanCounts();
-  closeModal('nova-tarefa');
-  showToast('Tarefa criada!');
-  saveData();
-}
+// (DUPLICATAS REMOVIDAS: addCard/createTask antigas (DOM-only, sem banco) estavam
+//  aqui. As versoes corretas — addCard que prefilla coluna + createTask via Supabase
+//  — vivem mais embaixo no arquivo na seção persistência de tarefas)
 
 // ── ROI CALCULATOR ──
 function calcROI() {
@@ -12870,6 +12846,13 @@ async function toggleConcluido(id, event) {
   logActivity(novoStatus ? 'concluiu_tarefa' : 'reabriu_tarefa', t.titulo, 'tarefas');
 }
 
+// Helper: clica no "+ Adicionar" da coluna → preenche campo + abre modal
+function addCard(col) {
+  const colInput = document.getElementById('new-task-col');
+  if (colInput) colInput.value = col;
+  openModal('nova-tarefa');
+}
+
 async function createTask() {
   if (_newTaskType === 'link') {
     const url = document.getElementById('new-link-url')?.value?.trim();
@@ -13814,24 +13797,11 @@ async function deleteTarefa(id) {
   logActivity('excluiu_tarefa', tarefa?.titulo || id, 'tarefas');
 }
 
-function drag(e) {
-  if (!podeCriarTarefa()) { e.preventDefault(); return; }
-  e.dataTransfer.setData('text/plain', e.target.dataset?.id || e.target.id);
-}
-function dragOver(e) { e.preventDefault(); }
-async function drop(e, colId) {
-  e.preventDefault();
-  if (!podeCriarTarefa()) { showToast('Voce nao tem permissao para mover tarefas'); return; }
-  const taskId = e.dataTransfer.getData('text/plain');
-  if(!taskId) return;
-  const realId = taskId.replace('task-','');
-  await sb.from('tarefas').update({ coluna: colId, updated_at: new Date().toISOString() }).eq('id', realId);
-  loadTarefas();
-}
+// (DUPLICATAS REMOVIDAS: drag/dragOver/drop/addCard estavam aqui sobrescrevendo
+//  as versões com reordenação posicional definidas acima na seção
+//  "KANBAN DRAG & DROP v3". Causava bug: drag dentro da mesma coluna nao
+//  funcionava porque a versao antiga soh atualizava 'coluna', nao 'posicao'.)
 
-function addCard(col) {
-  openModal('nova-tarefa');
-}
 
 // ── SCORING DE CLIENTES ──
 let _scoringCache = [];
