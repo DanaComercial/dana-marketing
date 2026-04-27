@@ -9697,25 +9697,97 @@ function toggleCheck(el) {
   saveData();
 }
 
-// ── KANBAN DRAG & DROP ──
+// ── KANBAN DRAG & DROP (com reordenação posicional) ──
 let dragId = null;
-function drag(e) { dragId = e.target.closest('.k-card').id; e.target.closest('.k-card').classList.add('dragging'); }
-function dragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
-function drop(e, colId) {
-  e.preventDefault();
-  document.querySelectorAll('.kanban-col').forEach(c=>c.classList.remove('drag-over'));
-  if(!dragId) return;
-  const card = document.getElementById(dragId);
-  if(!card) return;
-  document.getElementById('col-'+colId).appendChild(card);
-  card.classList.remove('dragging');
-  dragId = null;
-  updateKanbanCounts();
-  saveData();
+let _dragSilenceRealtime = false; // bloqueia loadTarefas no realtime durante drag pra evitar saltos
+
+function drag(e) {
+  const card = e.target.closest('.k-card');
+  if (!card) return;
+  dragId = card.id;
+  card.classList.add('dragging');
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
 }
+
+// Acha o card cuja MID-LINE está abaixo do mouse (ou null = soltar no fim)
+function _getCardAfter(container, y) {
+  const cards = [...container.querySelectorAll('.k-card:not(.dragging)')];
+  return cards.reduce((closest, card) => {
+    const box = card.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) return { offset, el: card };
+    return closest;
+  }, { offset: -Infinity, el: null }).el;
+}
+
+function dragOver(e) {
+  e.preventDefault();
+  // Move o card visualmente conforme mouse passa por outros cards
+  const dragging = document.querySelector('.k-card.dragging');
+  if (!dragging) return;
+  const colBody = e.target.closest('.kanban-body');
+  if (!colBody) return;
+  const afterEl = _getCardAfter(colBody, e.clientY);
+  if (afterEl == null) {
+    if (colBody.lastElementChild !== dragging) colBody.appendChild(dragging);
+  } else if (afterEl !== dragging) {
+    colBody.insertBefore(dragging, afterEl);
+  }
+}
+
+async function drop(e, colId) {
+  e.preventDefault();
+  document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
+  if (!dragId) return;
+
+  const dragged = document.getElementById(dragId);
+  if (!dragged) { dragId = null; return; }
+  dragged.classList.remove('dragging');
+
+  // Coluna alvo (por causa do dragOver, o card já está no DOM da coluna certa)
+  const colBody = dragged.closest('.kanban-body') || document.getElementById('col-' + colId);
+  if (!colBody) { dragId = null; return; }
+  const colunaFinal = colBody.id.replace(/^col-/, '');
+
+  // Lê ordem atual dos cards na coluna alvo + atualiza posicao+coluna no banco
+  const cards = [...colBody.querySelectorAll('.k-card')];
+  const updates = cards.map((card, idx) => ({
+    id: card.dataset.id,
+    posicao: idx,
+    coluna: colunaFinal,
+  })).filter(u => u.id);
+
+  if (!updates.length) { dragId = null; return; }
+
+  // Silencia o realtime brevemente pra não disparar re-render que reverte ou salta
+  _dragSilenceRealtime = true;
+  setTimeout(() => { _dragSilenceRealtime = false; }, 1500);
+
+  try {
+    // Bulk update via upsert (preserva outros campos via PostgREST default)
+    const { error } = await sb.from('tarefas').upsert(updates, { onConflict: 'id' });
+    if (error) {
+      console.warn('Erro ao reordenar tarefas:', error);
+      showToast('Erro ao salvar ordem');
+    }
+    // Atualiza cache local pra UI ficar consistente até próximo loadTarefas
+    if (window._tarefasCache) {
+      updates.forEach(u => {
+        const t = _tarefasCache.find(x => x.id === u.id);
+        if (t) { t.posicao = u.posicao; t.coluna = u.coluna; }
+      });
+    }
+    updateKanbanCounts();
+  } catch(err) {
+    console.warn('drop error:', err);
+  }
+
+  dragId = null;
+}
+
 document.addEventListener('dragend', () => {
-  document.querySelectorAll('.k-card').forEach(c=>c.classList.remove('dragging'));
-  document.querySelectorAll('.kanban-col').forEach(c=>c.classList.remove('drag-over'));
+  document.querySelectorAll('.k-card').forEach(c => c.classList.remove('dragging'));
+  document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
 });
 function updateKanbanCounts() {
   // Counts são gerados dinamicamente pelo loadTarefas
@@ -11618,7 +11690,11 @@ function setupRealtimeSubscriptions() {
     .subscribe();
 
   sb.channel('realtime-tarefas')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'tarefas' }, () => loadTarefas())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tarefas' }, () => {
+      // Ignora eventos durante drag-drop (impede saltos de UI)
+      if (window._dragSilenceRealtime) return;
+      loadTarefas();
+    })
     .subscribe();
 
   sb.channel('realtime-alertas')
