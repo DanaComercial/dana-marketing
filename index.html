@@ -9697,8 +9697,8 @@ function toggleCheck(el) {
   saveData();
 }
 
-// ── KANBAN DRAG & DROP v2 (reordenação posicional robusta com indicador visual) ──
-// window.dragId fica em window. pra ser acessível em inline handlers (ex: ondragover) sem ambiguidade
+// ── KANBAN DRAG & DROP v3 (debug + reordenação posicional + indicador visual) ──
+console.log('%c[KANBAN v3] drag-drop loaded ' + new Date().toISOString(), 'color:#3b82f6;font-weight:bold');
 window.dragId = null;
 window._dragSilenceRealtime = false;
 
@@ -9713,13 +9713,15 @@ function _ensureKanbanPlaceholder() {
 }
 
 function drag(e) {
+  console.log('%c[kanban] DRAG START', 'color:#22c55e;font-weight:bold', e.target);
   const card = e.target.closest('.k-card');
-  if (!card) return;
+  if (!card) { console.warn('[kanban] sem .k-card no target'); return; }
   window.dragId = card.id;
+  console.log('[kanban] dragId =', window.dragId, '· data-id =', card.dataset.id);
   card.classList.add('dragging');
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move';
-    try { e.dataTransfer.setData('text/plain', window.dragId); } catch(_) {} // alguns browsers exigem
+    try { e.dataTransfer.setData('text/plain', window.dragId); } catch(_) {}
   }
 }
 
@@ -9836,10 +9838,54 @@ async function drop(e, colId) {
 }
 
 document.addEventListener('dragend', () => {
+  console.log('[kanban] DRAG END (global listener)');
   document.querySelectorAll('.k-card').forEach(c => c.classList.remove('dragging'));
   document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
   _removePlaceholder();
   window.dragId = null;
+});
+
+// Listener GLOBAL captura QUALQUER dragstart (mesmo se inline handler falhar)
+document.addEventListener('dragstart', (e) => {
+  const card = e.target.closest && e.target.closest('.k-card');
+  if (card) {
+    console.log('%c[kanban GLOBAL] dragstart detected on .k-card', 'color:#f59e0b', card.id);
+    if (!window.dragId) {
+      // Fallback: se inline handler nao funcionou, dispara manualmente
+      console.log('[kanban GLOBAL] inline drag() nao foi acionado, ativando manualmente');
+      window.dragId = card.id;
+      card.classList.add('dragging');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', card.id); } catch(_) {}
+      }
+    }
+  }
+}, true); // capture phase
+
+// FALLBACK GLOBAL: se inline ondragover nao funcionar, este captura no document
+document.addEventListener('dragover', (e) => {
+  if (!window.dragId) return;
+  const colBody = e.target.closest && e.target.closest('.kanban-body');
+  const col = e.target.closest && e.target.closest('.kanban-col');
+  if (!colBody && !col) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  const target = colBody || col.querySelector('.kanban-body');
+  if (target) _placePlaceholder(target, e.clientY);
+});
+
+// FALLBACK GLOBAL: drop em qualquer lugar do kanban-board
+document.addEventListener('drop', async (e) => {
+  if (!window.dragId) return;
+  const col = e.target.closest && e.target.closest('.kanban-col');
+  if (!col) return;
+  const colId = col.getAttribute('data-col');
+  if (!colId) return;
+  console.log('[kanban GLOBAL] drop fallback ativado em coluna', colId);
+  e.preventDefault();
+  // Chama o drop normal
+  drop(e, colId);
 });
 function updateKanbanCounts() {
   // Counts são gerados dinamicamente pelo loadTarefas
