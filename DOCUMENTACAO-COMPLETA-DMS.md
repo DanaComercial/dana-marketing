@@ -1,6 +1,6 @@
 # DOCUMENTAÇÃO COMPLETA — DMS (Dana Marketing System)
 
-> **Última atualização:** 28/04/2026 noite-tarde — ciclo 37 (ai-chat v19 reescrito do zero)
+> **Última atualização:** 28/04/2026 noite — ciclo 38 (sync histórico 2024)
 > **Repo GitHub:** https://github.com/DanaComercial/dana-marketing
 > **Site público:** https://danadash.netlify.app/ (auto-deploy via Netlify)
 > **Supabase:** `wltmiqbhziefusnzmmkt`
@@ -3524,3 +3524,114 @@ ai-chat v19 deployado e ACTIVE. Próximo passo é o user (Manu/Juan) testar via 
 ---
 
 **Fim da documentação · Atualizado em 28/04/2026 noite-tarde — ciclo 37 (ai-chat v19) · v4.1**
+
+---
+
+## 38. CICLO 28/04/2026 NOITE — SYNC HISTÓRICO BLING 2024
+
+### 38.1 Motivo
+
+Card "Total de Clientes Matriz" mostrava **5.630**. A Dana achava que era pouco. Investigação:
+
+| O que | Quantidade |
+|---|---|
+| Contatos totais Bling | 41.047 |
+| Contatos que NUNCA compraram (leads, fornecedores, transportadoras) | 31.529 |
+| Contatos que compraram | 8.634 |
+
+A view `cliente_scoring` puxa **da tabela `pedidos`** (não `contatos`). "Cliente" = nome distinto que fez ≥1 pedido não-cancelado. Os 31k contatos são leads/fornecedores que nunca geraram pedido — corretamente filtrados.
+
+**Mas** o sync Bling só vinha de Jan/2025 pra cá. Faltavam **12 meses de 2024** com clientes reais. A Dana decidiu sincronizar 2024.
+
+### 38.2 Script novo
+
+`C:/Users/Juan - Dana Jalecos/Documents/Sistema Marketing/.claude/scripts/sync-pedidos-historico-2024/sync.py`
+
+Funcionamento:
+- Lê tokens das duas empresas direto de `bling_tokens` via Management SQL API
+- Bate na Bling `pedidos/vendas?dataInicial&dataFinal&pagina&limite=100` mês a mês
+- Token bucket por empresa (2.5 req/s) — Matriz e BC têm tokens separados, rate limit independente
+- Paralelo Matriz + BC (5 req/s efetivo no nosso lado, 2.5 cada Bling)
+- Refresh automático se 401 (mas tokens estavam vivos)
+- Sanitização: `data='0000-00-00'` (Bling às vezes manda) → vira null. Pedidos sem data válida são pulados
+- Upsert em batches de 200 com fallback 1-a-1 se algum batch falhar
+- Idempotente: rerun não duplica (UPSERT em `id`)
+
+3 fases:
+- `pass1`: lista pedidos 2024 (rápido, ~2 min)
+- `pass2`: detalha itens de cada pedido (lento, ~1h)
+- `tudo`: as duas em sequência
+
+### 38.3 Resultado PASS 1 (executado)
+
+| Empresa | Antes (Jan/2025+) | Depois (com 2024) | Δ pedidos |
+|---|---|---|---|
+| Matriz | 8.921 | **17.456** | +8.535 |
+| BC | 4.420 | **7.083** | +2.663 |
+
+**Tempo: 2.2 min** (1 minuto inicial + 1 minuto re-run após sanitizar `data_saida='0000-00-00'`).
+
+Bling não caiu, sem 429.
+
+### 38.4 Impacto no `cliente_scoring_resumo`
+
+A view é dinâmica (não materializada) — recalculou sozinha:
+
+| Métrica | Matriz antes | Matriz depois | BC antes | BC depois |
+|---|---|---|---|---|
+| **Total clientes** | 5.630 | **10.416** | 3.062 | **4.504** |
+| Faturamento total | — | **R$ 13.458.773** | — | **R$ 2.717.919** |
+| Em risco | 649 | 1.650 | 485 | 923 |
+| Perdidos | 4.693 | 8.365 | 2.446 | 3.398 |
+| VIPs | 0 | 31 | 0 | 0 |
+
+**Ganho: +6.228 clientes** (+72% no total geral DMS).
+
+### 38.5 PASS 2 (em background quando este doc foi escrito)
+
+PASS 2 vai detalhar os ~11.198 pedidos 2024 e popular `pedidos_itens`. Necessário pra:
+- Bot/`top_produtos` retornar SKUs de 2024 corretamente
+- Análise de mix de produto histórico
+- Cálculos de "produto preferido" do cliente C360
+
+Estimativa: ~75 min (paralelo Matriz + BC, 2.5 req/s cada, ~11k pedidos).
+
+Pode ser interrompido e retomado — o pass2 só busca pedidos que ainda NÃO têm itens (`NOT EXISTS`).
+
+### 38.6 Edge cases observados no Bling
+
+- **`dataSaida='0000-00-00'`**: ~5-10% dos pedidos. Sanitizado pra null no mapper.
+- **Pedidos com `contato_nome` vazio**: alguns. Mantidos no banco (vão ser ignorados pela view scoring).
+- **Pedidos cancelados (situacao_id=12)**: trazidos de qualquer forma. View filtra.
+- **Pedidos com mesmo `contato_nome` (homônimos)**: 2 pessoas "Maria Silva" colapsam em 1 cliente. Limitação conhecida desde Section 33.
+
+### 38.7 O que NÃO foi sincronizado
+
+- **Anos antes de 2024**: Dana disse "desde 2024 tá ok". Se um dia quiser anos anteriores, é só rodar o script com range customizado.
+- **Pedidos cancelados com nome vazio**: invisíveis pro C360 mesmo no banco.
+- **Pedidos de COMPRA** (entrada/fornecedores): Bling tem endpoint `/Api/v3/pedidos/compras` separado. Não é cliente, é fornecedor — sai pelo Sistema de Estoque.
+
+### 38.8 Próximos passos pra rerodar / estender
+
+```bash
+# Sincronizar ano específico (editar dates no script):
+python .claude/scripts/sync-pedidos-historico-2024/sync.py pass1
+python .claude/scripts/sync-pedidos-historico-2024/sync.py pass2
+python .claude/scripts/sync-pedidos-historico-2024/sync.py tudo  # PASS 1 + PASS 2
+```
+
+Pra anos anteriores (2023, 2022...): copiar `sync-pedidos-historico-2024/` → `sync-pedidos-historico-2023/`, trocar o `range(1, 13)` e o `2024` no código pra ano alvo.
+
+### 38.9 Onde paramos
+
+Card C360 mostra agora **10.416 Matriz / 4.504 BC** (em vez de 5.630 / 3.062). PASS 2 rodando em background pra completar `pedidos_itens`. Próxima sessão pode validar com a Dana se o número faz sentido pra ela.
+
+### 38.10 Pendências atualizadas
+
+- ✅ Sync 2024 OK (PASS 1)
+- 🟡 PASS 2 (itens) terminando em background — ~75 min total
+- 🟢 Anos pré-2024: aguardando pedido da Dana
+
+---
+
+**Fim da documentação · Atualizado em 28/04/2026 noite — ciclo 38 (sync histórico 2024) · v4.2**
