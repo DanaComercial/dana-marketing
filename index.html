@@ -21168,7 +21168,16 @@ const aiChatInterval = setInterval(() => {
           'Authorization': `Bearer ${session?.access_token}`,
           'apikey': SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ prompt, contexto, contexto_ref_id: contextoRefId || null, aspect_ratio: (window._aiaCurrentOpts && window._aiaCurrentOpts.aspect_ratio) || null })
+        body: JSON.stringify({
+          prompt,
+          contexto,
+          contexto_ref_id: contextoRefId || null,
+          aspect_ratio: (window._aiaCurrentOpts && window._aiaCurrentOpts.aspect_ratio) || null,
+          // CRITICO: precisa propagar incluir_logo pra edge function nao adicionar
+          // 'Dana' wordmark embroidered no peito do jaleco automaticamente.
+          // Estudio IA passa false (vai adicionar logo em post-producao).
+          incluir_logo: (window._aiaCurrentOpts && window._aiaCurrentOpts.incluir_logo === false) ? false : undefined,
+        })
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || j.detalhe || `HTTP ${r.status}`);
