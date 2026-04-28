@@ -18282,12 +18282,15 @@ async function loadCustosIA() {
   if (!host) return;
   host.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">⏳ Carregando...</div>';
   try {
-    const [cfgRes, logsRes, gastoMesRes] = await Promise.all([
+    const [cfgRes, logsRes, gastoMesRes, prospecRes] = await Promise.all([
       sb.from('avatares_ia_config').select('*').eq('id', 1).maybeSingle(),
       sb.from('avatares_ia_log').select('*').eq('status','ok').not('url','is',null)
         .gte('created_at', new Date(Date.now() - 90*86400000).toISOString())
         .order('created_at', { ascending: false }).limit(500),
       sb.rpc('avatares_ia_gasto_mes'),
+      sb.from('ia_prospeccao_log').select('*')
+        .gte('created_at', new Date(Date.now() - 90*86400000).toISOString())
+        .order('created_at', { ascending: false }).limit(500),
     ]);
     const cfg = cfgRes.data || { limite_diario_usuario: 5, limite_mensal_reais: 50, custo_por_imagem_reais: 0.20, ativo: true, pausado_por_limite: false };
     const logs = logsRes.data || [];
@@ -18315,7 +18318,51 @@ async function loadCustosIA() {
 
     const corBarra = pctMes < 50 ? '#22c55e' : pctMes < 80 ? '#fbbf24' : '#ef4444';
 
+    // ════ PROSPECÇÃO IA — agregação ════
+    const prospecLogs = (prospecRes.data || []).filter(p => p.status === 'ok');
+    const prospecPorUser = {};
+    let prospecGastoMes = 0;
+    let prospecBuscasMes = 0;
+    let prospecLeadsMes = 0;
+    prospecLogs.forEach(p => {
+      const isThisMonth = p.created_at >= inicioMesISO;
+      if (!prospecPorUser[p.user_id]) prospecPorUser[p.user_id] = { nome: p.user_nome, cargo: p.user_cargo, buscasMes: 0, buscas90d: 0, custoMes: 0, custo90d: 0, leadsMes: 0 };
+      const u = prospecPorUser[p.user_id];
+      const c = Number(p.custo_estimado_reais || 0);
+      const leads = Number(p.qtd_leads || 0);
+      u.buscas90d++; u.custo90d += c;
+      if (isThisMonth) {
+        u.buscasMes++; u.custoMes += c; u.leadsMes += leads;
+        prospecGastoMes += c; prospecBuscasMes++; prospecLeadsMes += leads;
+      }
+    });
+    const prospecRanking = Object.entries(prospecPorUser).sort((a,b) => b[1].custoMes - a[1].custoMes);
+    const totalGeralMes = gastoMes + prospecGastoMes;
+
     host.innerHTML = `
+      <!-- TOTAL GERAL no topo -->
+      <div class="card mb20" style="background:linear-gradient(135deg,#0a0a0a 0%,#1f1f1f 100%);color:white;border:none">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px">
+          <div>
+            <div style="font-size:11px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.6px">Custo total IA · este mês</div>
+            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:38px;margin-top:6px">R$ ${totalGeralMes.toFixed(2)}</div>
+            <div style="font-size:12px;color:#d4d4d4;margin-top:4px">🎨 Imagens R$ ${gastoMes.toFixed(2)} · 🔍 Prospecção R$ ${prospecGastoMes.toFixed(2)}</div>
+          </div>
+          <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+            <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px">${totalMes}</div><div style="font-size:10.5px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.4px">imagens mês</div></div>
+            <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px">${prospecBuscasMes}</div><div style="font-size:10.5px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.4px">buscas mês</div></div>
+            <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px">${prospecLeadsMes}</div><div style="font-size:10.5px;color:#a3a3a3;text-transform:uppercase;letter-spacing:0.4px">leads gerados</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section título -->
+      <div style="display:flex;align-items:center;gap:8px;margin:24px 0 12px 0">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:15px">🎨 Imagens IA</div>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:10.5px;color:var(--text3)">gemini-2.5-flash-image (PAGA)</span>
+      </div>
+
       <div class="card mb20">
         <div class="card-header">
           <div>
@@ -18389,6 +18436,91 @@ async function loadCustosIA() {
                 <div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.8));color:white;padding:20px 6px 4px;font-size:9.5px">${esc(l.user_nome?.split(' ')[0] || '—')} · ${new Date(l.created_at).toLocaleDateString('pt-BR').slice(0,5)}</div>
               </a>
             `).join('')}
+          </div>`}
+      </div>
+
+      <!-- ═══════════════════════ PROSPECÇÃO IA ═══════════════════════ -->
+      <div style="display:flex;align-items:center;gap:8px;margin:32px 0 12px 0">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:15px">🔍 Prospecção IA</div>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:10.5px;color:var(--text3)">gemini-2.5-flash + Google Search (PAGA)</span>
+      </div>
+
+      <div class="card mb20">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Gasto do mês — Prospecção</div>
+            <div class="card-sub">Custo médio por busca: R$ 0,30 (varia com tokens + nº de leads). Free tier dá fallback se a paga estourar quota.</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="loadCustosIA()">🔄</button>
+        </div>
+        <div style="display:flex;gap:24px;align-items:baseline;margin-top:10px;flex-wrap:wrap">
+          <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:#7c3aed">R$ ${prospecGastoMes.toFixed(2)}</div><div style="font-size:11px;color:var(--text3)">gasto no mês</div></div>
+          <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px">${prospecBuscasMes}</div><div style="font-size:11px;color:var(--text3)">buscas no mês</div></div>
+          <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px">${prospecLeadsMes}</div><div style="font-size:11px;color:var(--text3)">leads gerados</div></div>
+          <div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px">${prospecBuscasMes > 0 ? 'R$ ' + (prospecGastoMes / prospecBuscasMes).toFixed(2) : '—'}</div><div style="font-size:11px;color:var(--text3)">custo / busca</div></div>
+        </div>
+      </div>
+
+      <div class="card mb20">
+        <div class="card-title" style="margin-bottom:10px">👥 Top vendedores em prospecção (mês)</div>
+        ${prospecRanking.length === 0 ? '<div style="color:var(--text3);font-size:12.5px;text-align:center;padding:20px">Ninguém prospectou esse mês ainda</div>' : `
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:560px">
+              <thead><tr style="background:var(--surface2)">
+                <th style="padding:8px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Vendedor</th>
+                <th style="padding:8px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Cargo</th>
+                <th style="padding:8px 10px;text-align:right;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Buscas mês</th>
+                <th style="padding:8px 10px;text-align:right;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Leads</th>
+                <th style="padding:8px 10px;text-align:right;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Custo mês</th>
+                <th style="padding:8px 10px;text-align:right;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">90 dias</th>
+              </tr></thead>
+              <tbody>
+                ${prospecRanking.map(([uid, u]) => `
+                  <tr style="border-top:1px solid var(--border)">
+                    <td style="padding:8px 10px;font-weight:600">${esc(u.nome || '—')}</td>
+                    <td style="padding:8px 10px;color:var(--text3)">${esc(u.cargo || '—')}</td>
+                    <td style="padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums">${u.buscasMes}</td>
+                    <td style="padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums">${u.leadsMes}</td>
+                    <td style="padding:8px 10px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600">R$ ${u.custoMes.toFixed(2)}</td>
+                    <td style="padding:8px 10px;text-align:right;color:var(--text3);font-variant-numeric:tabular-nums">${u.buscas90d} · R$ ${u.custo90d.toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>`}
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="margin-bottom:10px">📋 Últimas 20 buscas</div>
+        ${prospecLogs.length === 0 ? '<div style="color:var(--text3);font-size:12.5px;text-align:center;padding:20px">Nenhuma busca de prospecção nos últimos 90 dias</div>' : `
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:680px">
+              <thead><tr style="background:var(--surface2)">
+                <th style="padding:7px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Data</th>
+                <th style="padding:7px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Vendedor</th>
+                <th style="padding:7px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Segmento</th>
+                <th style="padding:7px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Local</th>
+                <th style="padding:7px 10px;text-align:right;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Leads</th>
+                <th style="padding:7px 10px;text-align:right;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3)">Custo</th>
+              </tr></thead>
+              <tbody>
+                ${prospecLogs.slice(0,20).map(p => {
+                  const dt = new Date(p.created_at);
+                  const local = [p.cidade, p.estado].filter(Boolean).join('/') || '—';
+                  return `
+                    <tr style="border-top:1px solid var(--border)">
+                      <td style="padding:7px 10px;color:var(--text3);font-variant-numeric:tabular-nums">${dt.toLocaleDateString('pt-BR').slice(0,5)} ${dt.toTimeString().slice(0,5)}</td>
+                      <td style="padding:7px 10px">${esc(p.user_nome?.split(' ')[0] || '—')}</td>
+                      <td style="padding:7px 10px">${esc(p.segmento || '—')}</td>
+                      <td style="padding:7px 10px;color:var(--text3)">${esc(local)}</td>
+                      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums">${p.qtd_leads || 0}</td>
+                      <td style="padding:7px 10px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600">R$ ${Number(p.custo_estimado_reais || 0).toFixed(2)}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
           </div>`}
       </div>
     `;
