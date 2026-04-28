@@ -1,6 +1,6 @@
 # DOCUMENTAÇÃO COMPLETA — DMS (Dana Marketing System)
 
-> **Última atualização:** 28/04/2026 noite — ciclo 36 (Estúdio IA + rotação de keys + perf)
+> **Última atualização:** 28/04/2026 noite-tarde — ciclo 37 (ai-chat v19 reescrito do zero)
 > **Repo GitHub:** https://github.com/DanaComercial/dana-marketing
 > **Site público:** https://danadash.netlify.app/ (auto-deploy via Netlify)
 > **Supabase:** `wltmiqbhziefusnzmmkt`
@@ -3412,3 +3412,115 @@ Sessão anterior (compact) terminou com Manu reportando ai-chat com "sobrecarreg
 ---
 
 **Fim da documentação · Atualizado em 28/04/2026 noite — ciclo 36 adicionado · v4.0**
+
+---
+
+## 37. CICLO 28/04/2026 NOITE-TARDE — ai-chat v19 (REWRITE FROM SCRATCH)
+
+### 37.1 Motivo da reescrita
+
+A `ai-chat` v18 tinha source TS corrompida na extração via eszip2 (caracteres UTF-8 trocados em comentários). Bloqueava qualquer edit. Pendência prioritária 🟡 da Section 36 cumprida.
+
+### 37.2 Arquivo novo
+
+`C:/Users/Juan - Dana Jalecos/Documents/Sistema Marketing/.claude/scripts/ai-chat-v19/index.ts` — 1475 linhas, 67KB, código limpo.
+
+### 37.3 Mudanças vs v18
+
+| Aspecto | v18 | v19 |
+|---|---|---|
+| Source | duplicada (JS+TS, 3383 linhas) | TS único (1475 linhas) |
+| Gemini | direto via `GEMINI_API_KEY` | via `gemini-proxy` (rotação 4 keys) |
+| Tools | 19 | **38** (cobre TODOS domínios) |
+| Tabelas C360 | parcial | scoring_full, scoring_vendedor, segmentos, campanhas, envios, insights, notas, metadata, vendedor_manual, clientes_manuais |
+| Cascade | Groq → Gemini → Groq retry | Groq 70B → gemini-proxy → Groq 8B |
+| MAX_TOOL_ROUNDS | 5 | 6 |
+| Rate limit | 50/h | 60/h |
+| Vendedor scoping | regra no system prompt | gate hard-coded `TOOLS_BLOQUEADAS_VENDEDOR` |
+| Versão deploy | v18 ACTIVE | **v20 ACTIVE** |
+
+### 37.4 Tools implementadas (38)
+
+**VENDAS (7)**: `consultar_faturamento`, `vendas_por_canal`, `vendas_por_vendedor`, `top_clientes`, `top_produtos`, `pedidos_cliente`, `pedido_detalhe`
+
+**FINANCEIRO (3)**: `consultar_contas_financeiras`, `contas_atrasadas`, `fluxo_caixa_mes`
+
+**ESTOQUE (2)**: `info_produto`, `produtos_sem_estoque`
+
+**C360 (10)**: `buscar_contato`, `resumo_cliente360`, `alertas_cliente360` (vips_em_risco/a_recuperar/prontos_recompra), `listar_segmentos_c360`, `listar_campanhas_c360`, `detalhe_cliente_c360`, `buscar_notas_c360`, `minha_carteira` (vendedor scoped: resumo/vips/em_risco/top), `ranking_carteiras`, `prospects_lista`
+
+**MARKETING (10)**: `listar_campanhas_internas` (com filtro `minhas`), `detalhe_campanha_interna` (equipe + expedições + comentários + materiais + timeline), `expedicoes_pendentes`, `briefings_lista`, `criativos_status`, `criativos_to_do`, `influenciadores_performance`, `concorrentes_lista`, `canais_aquisicao_roi`, `estudio_pecas_galeria`
+
+**SISTEMA (6)**: `buscar_tarefas`, `minhas_tarefas`, `resumo_kanban`, `alertas_pessoais`, `sync_status`, `calendario_proximos`
+
+**FALLBACK (2 — admin)**: `listar_schema`, `consultar_tabela`
+
+### 37.5 Permissões (TOOL_SECOES)
+
+Cada tool gateada por uma ou mais seções de `cargo_permissoes.secao`. Admin sempre passa. Tools `[]` (sem exigência) liberadas pra qualquer logado: `minhas_tarefas`, `alertas_pessoais`, `calendario_proximos`, `listar_schema`.
+
+Vendedor com `TOOLS_BLOQUEADAS_VENDEDOR` set: `top_clientes`, `resumo_cliente360`, `alertas_cliente360`, `listar_segmentos_c360`, `listar_campanhas_c360`, `detalhe_cliente_c360`, `buscar_notas_c360`, `buscar_contato`, `consultar_tabela`, `ranking_carteiras`, `vendas_por_vendedor` — system prompt orienta usar `minha_carteira`.
+
+### 37.6 Cascade de providers
+
+```
+1. Groq Llama 3.3 70B (primário, sem retry)
+   ↓ falha
+2. gemini-proxy (rotaciona 4 keys, com retry 1×)
+   ↓ falha
+3. Groq Llama 3.1 8B (última tentativa)
+   ↓ falha
+4. 503 "IA temporariamente sobrecarregada"
+```
+
+### 37.7 Tabelas BLOQUEADAS (segurança)
+
+`profiles`, `bling_tokens`, `ai_chat_log`, `cargo_permissoes`, `activity_log`, `avatares_ia_log`, `ia_prospeccao_log` — não estão em `TABELAS_PERMITIDAS`.
+
+### 37.8 Contrato (mantido idêntico ao v18 — UI sem alteração)
+
+```
+IN  POST /functions/v1/ai-chat
+    Authorization: Bearer <user JWT>
+    body: { messages: [{role, content}, ...max 20] }
+
+OUT 200 { resposta, modelo, tools_usadas, tokens, duracao_ms }
+ERR 401 JWT inválido | 429 rate limit | 503 transiente | 500 outros
+```
+
+Frontend `aiChatEnviar` no `index.html` segue funcionando sem mudança (já tem retry 3× client-side com backoff 0/2/5s).
+
+### 37.9 Deploy
+
+```bash
+python .claude/scripts/deploy-ai-chat-v19.py
+# -> HTTP 201 version=20 status=ACTIVE
+```
+
+Smoke test: gateway retorna `401 UNAUTHORIZED_LEGACY_JWT` quando JWT inválido (esperado), `401 NO_AUTH_HEADER` quando ausente. Função compila e responde.
+
+### 37.10 O que mudou na pendência da Section 36
+
+| Antes (Section 36.15) | Agora |
+|---|---|
+| 🟡 Reescrever ai-chat from scratch (~1h) | ✅ FEITO |
+| ai-chat usa GEMINI_API_KEY direto | ai-chat usa gemini-proxy (rotação 4 keys) |
+| Source corrompida bloqueia edits | Source limpa em `ai-chat-v19/index.ts` |
+
+### 37.11 Pendências atualizadas
+
+| Item | Tipo | Prioridade |
+|---|---|---|
+| Liberar Estúdio IA pros cargos `designer` e `gerente_marketing` | Toggle `cargo_permissoes` | 🟡 Aguardando Manu |
+| Sync inicial massivo das ~4.7k imagens dos produtos | ~95 batches | 🟡 Quando der |
+| GitHub Action `backup-supabase.yml` | Manual GitHub UI | 🟡 Quando der |
+| Validação real do ai-chat v19 com perguntas variadas | User no browser | 🟢 Próxima sessão |
+| Inconsistência permissão `campanhas_internas` vs `campanhas-internas` | DELETE row dup | 🟢 Não bloqueante |
+
+### 37.12 Onde paramos
+
+ai-chat v19 deployado e ACTIVE. Próximo passo é o user (Manu/Juan) testar via UI. As novas tools cobrem TUDO: vendas/financeiro/estoque/C360/marketing/sistema. Bot agora "sabe de tudo".
+
+---
+
+**Fim da documentação · Atualizado em 28/04/2026 noite-tarde — ciclo 37 (ai-chat v19) · v4.1**
