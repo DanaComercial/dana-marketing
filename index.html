@@ -83,7 +83,8 @@ async function loadSupabaseData() {
       sb.from('dashboard_resumo').select('*').eq('empresa', empSelecionada).maybeSingle(),
       sb.from('dashboard_mensal').select('*').eq('empresa', empSelecionada).order('ano').order('mes'),
       sb.from('dashboard_contas').select('*').eq('empresa', empSelecionada).maybeSingle(),
-      aplicarEmpresa(sb.from('vendedores').select('id', { count: 'exact', head: true })),
+      // vendedores HEAD count — wrappa em catch pra nao derrubar dashboard se Supabase retornar 503 intermitente
+      aplicarEmpresa(sb.from('vendedores').select('id', { count: 'exact', head: true })).then(r => r).catch(e => { console.warn('[loadSupabaseData] vendedores HEAD falhou:', e?.message || e); return { count: 0, data: null, error: e }; }),
       sb.from('sync_log').select('created_at').order('created_at', { ascending: false }).limit(1),
     ]);
 
@@ -9683,6 +9684,51 @@ function go(el, viewId) {
   if (viewId === 'campanhas') { if (typeof loadCampanhasFromBriefings === 'function') loadCampanhasFromBriefings(); }
   if (viewId === 'prospeccao') { if (typeof prospLoad === 'function') prospLoad(); }
   if (viewId === 'personas') { if (typeof setupPersonaAvatarButtons === 'function') setupPersonaAvatarButtons(); }
+
+  // ════ LAZY LOAD com cache (carrega 1x por sessao por view) ════
+  if (!window._viewLoaded) window._viewLoaded = {};
+  const loadOnce = (key, fn) => {
+    if (window._viewLoaded[key]) return;
+    window._viewLoaded[key] = true;
+    try { fn(); } catch(e) { console.warn('[lazy]', key, e); window._viewLoaded[key] = false; }
+  };
+  if (viewId === 'home' || viewId === 'dashboard') {
+    // Dashboard widgets dependem de Kanban tarefas (cards "Tarefas Hoje" etc)
+    loadOnce('tarefas', () => typeof loadTarefas === 'function' && loadTarefas());
+  }
+  if (viewId === 'kanban') {
+    loadOnce('tarefas', () => typeof loadTarefas === 'function' && loadTarefas());
+  }
+  if (viewId === 'calendario') {
+    loadOnce('calendario-init', () => typeof initCalendario === 'function' && initCalendario());
+  }
+  if (viewId === 'performance' || viewId === 'analytics') {
+    loadOnce('performance', () => typeof loadPerformanceData === 'function' && loadPerformanceData());
+  }
+  if (viewId === 'financeiro') {
+    loadOnce('financeiro', () => {
+      if (typeof loadFinanceiro === 'function') loadFinanceiro();
+      if (typeof loadPrevisaoReceita === 'function') loadPrevisaoReceita();
+    });
+  }
+  if (viewId === 'projecoes') {
+    loadOnce('projecoes', () => typeof loadProjecoes === 'function' && loadProjecoes());
+  }
+  if (viewId === 'marketplaces') {
+    loadOnce('marketplaces', () => {
+      if (typeof loadMarketplaces === 'function') loadMarketplaces();
+      if (typeof loadMarketplacesExtras === 'function') loadMarketplacesExtras();
+    });
+  }
+  if (viewId === 'provasocial') {
+    loadOnce('provasocial', () => typeof loadProvaSocial === 'function' && loadProvaSocial());
+  }
+  if (viewId === 'canaisvendas') {
+    loadOnce('canaisvendas', () => typeof loadCanaisVenda === 'function' && loadCanaisVenda('30d'));
+  }
+  if (viewId === 'relatorio') {
+    loadOnce('relatorio', () => typeof loadRelatorio === 'function' && loadRelatorio());
+  }
 }
 
 // ── CLIENTE 360 · lazy-load do iframe (filtro de empresa é gerenciado internamente pelo iframe) ──
@@ -13200,7 +13246,12 @@ async function popularTodosSelectsCampanha() {
 
 async function loadTarefas() {
   try {
-    const { data } = await sb.from('tarefas').select('*').order('posicao');
+    // Limit 1000 — Kanban raramente tem mais que isso. Concluidas antigas
+    // ficam fora pra reduzir payload (renderiza so as ativas).
+    const { data } = await sb.from('tarefas')
+      .select('*')
+      .order('posicao')
+      .limit(1000);
     _tarefasCache = data || [];
 
     // Carrega cache de campanhas + popula select de filtro
@@ -19360,24 +19411,14 @@ async function criarUsuario() {
 
 // ── INIT UPGRADE ──
 async function initUpgradeFeatures() {
+  // Apenas o ESSENCIAL no startup. Resto eh LAZY (carrega ao entrar na view).
+  // loadAlertas ja roda separado no DOMContentLoaded (linha ~12673), nao chamar aqui (evita duplicata)
   setupRealtimeSubscriptions();
-  loadAlertas();
-  // Carregar colunas custom ANTES de loadTarefas (para que os labels apareçam certos)
   await loadColunasCustom();
-  loadTarefas();
-  initCalendario();
-  loadPrevisaoReceita();
-  loadPerformanceData();
-  // Esperar liveData ficar disponível, então carregar seções que dependem dele
-  setTimeout(() => {
-    loadMarketplaces();
-    loadMarketplacesExtras();
-    loadFinanceiro();
-    loadProjecoes();
-    loadProvaSocial();
-    loadCanaisVenda('30d');
-    loadRelatorio();
-  }, 2000);
+  // Tudo abaixo migrou pra go(viewId): loadTarefas, initCalendario,
+  // loadPrevisaoReceita, loadPerformanceData, loadMarketplaces,
+  // loadMarketplacesExtras, loadFinanceiro, loadProjecoes, loadProvaSocial,
+  // loadCanaisVenda, loadRelatorio.
 }
 
 // ─── APIS ENGINE ───
