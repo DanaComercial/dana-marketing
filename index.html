@@ -18564,7 +18564,7 @@ window.estGerar = async function() {
   if (btn) { btn.disabled = true; btn.textContent = '✨ Gerando prompt...'; }
 
   try {
-    // 1. Gera prompt rico via gerar-peca-ia
+    // 1. Gera prompt rico via gerar-peca-ia (v3 com Gemini Vision)
     const resPrompt = await fetch(`${SUPABASE_URL}/functions/v1/gerar-peca-ia`, {
       method: 'POST',
       headers: {
@@ -18585,6 +18585,20 @@ window.estGerar = async function() {
     const dataPrompt = await resPrompt.json();
     if (dataPrompt.error) throw new Error(dataPrompt.error);
     const promptVisual = dataPrompt.prompt;
+    // Debug visivel: mostra o prompt gerado num <details> antes da imagem
+    let debugBox = document.getElementById('est-debug-prompt');
+    if (!debugBox) {
+      debugBox = document.createElement('div');
+      debugBox.id = 'est-debug-prompt';
+      debugBox.style.cssText = 'margin-top:14px;padding:12px;background:var(--surface);border-radius:8px;font-size:11.5px;border:1px solid var(--border)';
+      document.getElementById('est-panel-4')?.querySelector('.card')?.appendChild(debugBox);
+    }
+    debugBox.innerHTML = `
+      <details ${dataPrompt.viu_imagem ? '' : 'open'}>
+        <summary style="cursor:pointer;font-weight:600;color:#7c3aed">🔍 Prompt gerado (provider: ${esc(dataPrompt.provider || '?')}${dataPrompt.viu_imagem === false ? ' · ⚠ não viu a imagem do produto' : ' · ✓ viu imagem'})</summary>
+        <div style="margin-top:8px;padding:10px;background:white;border-radius:6px;color:#1a1a1a;line-height:1.5;max-height:240px;overflow-y:auto">${esc(promptVisual)}</div>
+      </details>
+    `;
     if (btn) btn.textContent = '🎨 Gerando imagem...';
 
     // 2. Chama gerar-avatar-ia (usa GEMINI_IMAGE_API_KEY paga)
