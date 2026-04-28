@@ -5154,7 +5154,7 @@ function renderCriativosTodo() {
 }
 
 // Gera imagem de REFERENCIA IA pra inspirar designer na demanda to-do
-function criGerarReferenciaIA(demandaId) {
+async function criGerarReferenciaIA(demandaId) {
   const c = _criativosCache.find(x => x.id === demandaId);
   if (!c) { showToast('Demanda não encontrada'); return; }
   const formato = c.formato || 'reels';
@@ -5165,15 +5165,41 @@ function criGerarReferenciaIA(demandaId) {
     carrossel: 'square 1:1 Instagram carousel format',
     banner: 'horizontal 16:9 web banner format'
   }[formato] || 'vertical 9:16 social media format';
-  const contexto = [
-    c.titulo && `theme: "${c.titulo}"`,
-    c.observacoes && `brief: ${c.observacoes}`,
-  ].filter(Boolean).join('. ');
-  const prompt = `Design reference concept mockup for a Brazilian medical uniform brand (Dana Jalecos — premium white lab coats, scrubs, luxury medical uniforms). ${dimensoes}. ${contexto}. Editorial lifestyle photography style with Brazilian healthcare professionals wearing premium white medical lab coats or scrubs. Modern clinical/spa environment, sophisticated warm natural lighting, beige and cream color palette with white accents, photorealistic commercial campaign aesthetic, aspirational luxury feel. This is a REFERENCE image only — designer will use it as inspiration, not as final art.`;
+
+  showToast('✨ Gerando prompt visual contextualizado...');
+  let prompt = '';
+  try {
+    // Meta-prompting: gera prompt rico baseado no titulo + briefing da demanda
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/gerar-prompt-visual`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        nome: c.titulo,
+        formato,
+        observacoes: c.observacoes,
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    // Anexa o formato de dimensão ao final pra não perder
+    prompt = `${data.prompt} Format: ${dimensoes}.`;
+  } catch (e) {
+    console.warn('[demanda-IA] meta-prompt falhou, fallback:', e);
+    const contexto = [
+      c.titulo && `theme: "${c.titulo}"`,
+      c.observacoes && `brief: ${c.observacoes}`,
+    ].filter(Boolean).join('. ');
+    prompt = `Design reference concept mockup for a Brazilian medical uniform brand (Dana Jalecos — premium white lab coats, scrubs). ${dimensoes}. ${contexto}. Adapt visual environment, palette and props to the demanda theme. Brazilian healthcare professionals in premium uniforms, photorealistic editorial photography. This is a REFERENCE image only — designer will use it as inspiration.`;
+  }
+
   if (typeof gerarImagemIA === 'function') {
     gerarImagemIA({
       titulo: `Referência IA · ${c.titulo || 'Demanda'}`,
-      subtitulo: 'Imagem conceitual pra inspirar o designer (não substitui a arte)',
+      subtitulo: 'Imagem conceitual contextualizada (não substitui a arte)',
       prompt,
       contexto: 'outro',
       contextoRefId: demandaId,
@@ -11014,17 +11040,46 @@ window.bvVincularACampanha = async function() {
   }
 };
 
-function bvGerarMockupIA() {
+async function bvGerarMockupIA() {
   if (!_briefingAtivoId) { showToast('Nenhum briefing aberto'); return; }
   const b = _briefingsCache.find(x => x.id === _briefingAtivoId);
   if (!b) return;
-  const contexto = [
-    b.conceito && `core concept: ${b.conceito}`,
-    b.oferta && `offer: ${b.oferta}`,
-    b.publico && `audience: ${b.publico}`,
-    b.quote && `message: ${b.quote}`,
-  ].filter(Boolean).join('. ');
-  const prompt = `Concept mockup for a Brazilian medical uniform brand (Dana Jalecos, premium medical lab coats and scrubs). ${contexto}. Editorial lifestyle photography, Brazilian healthcare professionals in white premium uniforms, sophisticated modern setting, warm natural lighting, beige and cream color palette, photorealistic, brand campaign aesthetic, aspirational feel.`;
+  showToast('✨ Gerando prompt visual contextualizado...');
+  let prompt = '';
+  try {
+    // Meta-prompting: gera prompt visual rico baseado nos dados do briefing
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/gerar-prompt-visual`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        nome: b.titulo,
+        publico: b.publico,
+        problema: b.problema,
+        conceito: b.conceito,
+        quote: b.quote,
+        gancho: b.gancho,
+        oferta_principal: b.oferta,
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    prompt = data.prompt;
+  } catch (e) {
+    console.warn('[bv-mockup] meta-prompt falhou, fallback:', e);
+    // Fallback com nome do briefing incluído
+    const contexto = [
+      `Briefing theme: "${b.titulo || ''}"`,
+      b.conceito && `core concept: ${b.conceito}`,
+      b.oferta && `offer: ${b.oferta}`,
+      b.publico && `audience: ${b.publico}`,
+      b.quote && `message: ${b.quote}`,
+    ].filter(Boolean).join('. ');
+    prompt = `Concept mockup for a Brazilian medical uniform brand (Dana Jalecos, premium medical lab coats and scrubs). ${contexto}. Adapt visual environment to the briefing theme. Brazilian healthcare professionals in premium uniforms, photorealistic editorial photography, 3:2 aspect ratio, brand campaign aesthetic.`;
+  }
   window.gerarImagemIA({
     titulo: `Mockup IA · ${b.titulo}`,
     subtitulo: 'Visual de referência para o designer',
@@ -22425,27 +22480,59 @@ const aiChatInterval = setInterval(() => {
   };
 
   // ══════════════════════════════════
-  // GERAR VISUAL IA da campanha
+  // GERAR VISUAL IA da campanha (com meta-prompting via gerar-prompt-visual)
   // ══════════════════════════════════
-  window.ciGerarVisualIA = function(campanhaId) {
+  window.ciGerarVisualIA = async function(campanhaId) {
     const c = ciState.campanhas.find(x => x.id === campanhaId);
     if (!c) return;
-    const tipoLabel = { venda:'sales promotion', branding:'brand building', lancamento:'product launch', clearance:'clearance sale', institucional:'institutional' }[c.tipo] || 'marketing';
-    const contexto = [
-      c.oferta_principal && `offer: ${c.oferta_principal}`,
-      c.produtos_foco && `featured products: ${c.produtos_foco}`,
-      c.argumento_central && `core message: ${c.argumento_central}`,
-      c.publico_alvo && `target audience: ${c.publico_alvo}`,
-    ].filter(Boolean).join('. ');
-    const prompt = `Concept visual mockup for a Brazilian medical uniform brand campaign (Dana Jalecos, luxury medical lab coats and scrubs). Campaign type: ${tipoLabel}. ${contexto}. Elegant editorial photography style, Brazilian healthcare professionals wearing premium white lab coats and scrubs, modern clinical or spa environment, warm sophisticated lighting, beige and soft white color palette, photorealistic, commercial campaign aesthetic, 3:2 aspect ratio, inspirational luxury feel.`;
+    showToast('✨ Gerando prompt visual contextualizado...');
+    let prompt = '';
+    try {
+      // 1. Primeiro chama gerar-prompt-visual pra montar prompt rico baseado em TODOS os dados da campanha
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/gerar-prompt-visual`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          nome: c.nome,
+          tipo: c.tipo,
+          objetivo: c.objetivo,
+          publico_alvo: c.publico_alvo,
+          oferta_principal: c.oferta_principal,
+          produtos_foco: c.produtos_foco,
+          argumento_central: c.argumento_central,
+          canais: c.canais,
+          data_inicio: c.data_inicio,
+          data_fim: c.data_fim,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      prompt = data.prompt;
+    } catch (e) {
+      console.warn('[ci-visual] meta-prompt falhou, usando fallback:', e);
+      // Fallback: prompt antigo (template fixo) com nome da campanha incluído
+      const tipoLabel = { venda:'sales promotion', branding:'brand building', lancamento:'product launch', clearance:'clearance sale', institucional:'institutional' }[c.tipo] || 'marketing';
+      const contexto = [
+        `Campaign theme: "${c.nome}"`,
+        c.objetivo && `objective: ${c.objetivo}`,
+        c.oferta_principal && `offer: ${c.oferta_principal}`,
+        c.produtos_foco && `featured products: ${c.produtos_foco}`,
+        c.argumento_central && `core message: ${c.argumento_central}`,
+        c.publico_alvo && `target audience: ${c.publico_alvo}`,
+      ].filter(Boolean).join('. ');
+      prompt = `Concept visual mockup for a Brazilian medical uniform brand campaign (Dana Jalecos, luxury medical lab coats and scrubs). Campaign type: ${tipoLabel}. ${contexto}. Adapt the visual environment, color palette and props to the campaign theme. Brazilian healthcare professionals wearing premium white lab coats and scrubs. Photorealistic editorial photography, 3:2 aspect ratio, sophisticated lighting, commercial campaign aesthetic.`;
+    }
     window.gerarImagemIA({
       titulo: `Visual IA · ${c.nome}`,
-      subtitulo: 'Mockup conceitual pra apresentação e briefing',
+      subtitulo: 'Mockup conceitual contextualizado ao tema da campanha',
       prompt,
       contexto: 'campanha_interna',
       contextoRefId: campanhaId,
       onSave: async (url) => {
-        // Salva como material vinculado
         await sb.from('campanha_interna_materiais').insert({
           campanha_id: campanhaId,
           tipo: 'link',
