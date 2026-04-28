@@ -1,6 +1,6 @@
 # DOCUMENTAÇÃO COMPLETA — DMS (Dana Marketing System)
 
-> **Última atualização:** 27/04/2026 noite — ciclo 35 (polimento + campanhas globais)
+> **Última atualização:** 28/04/2026 noite — ciclo 36 (Estúdio IA + rotação de keys + perf)
 > **Repo GitHub:** https://github.com/DanaComercial/dana-marketing
 > **Site público:** https://danadash.netlify.app/ (auto-deploy via Netlify)
 > **Supabase:** `wltmiqbhziefusnzmmkt`
@@ -3041,10 +3041,374 @@ Também atualizada `GEMINI_API_KEY` (free tier do bot do estoque) — valor em T
 
 | Pedido | Status | Próximo passo |
 |---|---|---|
-| Selecionar briefing existente / criar novo no modal Nova Campanha Interna | 🟡 Aguardando responder 2 perguntas (a/b) | — |
-| Card "Aguardando briefing" na seção Construtor | 🟡 idem | — |
-| Vincular `briefings_campanha.campanha_interna_id` (relação reversa) | 🟡 idem | — |
+| Selecionar briefing existente / criar novo no modal Nova Campanha Interna | ✅ Resolvido em 36.2 | — |
+| Card "Aguardando briefing" na seção Construtor | ✅ Resolvido em 36.2 (Briefings Visuais) | — |
+| Vincular `briefings_campanha.campanha_interna_id` (relação reversa) | ✅ Resolvido em 36.2 (vincular briefing avulso a campanha) | — |
 
 ---
 
-**Fim da documentação · Atualizado em 27/04/2026 noite — ciclo 35 adicionado · v3.0**
+## 36. CICLO 28/04/2026 — ESTÚDIO IA + ROTAÇÃO DE KEYS + PERFORMANCE + CAMPANHAS
+
+Sessão massiva (~30+ commits). Foco em Estúdio IA Fase 1+2, custos, performance e estabilização das IAs.
+
+### 36.1 Schema novo (3 tabelas + 2 colunas + 1 bucket)
+
+```sql
+-- Vínculo briefing ↔ campanha interna (relação reversa)
+ALTER TABLE campanhas_internas
+  ADD COLUMN IF NOT EXISTS briefing_id UUID REFERENCES briefings_campanha(id) ON DELETE SET NULL;
+CREATE INDEX idx_campanhas_internas_briefing ON campanhas_internas(briefing_id);
+
+-- Log de prospecção pra painel Custos IA
+CREATE TABLE ia_prospeccao_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID, user_nome TEXT, user_cargo TEXT,
+  segmento TEXT, cidade TEXT, estado TEXT,
+  qtd_leads INT,
+  custo_estimado_reais NUMERIC(8,4) DEFAULT 0.05,
+  status TEXT DEFAULT 'ok', erro TEXT,
+  provider TEXT, tokens_input INT, tokens_output INT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+-- RLS: admin ve tudo, user vê só os próprios
+
+-- Galeria do Estúdio IA
+CREATE TABLE estudio_pecas (
+  id UUID PRIMARY KEY,
+  produto_id BIGINT, produto_nome TEXT, produto_imagem_url TEXT,
+  tipo_peca TEXT NOT NULL, tema TEXT, copy_extra TEXT,
+  prompt_usado TEXT,
+  imagem_url TEXT, storage_path TEXT,
+  status TEXT, erro TEXT,
+  custo_estimado_reais NUMERIC(8,4) DEFAULT 0.20,
+  criado_por UUID, criado_por_nome TEXT,
+  created_at TIMESTAMPTZ
+);
+-- RLS: admin-only
+
+-- Storage permanente das imagens dos produtos (URLs Bling expiram em 1h)
+ALTER TABLE produtos
+  ADD COLUMN IF NOT EXISTS imagem_storage_url TEXT,
+  ADD COLUMN IF NOT EXISTS imagem_storage_synced_at TIMESTAMPTZ;
+-- Bucket: produtos-imagens (público, max 5MB)
+```
+
+### 36.2 Vínculo briefing ↔ campanha interna (3 modos + Aguardando + reverso)
+
+Resolveu as 3 pendências do ciclo 35.
+
+**Modal Nova Campanha Interna**: substituiu input único de URL por radio group:
+- ⚪ Sem briefing ainda — vincular depois (default)
+- ⚪ Selecionar briefing existente → dropdown com TODOS briefings (avulsos + vinculados)
+- ⚪ Link externo → URL input
+
+**Briefings Visuais → "⏳ Aguardando briefing"** (banner amarelo no topo):
+- Lista campanhas internas sem briefing_id E sem briefing_link
+- Cada card tem 2 botões:
+  - "Criar briefing →" abre Construtor pré-preenchido com nome da campanha + banner roxo "⏳ Vinculando à campanha". `saveBriefing()` detecta `_aguardandoCampanhaPendente` e linka briefing_id automático.
+  - "Selecionar existente" → modal pra escolher briefing já criado.
+
+**Vincular briefing avulso a campanha** (reverso): novo botão roxo "🎯 Vincular a campanha" no modal `ver-briefing`. Lista todas campanhas internas, mostra flag se briefing já está vinculado a outras. Permission: admin OU `campanha_interna_editar`.
+
+### 36.3 Construtor de Campanhas — IA contextual em 4 steps
+
+Manu reportou: "eu seleciono público diferente mas a copy sai sempre igual". Antes os steps 3/4/5/6 do Construtor tinham textos hardcoded.
+
+**Edge function `construtor-ai`** (Groq Llama 3.3 70B + Gemini fallback):
+- Input: `publicos[]`, `problema`, `conceito_nome?`, `conceito_msg?`, `oferta_tipo?`
+- Output JSON: `conceito_nome`, `conceito_msg`, `hashtag`, `oferta_tipo`, `oferta_argumento`, `gancho`, `realidade`, `autoridade`, `solucao`, `cta`, `canais_360[]`
+- Sistema prompt em PT com voz Dana hardcoded
+- Whitelist de oferta_tipo (6 tipos do frontend) e canais_360 (13 canais válidos)
+- Sanitização com fallback fuzzy (primeira palavra) pra normalizar acentos
+
+**Frontend (Construtor)**:
+- `cbData.aiSugestao` cache (chamada UNICA, todos os steps leem)
+- `cbData.aiStepsAplicados` track quais steps já receberam auto-apply
+- `gerarEstrategiaComIA(force, scope)`:
+  - scope: `'conceito' | 'oferta' | 'copy' | '360'`
+  - Hook em `goStep`: ao chegar Steps 2/3/4/5 pela 1ª vez → auto-aplica
+  - Botões roxos "🔄 Regenerar com IA" em cada step
+- `aplicarSugestaoIA(scope)` popula campos do step a partir do cache:
+  - **Step 3 Conceito**: nome + mensagem central + hashtag
+  - **Step 4 Oferta**: marca card sugerido + banner roxo com argumento
+  - **Step 5 Copy**: 5 campos (gancho, realidade, autoridade, solução, CTA)
+  - **Step 6 360°**: toggle on/off dos pillars baseado em canais sugeridos
+- Invalidação de cache ao mudar público (`selectAud` + `toggleAllAud`), problema (`selPain`), oferta (`selOffer`)
+
+**Bug fix Step 4 Oferta**: matching de cards falhava por mismatch de acentos (`Lancamento de Colecao` vs `Lançamento de Coleção`). Helper `normStr()` normaliza NFD + remove diacríticos + 3-pass match (exato → contains → primeira palavra).
+
+### 36.4 Imagens IA com tema da campanha (meta-prompting)
+
+Manu reportou: "criei campanha 'Copa do Mundo' e a IA gerou imagem de spa, nada a ver". Causa: prompt era template fixo com `${contexto}` que ficava vazio.
+
+**Edge function `gerar-prompt-visual`** (Groq + Gemini fallback):
+- Recebe TODOS os dados da campanha (nome/tema, tipo, objetivo, público, oferta, conceito, datas, observações)
+- Gera prompt visual em inglês adaptado ao tema:
+  - Copa do Mundo → green-yellow accents, stadium-clinic crossover, patriotic
+  - Black Friday → dramatic dark, urgency
+  - Natal → red gold festive
+  - Volta às aulas → anatomy books, university hospital corridor
+  - etc.
+- Sanitiza prompt (remove markdown/quotes), max 2000 chars
+
+**Frontend (3 lugares atualizados)**:
+- `ciGerarVisualIA` (campanhas internas) — async, chama prompt-visual antes
+- `bvGerarMockupIA` (briefings) — idem
+- `criGerarReferenciaIA` (demandas/criativos) — mantém dimensões do formato no fim
+
+Fallback gracioso: se meta-prompt falhar, monta prompt antigo MELHORADO (inclui c.nome como `Campaign theme` e instrui IA a adaptar ambiente/paleta).
+
+### 36.5 Página Vendas → Prospecção (NOVA)
+
+Pedido da Manu: "uma IA que busque dados reais do Google, eu coloco filtros (segmento, cidade, estado), aparece os leads (nome, site, Instagram, WhatsApp), e gera mensagem personalizada".
+
+**Edge function `prospectar`** (Gemini 2.5 Flash + Google Search grounding):
+- Input: `segmento, cidade, estado, qtd_max, ja_prospectados[]`
+- Auth via JWT, valida cargo: admin = 30 leads/busca, demais = 10
+- Usa `tools: [{ googleSearch: {} }]` no Gemini pra buscar leads B2B reais
+- Sistema prompt em PT instrui:
+  - APENAS leads VERIFICADOS na busca real (nada inventado)
+  - Mensagem mediana profissional, max 350 chars, termina com pergunta aberta
+  - Insight curto de por que faz sentido pra Dana abordar
+- Output: `leads[]` com `nome, segmento, cidade, estado, endereco, telefone, whatsapp, website, instagram, ia_insight, ia_mensagem`
+- Tabela `prospects` (criada antes do compact) armazena leads
+- **Logging via `await logProspeccao()`** (await crítico — sem ele o isolate Deno destruía o INSERT antes de executar)
+
+**Frontend `view-prospeccao`**:
+- Filtros: segmento + cidade + estado + qtd
+- Botão "🔎 Buscar leads" chama edge function
+- Resultados em cards: nome + ícones telefone/WhatsApp/Instagram/website + insight roxo + mensagem com botão "💬 Abrir WhatsApp" (URL com texto pronto)
+- Anti-duplicação: filtra leads que já existem em `prospects` table antes de inserir
+
+### 36.6 Custos IA — agora cobre Imagens + Prospecção
+
+Painel Admin → Custos IA expandido:
+
+```
+🔝 Card preto no topo: Custo total IA do mês = Imagens + Prospecção
+   - 3 KPIs: imagens · buscas · leads gerados
+
+🎨 Imagens IA (existente) — Gemini 2.5 Flash Image (paga)
+   - Limite mensal · Top usuários · Contextos · Últimas 20
+
+🔍 Prospecção IA (NOVO) — gemini-2.5-flash + Google Search (paga)
+   - Card de gasto: R$/mês, buscas, leads, custo médio/busca
+   - Top vendedores em prospecção (mês + 90d)
+   - Últimas 20 buscas (data, vendedor, segmento, local, leads, custo)
+```
+
+Custo da prospecção calculado via `estimarCustoReais(tokensIn, tokensOut)`:
+- Tokens × $0.30/1M (input) + $2.50/1M (output) — Gemini 2.5 Flash paga
+- + R$ 0,18 por Google Search query
+- Convertido USD → BRL com taxa 5.0
+- Mínimo R$ 0,05
+
+### 36.7 Estúdio IA — Fase 1 (Marketing → admin-only)
+
+Pedido da Manu: "uma página onde IA gera banner/post pra usar no site, com produtos reais, e que aprenda com os banners atuais".
+
+Eu acessei https://danajalecos.com.br no Chrome dela e tirei screenshots dos banners reais. Identifiquei:
+- Paleta: cream/beige/preto + acentos terracota
+- Tipografia hero: serif elegante (script-feel)
+- Composição: modelo de um lado + texto/CTA do outro lado
+- CTAs: botões pretos sólidos OU terracota
+- Estilo fotográfico: editorial premium, lifestyle
+- Aspect ratio banner: 16:9 (Gemini não suporta 21:9 nativo)
+
+**Sidebar Marketing**: novo item "🎨 Estúdio IA" com badge NOVO roxo. Inicialmente em `ADMIN_ONLY_VIEWS` (depois passou pra controle via cargo_permissoes — ver 36.8).
+
+**View `view-estudio`**: 4 painéis (stepper visual roxo):
+1. **Selecionar produto** — busca server-side com `ILIKE` em nome OU código no catálogo Bling (~4.7k produtos sincronizados)
+2. **Tipo de peça** (cards visuais):
+   - 🖼 Banner site (16:9 ultrawide)
+   - 📷 Post Instagram (1:1)
+   - 📱 Story/Reels (9:16)
+   - 💰 Anúncio Meta (1:1)
+3. **Tema/copy opcional** ("Volta às aulas", "10% OFF", etc.)
+4. **Resumo + botão Gerar** com aviso de custo "~R$ 0,20 por imagem"
+
+**Edge function `gerar-peca-ia`** (várias versões iteradas):
+- v1-v8: Groq → Gemini fallback (text only, recebia só nome do produto)
+- **v9+: Gemini 2.5 Flash com VISION** — baixa imagem do produto e analisa visualmente:
+  - Cor exata ("warm ecru, pearlescent sheen" em vez de "beige")
+  - Modelagem (slim cut, double-lapel, mid-thigh)
+  - Detalhes (bolsos patch, mangas longas, botões)
+  - Tecido aparente (crepe, malha)
+- Sistema prompt em INGLÊS (Gemini estava misturando idiomas com PT)
+- Regra crítica: tema visual **CONCRETO** (não palavra renderizada):
+  - Volta às aulas → MANDATORY: bookshelf with anatomy textbooks, anatomical torso model, stethoscope, university hospital corridor
+- Regra crítica: aspect ratio explícito no início do prompt
+- Regra crítica: rich scene (theme elements occupy 30-40% of frame, NEVER leave 60% blank)
+- Regra crítica: política de texto:
+  - Se user passou `copy_extra` → renderiza o texto literalmente em badge terracota + tema como headline secundária
+  - Se não passou → 100% sem texto (designer adiciona em pós)
+- `thinkingConfig.thinkingBudget: 0` desabilita "thinking" do Gemini 2.5 que cortava output
+
+**Galeria**: lista últimas 50 peças geradas com aspect ratio correto por tipo. Click abre imagem cheia.
+
+**Custos visíveis em 3 lugares**:
+- Banner amarelo no topo da seção
+- Card amarelo no Step 4 (Gerar)
+- Botão de gerar mostra custo
+
+Cada peça gerada é registrada em **3 lugares**: `estudio_pecas` (galeria), `avatares_ia_log` (painel Custos IA Imagens), log da geração.
+
+### 36.8 Estúdio IA — Fase 2 (variações + Storage + permissões)
+
+#### Permissões controláveis via banco
+- `'estudio'` saiu de `ADMIN_ONLY_VIEWS` (era hardcoded)
+- 9 rows criadas em `cargo_permissoes` com `permitido=false`:
+  - gerente_marketing, gerente_comercial, gerente_financeiro
+  - trafego_pago, producao_conteudo, designer
+  - analista_marketplace, vendedor, expedicao
+- Admin sempre vê (cargo bypass)
+- Pra liberar: Juan vai em **Admin → Permissões** e troca `estudio` pra `true` no cargo
+
+#### Variações A/B/C
+Step 4 ganhou selector 1/2/3 imagens (custo proporcional R$ 0,20 cada).
+
+`estGerar` agora chama `gerar-avatar-ia` em **paralelo** N vezes:
+- Variant suffixes pra forçar diversidade real:
+  - v1: prompt original
+  - v2: "alternative camera angle, slightly different model pose"
+  - v3: "different lighting mood (golden hour vs midday) and different expression"
+- Progresso visível: "🎨 1/3 prontas..." → "🎨 2/3 prontas..."
+- Cada peça salva separada em `estudio_pecas` (galeria mostra todas)
+- Errors tratados separados: "✓ 2/3 geradas. 1 falhou: ..."
+
+#### Storage permanente das imagens dos produtos
+
+**Problema**: URLs do Bling são pré-assinadas S3 que expiram em **1 hora**. Por isso Gemini Vision falhava em analisar produtos (`viu_imagem: false` no log).
+
+**Solução**:
+- Schema: `produtos.imagem_storage_url` + `imagem_storage_synced_at`
+- Bucket novo `produtos-imagens` (público, max 5MB)
+- **Edge function `sync-imagens-produtos`** (admin-only):
+  - Baixa do Bling, upload pro Supabase Storage, atualiza `imagem_storage_url`
+  - Batch 50 produtos por chamada (paralelo de 5)
+- Frontend prefere `imagem_storage_url`, fallback `imagem_url`
+- Botão **"🔄 Sincronizar imagens dos produtos"** no canto direito do Estúdio (admin)
+
+### 36.9 Performance — startup 33→10 requests
+
+Manu reportou site lento. Diagnóstico via Chrome network: **33 requests** disparados no startup mesmo o user só estando numa view (Estúdio IA).
+
+**Causa**: `initUpgradeFeatures` carregava 11 funções pesadas no startup (loadTarefas, initCalendario, loadPerformanceData com `pedidos limit=10000`, loadFinanceiro, loadProvaSocial, etc.) + alertas duplicado.
+
+**Fix**:
+1. `initUpgradeFeatures` enxuto: só `setupRealtimeSubscriptions` + `loadColunasCustom`
+2. Sistema de **lazy-load com cache** em `go(viewId)`:
+   - `window._viewLoaded[key]` garante 1x por sessão
+   - `loadOnce(key, fn)` helper
+   - 11 funções migradas pro `go()` com cache flag (home, kanban, calendario, performance, financeiro, projecoes, marketplaces, provasocial, canaisvendas, relatorio)
+3. `loadTarefas` ganhou `.limit(1000)` (antes era sem limit)
+4. `vendedores HEAD count` wrappado em `.catch()` pro 503 intermitente do Supabase não derrubar dashboard
+
+Resultado: site abre em <1s pra Estúdio IA (antes 4-6s).
+
+### 36.10 Sistema de rotação de keys Gemini (gemini-proxy)
+
+#### Causa raiz descoberta tarde
+ai-chat (bot do DMS) reportado dando "sobrecarregado (Groq/Gemini)" frequente. Deploy de `ai-chat-debug` revelou: **Gemini free `JL1Y` tava com quota ESGOTADA** durante o dia (~20 RPM ou 1500/dia atingidos por uso intenso de Construtor + Estúdio + ai-chat + Estoque).
+
+#### Solução
+Manu pediu: "Gerar 2-3 keys Gemini free novas e fazer rotação".
+
+User criou 2 keys novas:
+- `GEMINI_API_KEY_2 = AIzaSyAC49Bi...AbGI`
+- `GEMINI_API_KEY_3 = AIzaSyC1qoM...JgxE`
+
+**Edge function `gemini-proxy`** (v1):
+- Recebe `{ endpoint, model, payload }` (suporta `generateContent` nativo + `openai_chat`)
+- Rotação ordenada: `GEMINI_API_KEY` (JL1Y) → `_KEY_2` (AC49Bi) → `_KEY_3` (C1qoM) → `_KEY_PAID` (NTwk paga)
+- Se key bate quota (429 + "exceeded"/"quota"/"rate.limit"), tenta próxima automaticamente
+- Erros não-quota (400/500) retornam imediato sem tentar outras keys
+- Header `X-Gemini-Key` no response indica qual key respondeu (debug)
+- Header `X-Gemini-Attempts` indica quantas tentativas
+
+**Edge functions migradas pro proxy**:
+- `gerar-peca-ia` v11 (Estúdio IA)
+- `gerar-prompt-visual` v3 (mockups de campanha/briefing/criativo)
+- `construtor-ai` v7 (Construtor de Campanhas)
+
+**ai-chat NÃO migrou** (source extraído de binary corrompeu, não dá pra editar). Continua usando `GEMINI_API_KEY` direto. Workaround: retry no client (3 tentativas com 2s/5s backoff) + Groq como primary saudável. Pendente reescrever do zero (~1h).
+
+### 36.11 Outros polimentos pequenos
+
+#### Estúdio IA — múltiplos bug fixes durante iteração
+- Aspect ratio: passar `aspect_ratio: '16:9'` no body do POST (`gerar-avatar-ia` default era 1:1)
+- Logo Dana embroidered: passar `incluir_logo: false` no body (estava sempre adicionando "Dana" cursivado no peito)
+- Prompt em português: trocar system prompt do `gerar-peca-ia` pra inglês (Gemini misturava idiomas)
+- ReferenceError: `opts is not defined` em `aiaGerar` — usei `window._aiaCurrentOpts` (mesmo padrão da `aiaSalvar`)
+- Limite hardcoded de 2000 chars no `gerar-avatar-ia` → reescrita pra **5000 chars** (extraí source do binary, recriei limpo, redeploy v14)
+- Truncagem inteligente no frontend: 4900 chars max, mantém início (descrição visual) + final (anti-text instruction)
+
+#### ai-chat retry no client
+`aiChatEnviar` agora retenta 3x com backoff:
+- Tentativa 1: imediato
+- Tentativa 2: +2s delay (mostra "⏳ IA sobrecarregada, tentando de novo em 2s")
+- Tentativa 3: +5s delay
+- Só retenta em 503 ou erros transientes
+
+#### Bug crítico: Custos IA Prospecção zerado
+`logProspeccao()` chamada **sem `await`** (fire-and-forget) → no Deno Edge Functions, isolate destruído antes do INSERT. Tabela `ia_prospeccao_log` ficava vazia mesmo com chamadas funcionando. Fix em `prospectar` v7: `await logProspeccao(...)` nos 2 paths (sucesso + erro).
+
+### 36.12 Edge Functions ATIVAS no DMS (estado final)
+
+| Function | Versão | Função |
+|---|---|---|
+| **ai-chat** | v18 | Bot principal do DMS — usa GEMINI_API_KEY direto (esgota quando quota free zera) |
+| **construtor-ai** | v7 | IA contextual nos 4 steps do Construtor — via gemini-proxy |
+| **prospectar** | v7 | Prospecção de leads via Gemini + Google Search grounding (paga NTwk) |
+| **gerar-peca-ia** | v11 | Prompt visual rico com Gemini Vision pro Estúdio IA — via gemini-proxy |
+| **gerar-prompt-visual** | v3 | Meta-prompting pra mockups de campanha/briefing — via gemini-proxy |
+| **gerar-avatar-ia** | v14 | Geração de imagens via Gemini 2.5 Flash Image (paga cR6I, limite 5000 chars) |
+| **gemini-proxy** | v1 | Proxy de rotação automática entre 4 keys Gemini |
+| **sync-imagens-produtos** | v1 | Sync URLs Bling → Supabase Storage permanente |
+| **cliente360-insight** | v10 | Insights IA pro Cliente 360 (Groq + Gemini) |
+| **ai-chat-debug** | v1 | Debug helper temporário (testa Groq + Gemini com tools) |
+
+### 36.13 Secrets ATIVOS (DMS)
+
+| Var | Valor | Uso |
+|---|---|---|
+| `GROQ_API_KEY` | gsk_HnzgBMG... | Bot/Construtor primário (Groq Llama 3.3 70B free) |
+| `GEMINI_API_KEY` | JL1Y free | Rotação proxy posição 1 (1500/dia) |
+| `GEMINI_API_KEY_2` | AC49Bi free | Rotação proxy posição 2 (NOVA hoje) |
+| `GEMINI_API_KEY_3` | C1qoM free | Rotação proxy posição 3 (NOVA hoje) |
+| `GEMINI_API_KEY_PAID` | NTwk paga | Rotação proxy posição 4 (último fallback, paga) E `prospectar` direto |
+| `GEMINI_IMAGE_API_KEY` | cR6I paga | Exclusiva pra `gerar-avatar-ia` (imagens, ~R$ 0,20/img) |
+
+### 36.14 Estado dos dados (28/04/2026 noite)
+
+| Tabela | Rows | Δ ciclo |
+|---|---|---|
+| produtos | ~4.753 | +imagens persistidas conforme sync |
+| ia_prospeccao_log | crescente | nova feature |
+| estudio_pecas | crescente | nova feature |
+| campanhas_internas | varias | +briefing_id col |
+| briefings_campanha | varias | uso ativo |
+| cargo_permissoes | +9 rows | seção `estudio` bloqueada pra todos não-admin |
+
+### 36.15 Pendências aguardando próxima sessão
+
+| Item | Tipo | Prioridade |
+|---|---|---|
+| Reescrever `ai-chat` do zero pra usar `gemini-proxy` (source v18 corrompeu na extração) | Reescrita TS ~1500 linhas | 🟡 Baixa — retry no client + Groq cobrem |
+| Liberar Estúdio IA pros cargos `designer` e `gerente_marketing` quando Manu aprovar | Toggle em `cargo_permissoes` | 🟡 Aguardando Manu |
+| Sync inicial massivo de imagens dos produtos (4.7k → Storage permanente) | Rodar `sync-imagens-produtos` ~95 vezes (50 por batch) | 🟡 Quando der |
+| GitHub Action workflow `backup-supabase.yml` (PAT lacks `workflow` scope) | Manual no GitHub UI | 🟡 Quando der |
+| Limpar histórico do git da key Gemini banida (`q12A`) | git-filter-repo (destrutivo) | 🟢 Já revogada, inofensiva |
+| Inconsistência permissão `campanhas_internas` (false) vs `campanhas-internas` (true) pra vendedor | DELETE da row duplicada | 🟢 Não bloqueante |
+
+### 36.16 Onde paramos
+
+Última ação: **Section 36 sendo escrita** (esta seção, ciclo 28/04 documentado).
+
+Sessão anterior (compact) terminou com Manu reportando ai-chat com "sobrecarregado (Groq/Gemini)". Diagnose feita: Gemini free `JL1Y` esgotou quota durante o dia. **Solução**: Manu criou 2 keys novas Gemini free, eu criei `gemini-proxy` que rotaciona entre 4 keys (3 free + 1 paga), refatorei 3 edge functions pra usar o proxy. ai-chat ainda usa GEMINI_API_KEY direto (source corrompido bloqueia edit) — workaround é retry no client + Groq como primary saudável.
+
+**Próxima sessão**: a Manu provavelmente vai pedir mais polimento no Estúdio IA (qualidade da imagem gerada — tema/composição/anti-texto/aspect-ratio) ou novas features. Verificar se o problema do ai-chat persiste depois das keys novas absorverem o uso.
+
+---
+
+**Fim da documentação · Atualizado em 28/04/2026 noite — ciclo 36 adicionado · v4.0**
