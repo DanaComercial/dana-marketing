@@ -21136,8 +21136,19 @@ const aiChatInterval = setInterval(() => {
   };
 
   window.aiaGerar = async function(contexto, contextoRefId) {
-    const prompt = (document.getElementById('aia-prompt')?.value || '').trim();
+    let prompt = (document.getElementById('aia-prompt')?.value || '').trim();
     if (!prompt || prompt.length < 20) { showToast('Prompt muito curto (mín 20 caracteres)'); return; }
+    // Edge function gerar-avatar-ia tem limite hardcoded de 2000 chars.
+    // Se prompt for maior, trunca de forma inteligente: mantem inicio (descricao
+    // visual rica) + final (instrucao anti-texto critica) com ' ... ' entre.
+    const LIMITE = 1990;
+    if (prompt.length > LIMITE) {
+      const TAIL = 280; // ultimos 280 chars contem 'NO TEXT, NO LETTERS...' instruction
+      const head = prompt.slice(0, LIMITE - TAIL - 6);
+      const tail = prompt.slice(-TAIL);
+      prompt = head + ' ... ' + tail;
+      console.log('[aiaGerar] prompt truncado de', (document.getElementById('aia-prompt')?.value || '').length, 'pra', prompt.length);
+    }
     const btn = document.getElementById('aia-gerar');
     const erroEl = document.getElementById('aia-erro');
     const loadEl = document.getElementById('aia-loading');
