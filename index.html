@@ -21085,6 +21085,9 @@ const aiChatInterval = setInterval(() => {
     if (!q.ativo) { showToast('Geração de avatares IA está desativada'); return; }
     if (q.pausado && !q.ehAdmin) { showToast('Limite mensal atingido. Fale com o admin.'); return; }
 
+    // Guarda config global pra aiaGerar/aiaSalvar lerem depois (estao em outro escopo)
+    window._aiaCurrentOpts = opts || {};
+
     document.getElementById('modal-aia')?.remove();
     document.body.insertAdjacentHTML('beforeend', `
       <div class="modal-overlay open" id="modal-aia">
@@ -21152,7 +21155,7 @@ const aiChatInterval = setInterval(() => {
           'Authorization': `Bearer ${session?.access_token}`,
           'apikey': SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ prompt, contexto, contexto_ref_id: contextoRefId || null, aspect_ratio: opts.aspect_ratio || null })
+        body: JSON.stringify({ prompt, contexto, contexto_ref_id: contextoRefId || null, aspect_ratio: (window._aiaCurrentOpts && window._aiaCurrentOpts.aspect_ratio) || null })
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || j.detalhe || `HTTP ${r.status}`);
