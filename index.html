@@ -9722,7 +9722,11 @@ function go(el, viewId) {
     loadOnce('tarefas', () => typeof loadTarefas === 'function' && loadTarefas());
   }
   if (viewId === 'kanban') {
-    loadOnce('tarefas', () => typeof loadTarefas === 'function' && loadTarefas());
+    // NAO usar loadOnce aqui: o div #kanban-board so existe quando esta
+    // view ta visivel. Se o dashboard chamou loadTarefas antes, o early-return
+    // (if !board) deixou o cache marcado como carregado, e o Kanban nunca renderizava.
+    // Sempre re-chamar loadTarefas ao entrar no Kanban (1 SELECT leve, idempotente).
+    if (typeof loadTarefas === 'function') loadTarefas();
   }
   if (viewId === 'calendario') {
     loadOnce('calendario-init', () => typeof initCalendario === 'function' && initCalendario());
