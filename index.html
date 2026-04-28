@@ -18672,6 +18672,10 @@ window.estGerar = async function() {
       contexto: 'outro',
       contextoRefId: String(estState.produto.id),
       aspect_ratio: aspectRatio,
+      // Estudio IA NAO inclui logo Dana embroidered no peito (cliente vai
+      // adicionar texto/logo em post-producao). Sem isso a edge function
+      // gerar-avatar-ia inclui automaticamente quando detecta 'jaleco/lab coat'.
+      incluir_logo: false,
       onSave: async (url) => {
         // Loga em estudio_pecas pra galeria + custos
         await sb.from('estudio_pecas').insert({
