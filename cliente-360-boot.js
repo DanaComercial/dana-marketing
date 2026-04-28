@@ -894,25 +894,53 @@
   };
 
   // ─── Insight IA (Fase 3) ───
-  // Parser das 3 secoes fixas (ANALISE DO COMPORTAMENTO ATUAL / RISCO / ACAO)
-  // Retorna objeto { analise, risco, acao }
+  // Parser das 4 secoes fixas (ANALISE / RISCO / ACAO / MENSAGEM WHATSAPP)
+  // A 4a secao foi adicionada na v13 do cliente360-insight pra alimentar
+  // o botao verde de envio direto pelo WhatsApp Web. Insights antigos nao
+  // tem essa secao — fallback gracioso (nao mostra o botao).
+  // Retorna objeto { analise, risco, acao, mensagem_whatsapp }
   function parseInsightSecoes(md) {
-    if (!md) return { analise: '', risco: '', acao: '' };
-    const secs = { analise: '', risco: '', acao: '' };
-    // Aceita varicoes dos labels (caps ou nao, com/sem dois pontos)
-    const re = /(an[aá]lise[^:\n]*comportamento[^:\n]*|risco[^:\n]*oportunidade[^:\n]*|a[cç][aã]o[^:\n]*comercial[^:\n]*)\s*:\s*\n?([\s\S]*?)(?=\n\s*(?:an[aá]lise[^:\n]*comportamento|risco[^:\n]*oportunidade|a[cç][aã]o[^:\n]*comercial)[^:\n]*:|$)/gi;
+    if (!md) return { analise: '', risco: '', acao: '', mensagem_whatsapp: '' };
+    const secs = { analise: '', risco: '', acao: '', mensagem_whatsapp: '' };
+    // Aceita variacoes dos labels (caps ou nao, com/sem dois pontos)
+    // Inclui "mensagem whatsapp" como 4o label valido
+    const re = /(an[aá]lise[^:\n]*comportamento[^:\n]*|risco[^:\n]*oportunidade[^:\n]*|a[cç][aã]o[^:\n]*comercial[^:\n]*|mensagem[^:\n]*whats?a?pp?[^:\n]*)\s*:\s*\n?([\s\S]*?)(?=\n\s*(?:an[aá]lise[^:\n]*comportamento|risco[^:\n]*oportunidade|a[cç][aã]o[^:\n]*comercial|mensagem[^:\n]*whats?a?pp?)[^:\n]*:|$)/gi;
     let m;
     while ((m = re.exec(md))) {
       const label = m[1].toLowerCase();
       const texto = m[2].trim();
       if (label.includes('compor')) secs.analise = texto;
       else if (label.includes('risc')) secs.risco = texto;
+      else if (label.includes('mensagem') && label.includes('whats')) secs.mensagem_whatsapp = texto;
       else if (label.includes('a') && label.includes('o')) secs.acao = texto;
     }
     // Se nao parsear nada, coloca tudo em analise
     if (!secs.analise && !secs.risco && !secs.acao) secs.analise = md;
     return secs;
   }
+
+  // Abre WhatsApp Web pre-formatado pra mensagem do insight
+  // Padrao igual ao usado em Prospeccao: strip nao-digitos + prefixo 55 se length 10/11
+  function c360OpenWhatsApp(contatoNome, msgEncoded) {
+    try {
+      const msg = decodeURIComponent(msgEncoded || '');
+      const c = (state.clientes || []).find(x => x.contato_nome === contatoNome);
+      const fone = (c && (c.celular || c.telefone)) || '';
+      const digits = String(fone).replace(/\D/g, '');
+      if (!digits) {
+        if (typeof toast === 'function') toast('Cliente sem telefone cadastrado.', 'error');
+        else alert('Cliente sem telefone cadastrado.');
+        return;
+      }
+      const numFmt = (digits.length === 10 || digits.length === 11) ? ('55' + digits) : digits;
+      const url = `https://wa.me/${numFmt}?text=${encodeURIComponent(msg)}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      console.warn('[c360] WhatsApp link erro:', e);
+    }
+  }
+  // Expoe pro onclick inline funcionar
+  window.c360OpenWhatsApp = c360OpenWhatsApp;
 
   function formatTextoInsight(t) {
     if (!t) return '';
@@ -970,7 +998,7 @@
     return data || [];
   }
 
-  function insightCard(ins, isNewest) {
+  function insightCard(ins, isNewest, contatoNome) {
     const s = parseInsightSecoes(ins.insight || '');
     const data = new Date(ins.created_at);
     const dataStr = data.toLocaleDateString('pt-BR');
@@ -979,6 +1007,22 @@
       <div style="margin-top:16px">
         <div style="font-size:10.5px;font-weight:700;color:oklch(88% 0.018 80);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">${label}:</div>
         ${formatTextoInsight(conteudo)}
+      </div>` : '';
+    // Bloco WhatsApp: so renderiza se a IA gerou a 4a secao E o cliente tem fone
+    const c = (state.clientes || []).find(x => x.contato_nome === contatoNome);
+    const temFone = !!(c && (c.celular || c.telefone));
+    const msgWa = (s.mensagem_whatsapp || '').trim();
+    const waBlock = (msgWa && temFone) ? `
+      <div style="margin-top:16px;padding:14px;border-radius:10px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.25)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+          <div style="font-size:10.5px;font-weight:700;color:#22c55e;text-transform:uppercase;letter-spacing:0.8px">Mensagem WhatsApp pronta:</div>
+          <button onclick="c360OpenWhatsApp('${escapeHtml(contatoNome).replace(/'/g, "&#39;")}', '${encodeURIComponent(msgWa)}')" title="Abrir WhatsApp Web" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:7px;border:none;background:#22c55e;color:#fff;font-size:12px;font-weight:700;cursor:pointer" onmouseover="this.style.background='#16a34a'" onmouseout="this.style.background='#22c55e'"><span style="font-size:14px">📱</span> Enviar pelo WhatsApp</button>
+        </div>
+        <div style="font-size:13px;color:#cbd5e1;line-height:1.6;background:rgba(0,0,0,0.2);padding:10px 12px;border-radius:6px;white-space:pre-wrap">${escapeHtml(msgWa)}</div>
+        <div style="font-size:10.5px;color:#64748b;margin-top:6px">Você pode editar a mensagem direto no WhatsApp Web antes de enviar.</div>
+      </div>` : (msgWa && !temFone) ? `
+      <div style="margin-top:16px;padding:10px 12px;border-radius:8px;background:rgba(148,163,184,0.06);border:1px dashed rgba(148,163,184,0.25);font-size:12px;color:#94a3b8">
+        💬 IA sugeriu uma mensagem WhatsApp, mas o cliente está sem telefone cadastrado.
       </div>` : '';
     return `
       <div style="background:rgba(255,255,255,0.02);border:1px solid oklch(88% 0.018 80 / 0.3);border-radius:12px;padding:20px;margin-bottom:14px;position:relative">
@@ -998,6 +1042,7 @@
         ${secBlock('Análise do Comportamento Atual', s.analise)}
         ${secBlock('Risco ou Oportunidade Principal', s.risco)}
         ${secBlock('Ação Comercial Recomendada', s.acao)}
+        ${waBlock}
       </div>`;
   }
 
@@ -1022,7 +1067,7 @@
   function renderInsightsTab(contatoNome, insights, gerando) {
     const panel = document.getElementById('c360-tabpanel-insights');
     if (!panel) return;
-    const cards = (insights || []).map((ins, idx) => insightCard(ins, idx === 0)).join('');
+    const cards = (insights || []).map((ins, idx) => insightCard(ins, idx === 0, contatoNome)).join('');
 
     // Quota badge
     const q = state.c360InsightQuota;

@@ -1,6 +1,6 @@
 # DOCUMENTAÇÃO COMPLETA — DMS (Dana Marketing System)
 
-> **Última atualização:** 28/04/2026 noite — ciclo 38 (sync histórico 2024)
+> **Última atualização:** 28/04/2026 noite — ciclo 39 (insight C360 + WhatsApp)
 > **Repo GitHub:** https://github.com/DanaComercial/dana-marketing
 > **Site público:** https://danadash.netlify.app/ (auto-deploy via Netlify)
 > **Supabase:** `wltmiqbhziefusnzmmkt`
@@ -3635,3 +3635,111 @@ Card C360 mostra agora **10.416 Matriz / 4.504 BC** (em vez de 5.630 / 3.062). P
 ---
 
 **Fim da documentação · Atualizado em 28/04/2026 noite — ciclo 38 (sync histórico 2024) · v4.2**
+
+---
+
+## 39. CICLO 28/04/2026 NOITE — INSIGHT C360 v13 + BOTÃO WHATSAPP + FIX KANBAN
+
+### 39.1 Bug Kanban
+
+Sintoma: usuário clicava em "Tarefas e Kanban" e ficava travado em "Carregando quadro...".
+
+**Causa**: regressão da otimização lazy-load (Section 36.9). O dashboard chama `loadOnce('tarefas', loadTarefas)` pra alimentar widgets. `loadOnce` marca `_viewLoaded.tarefas=true` ANTES de chamar a função. Mas `loadTarefas` faz early-return `if (!board) return` quando `#kanban-board` não existe (só existe na view-kanban). Resultado: cache marcado como carregado mas board NUNCA renderizou. Clicar em Kanban depois não disparava novo render porque o flag tava true.
+
+**Fix** (`index.html` linha 9724): na view-kanban, sempre chamar `loadTarefas()` direto sem `loadOnce`. Custo: +1 SELECT por entrada na view (mínimo). Commit `77dbc44`.
+
+### 39.2 cliente360-insight v13 — reescrito do zero
+
+Source antigo (v12) era binário extraído (chars corrompidos). Reescrito limpo em `.claude/scripts/cliente360-insight-v13/index.ts` (368 linhas).
+
+**Mudanças vs v12:**
+
+| Aspecto | v12 | v13 |
+|---|---|---|
+| Source | binário extraído | TS limpo, 368 linhas |
+| Gemini | direto via `GEMINI_API_KEY` | via `gemini-proxy` (rotação 4 keys) |
+| System prompt | 3 seções | **4 seções** (+ MENSAGEM WHATSAPP) |
+| Modelos | Llama 3.3 + Gemini 2.5 | iguais |
+| Quota/permissões | mantido | mantido (admin ilim, gerente 20/dia, vendedor 5/dia) |
+
+**4ª seção do system prompt** (NOVA):
+```
+MENSAGEM WHATSAPP:
+(uma mensagem de texto curta, 250-350 chars, pra colar direto no WhatsApp.
+PRIMEIRA PALAVRA é "Olá" + primeiro nome. Tom: educado, profissional,
+levemente caloroso. Conecta com a AÇÃO RECOMENDADA. SEMPRE termina com
+pergunta aberta. Assina "— Equipe Dana Jalecos" no final.)
+```
+
+Com isso a IA já gera junto a frase pronta pro vendedor copiar/enviar — sem chamar IA duas vezes, sem latência extra.
+
+### 39.3 Frontend — botão WhatsApp no insight
+
+`cliente-360-boot.js`:
+
+**`parseInsightSecoes`** estendido pra capturar 4 seções (era 3). Regex agora aceita `mensagem whatsapp` como label adicional. Insights antigos (sem 4ª seção) → `s.mensagem_whatsapp = ''` → botão não renderiza (fallback gracioso).
+
+**`insightCard`** ganhou `waBlock`:
+- Renderiza box verde (rgba 34,197,94) com:
+  - Botão "📱 Enviar pelo WhatsApp" (verde sólido `#22c55e`)
+  - Mensagem em preview (white-space:pre-wrap)
+  - Hint: "Você pode editar a mensagem direto no WhatsApp Web antes de enviar"
+- Só renderiza se `s.mensagem_whatsapp` existe **E** cliente tem `celular || telefone`
+- Se mensagem existe mas cliente sem fone → renderiza aviso cinza "💬 IA sugeriu mensagem mas cliente sem telefone"
+
+**`c360OpenWhatsApp(contatoNome, msgEncoded)`** (novo helper):
+- Busca cliente em `state.clientes`, pega `c.celular || c.telefone`
+- Strip não-dígitos (`replace(/\D/g, '')`)
+- Prefixo `55` se length ∈ {10, 11} (BR mobile/landline)
+- Abre `https://wa.me/{num}?text={encodeURIComponent(msg)}` em nova aba
+- Mesmo padrão do Prospecção (Section 36.5)
+
+`renderInsightsTab` atualizado pra passar `contatoNome` ao `insightCard`.
+
+### 39.4 Fluxo completo
+
+1. User clica "Insight IA" na ficha do cliente
+2. Frontend POST → `cliente360-insight` v13
+3. Edge function: auth + quota + monta contexto + chama Groq (ou gemini-proxy se Groq falhar)
+4. IA gera 4 seções incluindo `MENSAGEM WHATSAPP:`
+5. Frontend parseia, renderiza card com 4 blocos
+6. 4º bloco (verde) tem botão "📱 Enviar pelo WhatsApp"
+7. Click → abre `wa.me/55XXXX?text=...` com mensagem pré-pronta
+8. Vendedor revisa/edita no WhatsApp Web e envia
+
+### 39.5 Compatibilidade com insights antigos
+
+Insights gerados pela v12 (3 seções) continuam renderizando normalmente — só não vão ter o botão WhatsApp. Pra ganhar o botão, é só clicar "Recalcular" e a v13 gera com 4 seções.
+
+### 39.6 Edge Functions estado final
+
+| Função | Versão | Mudou? |
+|---|---|---|
+| ai-chat | v20 | (cycle 37) |
+| construtor-ai | v7 | (gemini-proxy) |
+| gerar-peca-ia | v11 | (gemini-proxy) |
+| gerar-prompt-visual | v3 | (gemini-proxy) |
+| **cliente360-insight** | **v13** | **NOVO ciclo 39 (gemini-proxy + WhatsApp)** |
+| ai-chat-debug | v2 | sem mudança |
+| gemini-proxy | v1 | sem mudança |
+
+Pendência fechada: ✅ migrar `cliente360-insight` pro `gemini-proxy` (era a última edge function que ainda chamava Gemini direto).
+
+### 39.7 Onde paramos
+
+- Bug Kanban: ✅ corrigido (commit `77dbc44`)
+- ai-chat v19 + cliente360-insight v13: ambos em prod
+- Botão WhatsApp: pronto pra testar quando o Manu/Juan abrir um cliente e gerar novo insight
+- PASS 2 do sync 2024 (itens): rodando em background (~75 min total — ainda em curso)
+
+### 39.8 Pendências atualizadas
+
+- 🟡 PASS 2 (itens 2024) terminando — ainda em background
+- 🟡 Testar fluxo completo Insight + WhatsApp com cliente real
+- 🟡 Liberar Estúdio IA pros cargos `designer` e `gerente_marketing` (aguardando Manu)
+- 🟢 Sync inicial massivo das ~4.7k imagens dos produtos pro Storage
+- 🟢 GitHub Action `backup-supabase.yml`
+
+---
+
+**Fim da documentação · Atualizado em 28/04/2026 noite — ciclo 39 (insight v13 + WhatsApp + Kanban fix) · v4.3**
