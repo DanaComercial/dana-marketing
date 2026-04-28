@@ -2546,6 +2546,10 @@ select.input { cursor: pointer; }
     <div class="nav-item" onclick="go(this,'briefingvisual')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="1" width="12" height="14" rx="1.5"/><path d="M5 5h6M5 8h6M5 11h4"/></svg></div>Briefing Visual
     </div>
+    <div class="nav-item" id="nav-estudio" onclick="go(this,'estudio')" style="display:none">
+      <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 2l3 3M5 5l-3 3M5 5l3-3M8 2l3 3M11 5l3-3M11 5l3 3M14 8l-3 3M11 11l3 3M11 11l-3 3M8 14l-3-3M5 11l-3 3M5 11l-3-3M2 8l3-3"/><circle cx="8" cy="8" r="2"/></svg></div>Estúdio IA
+      <span class="nav-badge" style="background:#7c3aed;color:white;font-size:9px">NOVO</span>
+    </div>
     <div class="nav-item" onclick="go(this,'influenciadores')">
       <div class="nav-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6" cy="5" r="3"/><path d="M1 14c0-3 2.2-5 5-5s5 2 5 5"/><path d="M12 7c1.1 0 2 .9 2 2s-.9 2-2 2M14.5 14H11"/></svg></div>Influenciadores
     </div>
@@ -8764,6 +8768,135 @@ updateDynamicField('foto');
 </div>
 </div>
 
+<!-- ════════ ESTÚDIO IA ════════ -->
+<div class="view" id="view-estudio">
+<div style="padding:24px 28px">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;gap:12px;flex-wrap:wrap">
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">🎨 Estúdio IA</div>
+      <div style="font-size:12.5px;color:var(--text3);margin-top:3px">Gere banners, posts e anúncios com IA usando produtos reais do catálogo Dana</div>
+    </div>
+    <div style="background:linear-gradient(135deg,#fef3c7,#fde68a);border:1px solid #fbbf24;border-radius:8px;padding:8px 12px;font-size:11.5px;color:#78350f;max-width:340px">
+      <strong>💰 Atenção custos:</strong> cada peça gerada usa IA paga (~R$ 0,20). Acompanhe o gasto em <a href="#admin/custos-ia" onclick="go(document.querySelector('[onclick*=admin]'),'admin');setTimeout(()=>switchAdminTab(document.querySelector('[onclick*=custos-ia]'),'custos-ia'),300);return false;" style="color:#78350f;text-decoration:underline">Admin · Custos IA</a>
+    </div>
+  </div>
+
+  <!-- Stepper -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+    <div id="est-step-1" class="est-step" style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:#7c3aed;color:white;border-radius:8px;font-size:12.5px;font-weight:600">1 · Produto</div>
+    <div style="width:24px;height:1px;background:var(--border)"></div>
+    <div id="est-step-2" class="est-step" style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--surface);color:var(--text3);border-radius:8px;font-size:12.5px;font-weight:600">2 · Tipo de peça</div>
+    <div style="width:24px;height:1px;background:var(--border)"></div>
+    <div id="est-step-3" class="est-step" style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--surface);color:var(--text3);border-radius:8px;font-size:12.5px;font-weight:600">3 · Tema (opcional)</div>
+    <div style="width:24px;height:1px;background:var(--border)"></div>
+    <div id="est-step-4" class="est-step" style="display:flex;align-items:center;gap:6px;padding:8px 14px;background:var(--surface);color:var(--text3);border-radius:8px;font-size:12.5px;font-weight:600">4 · Gerar</div>
+  </div>
+
+  <!-- Painel 1: PRODUTO -->
+  <div id="est-panel-1" class="est-panel">
+    <div class="card mb20">
+      <div class="card-title" style="margin-bottom:8px">1. Selecione o produto</div>
+      <div class="card-sub" style="margin-bottom:14px">Pesquise no catálogo Dana (sincronizado com Bling) ou cole link do site.</div>
+      <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:240px">
+          <label class="label">Buscar produto</label>
+          <input id="est-busca-produto" class="input" placeholder="Ex: Jaleco Isabel, Scrub Comfy, Crachá..." oninput="estBuscarProduto()">
+        </div>
+        <button class="btn btn-ghost" onclick="estLimparProduto()" style="font-size:12px">Limpar</button>
+      </div>
+      <div id="est-resultados" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;max-height:380px;overflow-y:auto"></div>
+    </div>
+
+    <!-- Produto selecionado preview -->
+    <div id="est-produto-selecionado" style="display:none"></div>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:14px">
+      <button id="est-prox-1" class="btn btn-primary" onclick="estProx(2)" disabled style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none">Próximo: Tipo de peça →</button>
+    </div>
+  </div>
+
+  <!-- Painel 2: TIPO DE PEÇA -->
+  <div id="est-panel-2" class="est-panel" style="display:none">
+    <div class="card mb20">
+      <div class="card-title" style="margin-bottom:8px">2. Que tipo de peça quer gerar?</div>
+      <div class="card-sub" style="margin-bottom:14px">Cada tipo tem um aspect ratio e estratégia visual diferente.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+        <div class="est-tipo-card" data-tipo="banner_site" onclick="estSelTipo(this,'banner_site')" style="border:2px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all .15s">
+          <div style="aspect-ratio:21/9;background:linear-gradient(135deg,#F5EFE6,#E8DCC4);border-radius:6px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;color:#9B5C3F;font-weight:600;font-size:11px">21:9 · Hero Banner</div>
+          <div style="font-weight:700;font-size:13px">🖼 Banner do site</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:3px">Hero ultrawide pra homepage. Modelo de um lado, texto/CTA do outro.</div>
+        </div>
+        <div class="est-tipo-card" data-tipo="post_feed" onclick="estSelTipo(this,'post_feed')" style="border:2px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all .15s">
+          <div style="aspect-ratio:1/1;max-height:120px;width:auto;background:linear-gradient(135deg,#F5EFE6,#E8DCC4);border-radius:6px;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;color:#9B5C3F;font-weight:600;font-size:11px">1:1 · Feed</div>
+          <div style="font-weight:700;font-size:13px">📷 Post Instagram</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:3px">Feed quadrado. Thumb-stopping pra parar scroll.</div>
+        </div>
+        <div class="est-tipo-card" data-tipo="story_reel" onclick="estSelTipo(this,'story_reel')" style="border:2px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all .15s">
+          <div style="aspect-ratio:9/16;max-height:120px;width:auto;background:linear-gradient(135deg,#F5EFE6,#E8DCC4);border-radius:6px;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;color:#9B5C3F;font-weight:600;font-size:11px">9:16 · Story</div>
+          <div style="font-weight:700;font-size:13px">📱 Story / Reels Cover</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:3px">Vertical mobile. Bold, com safe zones pra stickers.</div>
+        </div>
+        <div class="est-tipo-card" data-tipo="anuncio_meta" onclick="estSelTipo(this,'anuncio_meta')" style="border:2px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all .15s">
+          <div style="aspect-ratio:1/1;max-height:120px;width:auto;background:linear-gradient(135deg,#F5EFE6,#E8DCC4);border-radius:6px;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;color:#9B5C3F;font-weight:600;font-size:11px">1:1 · Ad</div>
+          <div style="font-weight:700;font-size:13px">💰 Anúncio Meta Ads</div>
+          <div style="font-size:11.5px;color:var(--text3);margin-top:3px">Pra campanha paga. Maior contraste e benefit-driven.</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between">
+      <button class="btn btn-ghost" onclick="estProx(1)">← Anterior</button>
+      <button id="est-prox-2" class="btn btn-primary" onclick="estProx(3)" disabled style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none">Próximo: Tema →</button>
+    </div>
+  </div>
+
+  <!-- Painel 3: TEMA -->
+  <div id="est-panel-3" class="est-panel" style="display:none">
+    <div class="card mb20">
+      <div class="card-title" style="margin-bottom:8px">3. Tema da campanha (opcional)</div>
+      <div class="card-sub" style="margin-bottom:14px">Quer um tema específico? Ex: "Frete Grátis", "Black Friday", "Lançamento", "Dia das Mães". Deixa em branco pra um visual genérico do produto.</div>
+      <div class="form-row">
+        <label class="label">Tema/contexto da peça</label>
+        <input id="est-tema" class="input" placeholder='Ex: "Frete Grátis", "Lançamento", "Volta às aulas"...'>
+      </div>
+      <div class="form-row" style="margin-top:14px">
+        <label class="label">Mensagem/copy a inspirar (opcional)</label>
+        <textarea id="est-copy-extra" class="input" rows="2" placeholder='Ex: "10% OFF na primeira compra", "Frete grátis pra todo Brasil"...' style="resize:vertical"></textarea>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:4px">⚠ Esse texto NÃO será renderizado na imagem (Gemini Image evita texto). Mas a IA usa pra inspirar a composição visual.</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between">
+      <button class="btn btn-ghost" onclick="estProx(2)">← Anterior</button>
+      <button class="btn btn-primary" onclick="estProx(4)" style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none">Próximo: Gerar →</button>
+    </div>
+  </div>
+
+  <!-- Painel 4: GERAR -->
+  <div id="est-panel-4" class="est-panel" style="display:none">
+    <div class="card mb20">
+      <div class="card-title" style="margin-bottom:14px">4. Pronta pra gerar?</div>
+      <div id="est-resumo" style="background:var(--surface);border-radius:8px;padding:14px;margin-bottom:14px;font-size:12.5px"></div>
+      <div style="background:linear-gradient(135deg,#fef3c7,#fde68a);border:1px solid #fbbf24;border-radius:8px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-weight:700;font-size:13px;color:#78350f;margin-bottom:4px">💰 Custo estimado: ~R$ 0,20 por imagem</div>
+        <div style="font-size:11.5px;color:#92400e">Usa Gemini 2.5 Flash Image (paga). Cada clique em "Gerar" consome essa quantia. Vai aparecer em <a href="#" onclick="go(document.querySelector('[onclick*=admin]'),'admin');setTimeout(()=>switchAdminTab(document.querySelector('[onclick*=custos-ia]'),'custos-ia'),300);return false;" style="color:#78350f;text-decoration:underline">Admin · Custos IA</a>.</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between">
+      <button class="btn btn-ghost" onclick="estProx(3)">← Anterior</button>
+      <button id="est-btn-gerar" class="btn btn-primary" onclick="estGerar()" style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;padding:10px 20px;font-size:14px">✨ Gerar peça com IA · ~R$ 0,20</button>
+    </div>
+  </div>
+
+  <!-- Galeria -->
+  <div style="margin-top:32px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:15px">🖼 Peças geradas</div>
+      <button class="btn btn-ghost btn-sm" onclick="estCarregarGaleria()" style="font-size:11.5px">🔄 Atualizar</button>
+    </div>
+    <div id="est-galeria" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px"></div>
+  </div>
+</div>
+</div>
+
 <!-- ════════ CONSTRUTOR ════════ -->
 <div class="view" id="view-construtor">
 <div style="padding:24px 28px">
@@ -9439,7 +9572,7 @@ function toggleMobileSidebar(forceState) {
 
 // Seções restritas a cargo admin. URL direta ou qualquer outro
 // caminho tem que passar por aqui — não depende de cargo_permissoes.
-const ADMIN_ONLY_VIEWS = ['admin'];
+const ADMIN_ONLY_VIEWS = ['admin', 'estudio'];
 
 // Retorna o primeiro viewId que o usuario logado tem permissao pra acessar.
 // Usado no login inicial (sem hash/localStorage) e como fallback quando go()
@@ -9529,6 +9662,10 @@ function go(el, viewId) {
   }
   if (viewId === 'perfil') loadPerfilView();
   if (viewId === 'briefingvisual') { if (typeof loadBriefings === 'function') loadBriefings(); }
+  if (viewId === 'estudio') {
+    if (typeof estCarregarProdutos === 'function') estCarregarProdutos();
+    if (typeof estCarregarGaleria === 'function') estCarregarGaleria();
+  }
   if (viewId === 'canaisaquisicao') { if (typeof loadCanaisAquisicao === 'function') loadCanaisAquisicao(); }
   if (viewId === 'criativos') { if (typeof loadCriativos === 'function') loadCriativos(); }
   if (viewId === 'mercado') { if (typeof loadConcorrentes === 'function') loadConcorrentes(); }
@@ -18275,6 +18412,219 @@ function switchAdminTab(tab, id) {
   if (id === 'atividades') loadActivityLog();
   if (id === 'custos-ia') loadCustosIA();
 }
+
+// ════════════════════════════════════════════════
+// ESTÚDIO IA — geração de peças (banner/post/story/ad)
+// usando produtos reais do catálogo + estilo da Dana
+// ════════════════════════════════════════════════
+let estState = {
+  produto: null,         // { id, nome, codigo, preco, imagem_url }
+  tipo_peca: null,       // banner_site | post_feed | story_reel | anuncio_meta
+  tema: '',
+  copy_extra: '',
+  produtosCache: [],     // cache de produtos do Bling
+};
+
+async function estCarregarProdutos() {
+  if (estState.produtosCache.length) return;
+  try {
+    const { data } = await sb.from('produtos').select('id,nome,codigo,preco,imagem_url').order('nome').limit(2500);
+    estState.produtosCache = data || [];
+  } catch (e) { console.warn('[estudio] produtos load:', e); }
+}
+
+window.estBuscarProduto = async function() {
+  await estCarregarProdutos();
+  const q = (document.getElementById('est-busca-produto')?.value || '').toLowerCase().trim();
+  const resultados = document.getElementById('est-resultados');
+  if (!resultados) return;
+  if (!q) { resultados.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12.5px;padding:30px">Digite no campo acima pra buscar produtos</div>'; return; }
+  const matches = estState.produtosCache
+    .filter(p => (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q))
+    .slice(0, 30);
+  if (!matches.length) { resultados.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12.5px;padding:30px">Nenhum produto encontrado pra "' + esc(q) + '"</div>'; return; }
+  resultados.innerHTML = matches.map(p => `
+    <div onclick="estSelProduto(${p.id})" style="border:2px solid var(--border);border-radius:8px;cursor:pointer;overflow:hidden;background:var(--surface);transition:all .15s" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="aspect-ratio:1/1;background:#f5f5f5;display:flex;align-items:center;justify-content:center;overflow:hidden">
+        ${p.imagem_url ? `<img src="${esc(p.imagem_url)}" loading="lazy" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">` : '<div style="color:var(--text3);font-size:24px">📦</div>'}
+      </div>
+      <div style="padding:8px 10px">
+        <div style="font-weight:600;font-size:11.5px;line-height:1.3;height:30px;overflow:hidden;text-overflow:ellipsis">${esc(p.nome || 'Sem nome')}</div>
+        <div style="font-size:10.5px;color:var(--text3);margin-top:2px">${esc(p.codigo || '—')} · ${p.preco ? 'R$ ' + Number(p.preco).toFixed(2) : '—'}</div>
+      </div>
+    </div>
+  `).join('');
+};
+
+window.estSelProduto = function(produtoId) {
+  const p = estState.produtosCache.find(x => x.id === produtoId);
+  if (!p) return;
+  estState.produto = p;
+  const sel = document.getElementById('est-produto-selecionado');
+  if (sel) {
+    sel.style.display = '';
+    sel.innerHTML = `
+      <div class="card" style="background:linear-gradient(135deg,#ede9fe,#ddd6fe);border:1px solid #c4b5fd">
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <div style="width:80px;height:80px;background:white;border-radius:8px;overflow:hidden;flex-shrink:0">
+            ${p.imagem_url ? `<img src="${esc(p.imagem_url)}" style="width:100%;height:100%;object-fit:cover">` : ''}
+          </div>
+          <div style="flex:1;min-width:200px">
+            <div style="font-size:11px;color:#5b21b6;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Produto selecionado</div>
+            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:15px;margin-top:2px;color:#1a1a1a">${esc(p.nome)}</div>
+            <div style="font-size:11.5px;color:#5b21b6;margin-top:3px">SKU: ${esc(p.codigo || '—')} · ${p.preco ? 'R$ ' + Number(p.preco).toFixed(2) : '—'}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  document.getElementById('est-prox-1').disabled = false;
+  showToast('✓ Produto selecionado: ' + (p.nome || ''));
+};
+
+window.estLimparProduto = function() {
+  estState.produto = null;
+  document.getElementById('est-busca-produto').value = '';
+  document.getElementById('est-resultados').innerHTML = '';
+  const sel = document.getElementById('est-produto-selecionado');
+  if (sel) { sel.style.display = 'none'; sel.innerHTML = ''; }
+  document.getElementById('est-prox-1').disabled = true;
+};
+
+window.estSelTipo = function(card, tipo) {
+  document.querySelectorAll('.est-tipo-card').forEach(c => {
+    c.style.borderColor = 'var(--border)';
+    c.style.background = '';
+  });
+  card.style.borderColor = '#7c3aed';
+  card.style.background = 'linear-gradient(135deg,rgba(124,58,237,0.05),rgba(168,85,247,0.05))';
+  estState.tipo_peca = tipo;
+  document.getElementById('est-prox-2').disabled = false;
+};
+
+window.estProx = function(step) {
+  document.querySelectorAll('.est-panel').forEach(p => p.style.display = 'none');
+  document.getElementById('est-panel-' + step).style.display = '';
+  // Atualiza visual do stepper
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById('est-step-' + i);
+    if (i < step) {
+      el.style.background = '#5b21b6'; el.style.color = 'white';
+    } else if (i === step) {
+      el.style.background = '#7c3aed'; el.style.color = 'white';
+    } else {
+      el.style.background = 'var(--surface)'; el.style.color = 'var(--text3)';
+    }
+  }
+  if (step === 4) estAtualizarResumo();
+};
+
+function estAtualizarResumo() {
+  estState.tema = document.getElementById('est-tema')?.value?.trim() || '';
+  estState.copy_extra = document.getElementById('est-copy-extra')?.value?.trim() || '';
+  const tipoLabel = { banner_site:'Banner do site (21:9)', post_feed:'Post Instagram (1:1)', story_reel:'Story/Reels (9:16)', anuncio_meta:'Anúncio Meta (1:1)' }[estState.tipo_peca] || estState.tipo_peca;
+  const r = document.getElementById('est-resumo');
+  if (r) r.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div><strong>Produto:</strong> ${esc(estState.produto?.nome || '—')}</div>
+      <div><strong>Tipo de peça:</strong> ${esc(tipoLabel)}</div>
+      <div><strong>Tema:</strong> ${esc(estState.tema || '(genérico)')}</div>
+      ${estState.copy_extra ? `<div><strong>Copy:</strong> ${esc(estState.copy_extra)}</div>` : ''}
+    </div>
+  `;
+}
+
+window.estGerar = async function() {
+  if (!estState.produto || !estState.tipo_peca) { showToast('Selecione produto + tipo'); return; }
+  const btn = document.getElementById('est-btn-gerar');
+  if (btn) { btn.disabled = true; btn.textContent = '✨ Gerando prompt...'; }
+
+  try {
+    // 1. Gera prompt rico via gerar-peca-ia
+    const resPrompt = await fetch(`${SUPABASE_URL}/functions/v1/gerar-peca-ia`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        produto_nome: estState.produto.nome,
+        produto_codigo: estState.produto.codigo,
+        produto_preco: estState.produto.preco,
+        produto_imagem_url: estState.produto.imagem_url,
+        tipo_peca: estState.tipo_peca,
+        tema: estState.tema,
+        copy_extra: estState.copy_extra,
+      }),
+    });
+    const dataPrompt = await resPrompt.json();
+    if (dataPrompt.error) throw new Error(dataPrompt.error);
+    const promptVisual = dataPrompt.prompt;
+    if (btn) btn.textContent = '🎨 Gerando imagem...';
+
+    // 2. Chama gerar-avatar-ia (usa GEMINI_IMAGE_API_KEY paga)
+    const tipoLabel = { banner_site:'Banner', post_feed:'Post', story_reel:'Story', anuncio_meta:'Anúncio Meta' }[estState.tipo_peca];
+    window.gerarImagemIA({
+      titulo: `${tipoLabel} · ${estState.produto.nome}`,
+      subtitulo: 'Estúdio IA · gerado com prompt contextualizado ao produto',
+      prompt: promptVisual,
+      contexto: 'outro',
+      contextoRefId: String(estState.produto.id),
+      onSave: async (url) => {
+        // Loga em estudio_pecas pra galeria + custos
+        await sb.from('estudio_pecas').insert({
+          produto_id: estState.produto.id,
+          produto_nome: estState.produto.nome,
+          produto_imagem_url: estState.produto.imagem_url,
+          tipo_peca: estState.tipo_peca,
+          tema: estState.tema || null,
+          copy_extra: estState.copy_extra || null,
+          prompt_usado: promptVisual,
+          imagem_url: url,
+          status: 'ok',
+          custo_estimado_reais: 0.20,
+          criado_por: currentUser?.id,
+          criado_por_nome: currentProfile?.nome,
+        });
+        estCarregarGaleria();
+        showToast('✓ Peça salva na galeria do Estúdio');
+      },
+    });
+  } catch (e) {
+    console.error('[estudio] gerar:', e);
+    showToast('Erro: ' + (e.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '✨ Gerar peça com IA · ~R$ 0,20'; }
+  }
+};
+
+window.estCarregarGaleria = async function() {
+  const wrap = document.getElementById('est-galeria');
+  if (!wrap) return;
+  try {
+    const { data } = await sb.from('estudio_pecas').select('*').order('created_at', { ascending: false }).limit(50);
+    if (!data || !data.length) {
+      wrap.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12.5px;padding:30px">Nenhuma peça gerada ainda. Gere a primeira acima!</div>';
+      return;
+    }
+    const tipoEmoji = { banner_site:'🖼', post_feed:'📷', story_reel:'📱', anuncio_meta:'💰' };
+    const aspectMap = { banner_site:'21/9', post_feed:'1/1', story_reel:'9/16', anuncio_meta:'1/1' };
+    wrap.innerHTML = data.map(p => `
+      <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface)" title="${esc(p.produto_nome)} · ${esc(p.tema || 'genérico')}">
+        <a href="${esc(p.imagem_url)}" target="_blank" style="display:block;aspect-ratio:${aspectMap[p.tipo_peca] || '1/1'};background:#0a0a0a;overflow:hidden">
+          <img src="${esc(p.imagem_url)}" loading="lazy" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">
+        </a>
+        <div style="padding:8px 10px">
+          <div style="font-size:11px;font-weight:600;line-height:1.3;height:30px;overflow:hidden">${tipoEmoji[p.tipo_peca] || '🎨'} ${esc(p.produto_nome || '—')}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${esc(p.tema || 'Genérico')} · ${new Date(p.created_at).toLocaleDateString('pt-BR').slice(0,5)}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.warn('[estudio] galeria:', e);
+  }
+};
 
 // ── ADMIN: Dashboard de Custos IA ──
 async function loadCustosIA() {
