@@ -18588,13 +18588,25 @@ window.estGerar = async function() {
     if (btn) btn.textContent = '🎨 Gerando imagem...';
 
     // 2. Chama gerar-avatar-ia (usa GEMINI_IMAGE_API_KEY paga)
+    // Map aspect ratio: Gemini Image suporta 1:1, 16:9, 9:16, 4:3, 3:4. NAO suporta 21:9 nativo
+    const ASPECT_BY_TIPO = {
+      banner_site: '16:9',   // mais wide que Gemini suporta
+      post_feed: '1:1',
+      story_reel: '9:16',
+      anuncio_meta: '1:1',
+    };
+    const aspectRatio = ASPECT_BY_TIPO[estState.tipo_peca] || '1:1';
     const tipoLabel = { banner_site:'Banner', post_feed:'Post', story_reel:'Story', anuncio_meta:'Anúncio Meta' }[estState.tipo_peca];
+    // Reforco anti-texto: anexa instrucao crítica no fim do prompt pra Gemini Image
+    // (mesmo o gerar-peca-ia ja instruir, Gemini Image as vezes ignora se nao for repetido)
+    const promptComAntiTexto = `${promptVisual}\n\nCRITICAL FINAL INSTRUCTION: Do NOT render any text, letters, numbers, words, percentages, prices or typography in the image. The image must be 100% visual with clean negative space. Text will be added later in post-production by a designer. NO "10%", NO "%", NO "OFF", NO words at all.`;
     window.gerarImagemIA({
       titulo: `${tipoLabel} · ${estState.produto.nome}`,
       subtitulo: 'Estúdio IA · gerado com prompt contextualizado ao produto',
-      prompt: promptVisual,
+      prompt: promptComAntiTexto,
       contexto: 'outro',
       contextoRefId: String(estState.produto.id),
+      aspect_ratio: aspectRatio,
       onSave: async (url) => {
         // Loga em estudio_pecas pra galeria + custos
         await sb.from('estudio_pecas').insert({
@@ -21085,7 +21097,7 @@ const aiChatInterval = setInterval(() => {
           'Authorization': `Bearer ${session?.access_token}`,
           'apikey': SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ prompt, contexto, contexto_ref_id: contextoRefId || null })
+        body: JSON.stringify({ prompt, contexto, contexto_ref_id: contextoRefId || null, aspect_ratio: opts.aspect_ratio || null })
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || j.detalhe || `HTTP ${r.status}`);
