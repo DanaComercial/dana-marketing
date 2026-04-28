@@ -5595,6 +5595,9 @@ if(whn) whn.addEventListener('input', () => {
 .news-loading{text-align:center;padding:40px;color:var(--text3);}
 .news-spinner{width:28px;height:28px;border:2.5px solid var(--border);border-top-color:var(--black);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 10px;}
 @keyframes spin{to{transform:rotate(360deg);}}
+.est-var-label{display:flex;align-items:center;gap:6px;padding:6px 12px;background:white;border:2px solid var(--border);border-radius:7px;cursor:pointer;font-size:12.5px;font-weight:600;transition:all 0.15s}
+.est-var-label.selected{border-color:#7c3aed;background:linear-gradient(135deg,rgba(124,58,237,0.05),rgba(168,85,247,0.05))}
+.est-var-label:hover{border-color:#a855f7}
 
 /* Refresh btn */
 .mkt-refresh{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:6px;border:1px solid var(--border2);background:var(--white);cursor:pointer;font-size:12px;font-weight:600;color:var(--text2);transition:all .12s;}
@@ -8777,8 +8780,11 @@ updateDynamicField('foto');
       <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:17px">🎨 Estúdio IA</div>
       <div style="font-size:12.5px;color:var(--text3);margin-top:3px">Gere banners, posts e anúncios com IA usando produtos reais do catálogo Dana</div>
     </div>
-    <div style="background:linear-gradient(135deg,#fef3c7,#fde68a);border:1px solid #fbbf24;border-radius:8px;padding:8px 12px;font-size:11.5px;color:#78350f;max-width:340px">
-      <strong>💰 Atenção custos:</strong> cada peça gerada usa IA paga (~R$ 0,20). Acompanhe o gasto em <a href="#admin/custos-ia" onclick="go(document.querySelector('[onclick*=admin]'),'admin');setTimeout(()=>switchAdminTab(document.querySelector('[onclick*=custos-ia]'),'custos-ia'),300);return false;" style="color:#78350f;text-decoration:underline">Admin · Custos IA</a>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;max-width:340px">
+      <div style="background:linear-gradient(135deg,#fef3c7,#fde68a);border:1px solid #fbbf24;border-radius:8px;padding:8px 12px;font-size:11.5px;color:#78350f">
+        <strong>💰 Atenção custos:</strong> cada peça gerada usa IA paga (~R$ 0,20). Acompanhe o gasto em <a href="#admin/custos-ia" onclick="go(document.querySelector('[onclick*=admin]'),'admin');setTimeout(()=>switchAdminTab(document.querySelector('[onclick*=custos-ia]'),'custos-ia'),300);return false;" style="color:#78350f;text-decoration:underline">Admin · Custos IA</a>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="estSyncImagens()" style="font-size:11px" title="Baixa imagens dos produtos do Bling pro Storage permanente. Faz a IA Vision conseguir analisar visualmente.">🔄 Sincronizar imagens dos produtos</button>
     </div>
   </div>
 
@@ -8876,14 +8882,32 @@ updateDynamicField('foto');
     <div class="card mb20">
       <div class="card-title" style="margin-bottom:14px">4. Pronta pra gerar?</div>
       <div id="est-resumo" style="background:var(--surface);border-radius:8px;padding:14px;margin-bottom:14px;font-size:12.5px"></div>
+
+      <!-- Variações A/B/C -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px">🔀 Quantas variações gerar?</div>
+        <div style="font-size:11.5px;color:var(--text3);margin-bottom:10px">A IA gera N versões do mesmo prompt — cada uma sai um pouco diferente. Você escolhe a melhor.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label class="est-var-label selected" data-v="1">
+            <input type="radio" name="est-variacoes" value="1" checked style="margin:0" onchange="estUpdateVariacoes()">1 imagem (~R$ 0,20)
+          </label>
+          <label class="est-var-label" data-v="2">
+            <input type="radio" name="est-variacoes" value="2" style="margin:0" onchange="estUpdateVariacoes()">2 variações (~R$ 0,40)
+          </label>
+          <label class="est-var-label" data-v="3">
+            <input type="radio" name="est-variacoes" value="3" style="margin:0" onchange="estUpdateVariacoes()">3 variações (~R$ 0,60)
+          </label>
+        </div>
+      </div>
+
       <div style="background:linear-gradient(135deg,#fef3c7,#fde68a);border:1px solid #fbbf24;border-radius:8px;padding:12px 14px;margin-bottom:14px">
         <div style="font-weight:700;font-size:13px;color:#78350f;margin-bottom:4px">💰 Custo estimado: ~R$ 0,20 por imagem</div>
-        <div style="font-size:11.5px;color:#92400e">Usa Gemini 2.5 Flash Image (paga). Cada clique em "Gerar" consome essa quantia. Vai aparecer em <a href="#" onclick="go(document.querySelector('[onclick*=admin]'),'admin');setTimeout(()=>switchAdminTab(document.querySelector('[onclick*=custos-ia]'),'custos-ia'),300);return false;" style="color:#78350f;text-decoration:underline">Admin · Custos IA</a>.</div>
+        <div style="font-size:11.5px;color:#92400e">Usa Gemini 2.5 Flash Image (paga). O custo é multiplicado pelo número de variações. Acompanhe em <a href="#" onclick="go(document.querySelector('[onclick*=admin]'),'admin');setTimeout(()=>switchAdminTab(document.querySelector('[onclick*=custos-ia]'),'custos-ia'),300);return false;" style="color:#78350f;text-decoration:underline">Admin · Custos IA</a>.</div>
       </div>
     </div>
     <div style="display:flex;justify-content:space-between">
       <button class="btn btn-ghost" onclick="estProx(3)">← Anterior</button>
-      <button id="est-btn-gerar" class="btn btn-primary" onclick="estGerar()" style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;padding:10px 20px;font-size:14px">✨ Gerar peça com IA · ~R$ 0,20</button>
+      <button id="est-btn-gerar" class="btn btn-primary" onclick="estGerar()" style="background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;padding:10px 20px;font-size:14px">✨ Gerar peça com IA</button>
     </div>
   </div>
 
@@ -9573,7 +9597,8 @@ function toggleMobileSidebar(forceState) {
 
 // Seções restritas a cargo admin. URL direta ou qualquer outro
 // caminho tem que passar por aqui — não depende de cargo_permissoes.
-const ADMIN_ONLY_VIEWS = ['admin', 'estudio'];
+// 'estudio' saiu daqui — agora controlado via cargo_permissoes pro Juan liberar manualmente
+const ADMIN_ONLY_VIEWS = ['admin'];
 
 // Retorna o primeiro viewId que o usuario logado tem permissao pra acessar.
 // Usado no login inicial (sem hash/localStorage) e como fallback quando go()
@@ -18497,17 +18522,21 @@ async function estBuscarProdutoNow() {
   }
   resultados.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12.5px;padding:30px">⏳ Buscando...</div>';
   try {
-    // Busca server-side com ILIKE em nome OU codigo. Retorna até 30 resultados.
-    // Importante: usar `or()` do PostgREST com ilike pra fazer match case-insensitive
-    // sem o limite de 1000 que acontecia ao carregar tudo cliente-side.
+    // Busca server-side com ILIKE — agora seleciona TAMBEM imagem_storage_url
+    // (URL persistente do Supabase Storage; fallback pra imagem_url do Bling)
     const padrao = `%${q.replace(/[%,]/g, '')}%`;
     const { data, error } = await sb.from('produtos')
-      .select('id,nome,codigo,preco,imagem_url')
+      .select('id,nome,codigo,preco,imagem_url,imagem_storage_url')
       .or(`nome.ilike.${padrao},codigo.ilike.${padrao}`)
       .order('nome')
       .limit(30);
     if (error) throw error;
-    const matches = data || [];
+    // Normaliza: prefere imagem_storage_url (persistente), fallback imagem_url (Bling, expira em 1h)
+    const matches = (data || []).map(p => ({
+      ...p,
+      imagem_url: p.imagem_storage_url || p.imagem_url,
+      _persistente: !!p.imagem_storage_url,
+    }));
     estState.ultimosResultados = matches;
     if (!matches.length) {
       resultados.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12.5px;padding:30px">Nenhum produto encontrado pra "' + esc(q) + '"</div>';
@@ -18612,10 +18641,12 @@ function estAtualizarResumo() {
 window.estGerar = async function() {
   if (!estState.produto || !estState.tipo_peca) { showToast('Selecione produto + tipo'); return; }
   const btn = document.getElementById('est-btn-gerar');
+  // Pega quantidade de variacoes selecionada
+  const numVariacoes = parseInt(document.querySelector('input[name="est-variacoes"]:checked')?.value || '1');
   if (btn) { btn.disabled = true; btn.textContent = '✨ Gerando prompt...'; }
 
   try {
-    // 1. Gera prompt rico via gerar-peca-ia (v3 com Gemini Vision)
+    // 1. Gera prompt rico via gerar-peca-ia (Gemini Vision)
     const resPrompt = await fetch(`${SUPABASE_URL}/functions/v1/gerar-peca-ia`, {
       method: 'POST',
       headers: {
@@ -18636,7 +18667,7 @@ window.estGerar = async function() {
     const dataPrompt = await resPrompt.json();
     if (dataPrompt.error) throw new Error(dataPrompt.error);
     const promptVisual = dataPrompt.prompt;
-    // Debug visivel: mostra o prompt gerado num <details> antes da imagem
+    // Debug visivel: mostra o prompt gerado num <details>
     let debugBox = document.getElementById('est-debug-prompt');
     if (!debugBox) {
       debugBox = document.createElement('div');
@@ -18650,58 +18681,137 @@ window.estGerar = async function() {
         <div style="margin-top:8px;padding:10px;background:white;border-radius:6px;color:#1a1a1a;line-height:1.5;max-height:240px;overflow-y:auto">${esc(promptVisual)}</div>
       </details>
     `;
-    if (btn) btn.textContent = '🎨 Gerando imagem...';
 
-    // 2. Chama gerar-avatar-ia (usa GEMINI_IMAGE_API_KEY paga)
-    // Map aspect ratio: Gemini Image suporta 1:1, 16:9, 9:16, 4:3, 3:4. NAO suporta 21:9 nativo
-    const ASPECT_BY_TIPO = {
-      banner_site: '16:9',   // mais wide que Gemini suporta
-      post_feed: '1:1',
-      story_reel: '9:16',
-      anuncio_meta: '1:1',
-    };
+    // 2. Map aspect ratio
+    const ASPECT_BY_TIPO = { banner_site:'16:9', post_feed:'1:1', story_reel:'9:16', anuncio_meta:'1:1' };
     const aspectRatio = ASPECT_BY_TIPO[estState.tipo_peca] || '1:1';
     const tipoLabel = { banner_site:'Banner', post_feed:'Post', story_reel:'Story', anuncio_meta:'Anúncio Meta' }[estState.tipo_peca];
-    // Reforco anti-texto: anexa instrucao crítica no fim do prompt pra Gemini Image
-    // (mesmo o gerar-peca-ia ja instruir, Gemini Image as vezes ignora se nao for repetido)
-    const promptComAntiTexto = `${promptVisual}\n\nCRITICAL FINAL INSTRUCTION: Do NOT render any text, letters, numbers, words, percentages, prices or typography in the image. The image must be 100% visual with clean negative space. Text will be added later in post-production by a designer. NO "10%", NO "%", NO "OFF", NO words at all.`;
-    window.gerarImagemIA({
-      titulo: `${tipoLabel} · ${estState.produto.nome}`,
-      subtitulo: 'Estúdio IA · gerado com prompt contextualizado ao produto',
-      prompt: promptComAntiTexto,
-      contexto: 'outro',
-      contextoRefId: String(estState.produto.id),
-      aspect_ratio: aspectRatio,
-      // Estudio IA NAO inclui logo Dana embroidered no peito (cliente vai
-      // adicionar texto/logo em post-producao). Sem isso a edge function
-      // gerar-avatar-ia inclui automaticamente quando detecta 'jaleco/lab coat'.
-      incluir_logo: false,
-      onSave: async (url) => {
-        // Loga em estudio_pecas pra galeria + custos
-        await sb.from('estudio_pecas').insert({
-          produto_id: estState.produto.id,
-          produto_nome: estState.produto.nome,
-          produto_imagem_url: estState.produto.imagem_url,
-          tipo_peca: estState.tipo_peca,
-          tema: estState.tema || null,
-          copy_extra: estState.copy_extra || null,
-          prompt_usado: promptVisual,
-          imagem_url: url,
-          status: 'ok',
-          custo_estimado_reais: 0.20,
-          criado_por: currentUser?.id,
-          criado_por_nome: currentProfile?.nome,
-        });
-        estCarregarGaleria();
-        showToast('✓ Peça salva na galeria do Estúdio');
-      },
-    });
+
+    // 3. Gera N variacoes em paralelo direto pra edge function gerar-avatar-ia
+    const { data: { session } } = await sb.auth.getSession();
+    const tokenJwt = session?.access_token;
+    if (!tokenJwt) throw new Error('Sessão expirada — recarregue a página');
+
+    if (btn) btn.textContent = `🎨 Gerando ${numVariacoes} imagem${numVariacoes>1?'ns':''}...`;
+
+    // Cada variacao pega um seed levemente diferente no prompt pra forcar variacao real
+    // (Gemini com mesmo prompt pode gerar quase identicas)
+    const variantSuffixes = [
+      '', // primeira: prompt original
+      ' Slight variation: alternative camera angle (e.g., slightly different model pose, different prop arrangement, but same overall composition).',
+      ' Another variation: different lighting mood (e.g., golden hour vs midday vs softer evening light) and slightly different model expression.',
+    ];
+
+    const tarefas = [];
+    for (let i = 0; i < numVariacoes; i++) {
+      const promptVariante = promptVisual + (variantSuffixes[i] || '');
+      tarefas.push(
+        (async () => {
+          try {
+            const r = await fetch(`${SUPABASE_URL}/functions/v1/gerar-avatar-ia`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${tokenJwt}`,
+                'apikey': SUPABASE_ANON_KEY,
+              },
+              body: JSON.stringify({
+                prompt: promptVariante.slice(0, 4900),
+                contexto: 'outro',
+                contexto_ref_id: String(estState.produto.id),
+                aspect_ratio: aspectRatio,
+                incluir_logo: false,
+              }),
+            });
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.error || j.detalhe || `HTTP ${r.status}`);
+            // Salva em estudio_pecas
+            await sb.from('estudio_pecas').insert({
+              produto_id: estState.produto.id,
+              produto_nome: estState.produto.nome,
+              produto_imagem_url: estState.produto.imagem_url,
+              tipo_peca: estState.tipo_peca,
+              tema: estState.tema || null,
+              copy_extra: estState.copy_extra || null,
+              prompt_usado: promptVariante,
+              imagem_url: j.url,
+              status: 'ok',
+              custo_estimado_reais: Number(j.custo_estimado || 0.20),
+              criado_por: currentUser?.id,
+              criado_por_nome: currentProfile?.nome,
+            });
+            return { ok: true, url: j.url, idx: i + 1 };
+          } catch (e) {
+            console.warn(`[estudio] variante ${i+1} falhou:`, e);
+            return { ok: false, error: String(e?.message || e), idx: i + 1 };
+          }
+        })()
+      );
+    }
+
+    // Atualiza progresso enquanto roda
+    let concluidas = 0;
+    tarefas.forEach(t => t.then(() => {
+      concluidas++;
+      if (btn) btn.textContent = `🎨 ${concluidas}/${numVariacoes} pronta${concluidas>1?'s':''}...`;
+    }));
+
+    const resultados = await Promise.all(tarefas);
+    const sucessos = resultados.filter(r => r.ok).length;
+    const falhas = resultados.filter(r => !r.ok);
+    estCarregarGaleria();
+    if (sucessos === numVariacoes) {
+      showToast(`✓ ${sucessos} ${sucessos>1?'variações geradas':'peça gerada'} — veja na galeria abaixo`);
+    } else if (sucessos > 0) {
+      showToast(`✓ ${sucessos}/${numVariacoes} geradas. ${falhas.length} falharam: ${falhas[0]?.error?.slice(0,80)||'?'}`);
+    } else {
+      showToast(`Erro: ${falhas[0]?.error || 'todas as variações falharam'}`);
+    }
   } catch (e) {
     console.error('[estudio] gerar:', e);
     showToast('Erro: ' + (e.message || e));
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '✨ Gerar peça com IA · ~R$ 0,20'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '✨ Gerar peça com IA'; }
   }
+};
+
+// Sincroniza imagens dos produtos: baixa do Bling (URLs S3 que expiram em 1h)
+// e salva no Supabase Storage (URL permanente). Faz Gemini Vision conseguir
+// analisar produtos visualmente. Roda em batch de 50, pode chamar varias vezes.
+window.estSyncImagens = async function() {
+  if (currentProfile?.cargo !== 'admin') { showToast('Só admin'); return; }
+  if (!confirm('Baixa as imagens dos produtos do Bling pro Storage do Supabase. Pode demorar 1-2 min pra 50 produtos. Continuar?')) return;
+  try {
+    showToast('🔄 Sincronizando imagens... aguarde');
+    const { data: { session } } = await sb.auth.getSession();
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/sync-imagens-produtos`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${session?.access_token}`,
+      },
+      body: JSON.stringify({ limit: 50 }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    if (j.total === 0) {
+      showToast('✓ Tudo já sincronizado! Nenhuma pendência');
+    } else {
+      showToast(`✓ ${j.ok}/${j.total} imagens sincronizadas (${j.falhas} falhas)`);
+    }
+  } catch (e) {
+    console.error('[est-sync]', e);
+    showToast('Erro: ' + (e.message || e));
+  }
+};
+
+// Atualiza visual dos radios quando user troca quantidade de variacoes
+window.estUpdateVariacoes = function() {
+  const v = document.querySelector('input[name="est-variacoes"]:checked')?.value;
+  document.querySelectorAll('.est-var-label').forEach(el => {
+    el.classList.toggle('selected', el.dataset.v === v);
+  });
 };
 
 window.estCarregarGaleria = async function() {
