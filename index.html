@@ -20786,18 +20786,46 @@ async function aiChatEnviar() {
   try {
     const { data: { session } } = await sb.auth.getSession();
     if (!session) throw new Error('Faça login pra usar o chat');
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        messages: aiChatHistorico.slice(-20) // últimas 20 msgs de contexto
-      })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro na IA');
+
+    // Retry automatico em 503 (Groq/Gemini sobrecarregados): 3 tentativas com backoff 2s, 5s
+    let data = null, ultimoErro = null;
+    const tentativas = [0, 2000, 5000]; // delay antes de cada tentativa (1a sem delay)
+    for (let i = 0; i < tentativas.length; i++) {
+      if (tentativas[i] > 0) {
+        // Mostra aviso de retry
+        aiChatHistorico[aiChatHistorico.length - 1] = aiChatHistorico[aiChatHistorico.length - 1];
+        const lastIdx = aiChatHistorico.length;
+        aiChatHistorico.push({ role: 'system_temp', content: `⏳ IA sobrecarregada, tentando de novo em ${tentativas[i]/1000}s...` });
+        aiChatRender();
+        await new Promise(r => setTimeout(r, tentativas[i]));
+        // Remove a msg temp
+        aiChatHistorico = aiChatHistorico.filter(m => m.role !== 'system_temp');
+      }
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            messages: aiChatHistorico.filter(m => m.role !== 'system_temp').slice(-20)
+          })
+        });
+        const j = await res.json();
+        if (res.ok) { data = j; break; }
+        ultimoErro = j.error || `HTTP ${res.status}`;
+        // Se nao for 503/transiente, nao adianta retentar
+        if (res.status !== 503 && !/sobrecarrega|temporariamente/i.test(String(ultimoErro))) {
+          throw new Error(ultimoErro);
+        }
+        console.warn(`[ai-chat] tentativa ${i+1} falhou:`, ultimoErro);
+      } catch (e) {
+        ultimoErro = e?.message || String(e);
+        if (!/sobrecarrega|temporariamente|503/i.test(ultimoErro)) throw e;
+      }
+    }
+    if (!data) throw new Error(ultimoErro || 'IA indisponível após 3 tentativas. Tenta de novo em 1 minuto.');
     aiChatHistorico.push({ role: 'assistant', content: data.resposta });
   } catch (e) {
     aiChatHistorico.push({ role: 'assistant', content: `⚠ ${e.message}` });
