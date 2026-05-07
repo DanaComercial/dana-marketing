@@ -136,20 +136,36 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── 7. Enhancer: injeta logo Dana quando for roupa/uniforme ──
-    // Pula se o prompt EXPLICITAMENTE disser que nao e roupa medica (ex: Diretor Gabriel)
+    // ── 7. Enhancer: injeta referencias visuais (produto + logo) ──
+    // Pula logo se o prompt EXPLICITAMENTE disser que nao e roupa medica (ex: Diretor Gabriel)
     const incluirLogo = body.incluir_logo !== false && ROUPA_KEYWORDS.test(prompt) && !NAO_ROUPA.test(prompt)
     const parts: any[] = []
     let promptFinal = prompt
 
+    // 7a. PRODUTO REFERENCE (novo): se vier image_produto_url, anexa como referencia visual
+    // primaria — Gemini deve usar a roupa exata da imagem (cor, corte, tecido, detalhes)
+    let temProdutoRef = false
+    if (body.image_produto_url && typeof body.image_produto_url === 'string') {
+      const produto = await fetchImagemBase64(body.image_produto_url)
+      if (produto) {
+        parts.push({ inlineData: { mimeType: produto.mime, data: produto.b64 } })
+        temProdutoRef = true
+        promptFinal = prompt + `\n\nPRODUCT REFERENCE: The model in this image MUST be wearing the EXACT lab coat / scrub / medical garment shown in the attached product reference image. Match precisely: the color, cut, sleeve length, collar style (V-neck, padre, button-up etc), fabric texture, and any visible details (zippers, pockets, trim). The lab coat in the final image should look like the SAME GARMENT from the product reference — not just similar, but visually identical in cut and color.`
+      } else {
+        console.warn('[gerar-avatar-ia] produto ref fetch falhou:', body.image_produto_url)
+      }
+    }
+
+    // 7b. LOGO DANA (existente): adiciona logo embroidered no peito
     if (incluirLogo) {
       const logo = await fetchImagemBase64(LOGO_DANA_URL)
       if (logo) {
         parts.push({ inlineData: { mimeType: logo.mime, data: logo.b64 } })
-        promptFinal = prompt + `\n\nBRAND REQUIREMENT: The lab coat / medical uniform / scrub must have the Dana Jalecos brand logo (shown in the attached reference image) embroidered or printed subtly on the chest pocket area. Keep the logo recognizable but integrated tastefully into the garment — tonal embroidery (cream/beige on white fabric) preferred, or small discrete placement. Use the exact logo shape and proportions from the reference.`
+        // Quando tem produto ref + logo, instrucao especifica menciona "second reference image"
+        const refDesc = temProdutoRef ? 'second attached reference image (the brand logo)' : 'attached reference image'
+        promptFinal = promptFinal + `\n\nBRAND REQUIREMENT: The lab coat / medical uniform / scrub must have the Dana Jalecos brand logo (shown in the ${refDesc}) embroidered or printed subtly on the chest pocket area. Keep the logo recognizable but integrated tastefully into the garment — tonal embroidery (cream/beige on white fabric) preferred, or small discrete placement. Use the exact logo shape and proportions from the reference.`
       } else {
-        // Fallback se nao conseguir baixar a logo: ainda instrui no texto
-        promptFinal = prompt + `\n\nBRAND REQUIREMENT: Include a small, elegant embroidered brand wordmark "Dana" on the chest pocket of the lab coat / uniform.`
+        promptFinal = promptFinal + `\n\nBRAND REQUIREMENT: Include a small, elegant embroidered brand wordmark "Dana" on the chest pocket of the lab coat / uniform.`
       }
     }
 
