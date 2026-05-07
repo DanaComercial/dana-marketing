@@ -4080,6 +4080,1831 @@ User pediu `/compact` pra continuar com as ondas RD Station depois.
 - `3d3e042` Prospecção 4 melhorias (DanaComercial)
 - `2176c7d` Mesma coisa (DanaJalecos)
 - (sem commit) ALTER TABLE criativos no banco
+
+---
+
+## 43. CICLO 29/04/2026 (TARDE) — ONDA #0: SYNC RETRIES COM BACKOFF EXPONENCIAL
+
+**Roadmap pós-RD Station:** primeiro item das 5 ondas (#0 Webhook retries → adaptado pra DMS sync retries, já que DMS usa cron polling, não webhook).
+
+### 43.1 Problema
+
+As ~10 sync functions do Bling (`sync-pedidos`, `sync-contatos`, `sync-contas-pagar/receber`, etc — matriz e BC) rodam via pg_cron a cada 1-6h. Se uma falhar (rate limit, network glitch, Bling 5xx), o evento ficava só logado em `sync_log` com `status='error'` e a próxima execução seria 6h depois — sem retry imediato.
+
+Falhas reais nos últimos 30 dias: 2 (`'fetch failed'` em 15/04 + 1 backfill parcial em 20/04). Raríssimo, mas crítico quando acontece.
+
+### 43.2 Arquitetura (zero invasão nas sync functions existentes)
+
+```
+┌───────────────┐ trigger    ┌───────────────┐ cron 1m   ┌─────────────────────┐
+│  sync_log     │ ─────────▶│ sync_failures │ ─────────▶│ sync-retry-processor │
+│  (existente)  │ on error   │  (queue)      │           │ (edge function)      │
+└───────────────┘            └───────────────┘           └─────────────────────┘
+                                     ▲                           │
+                                     │ updates status            │ POST job_url
+                                     └───────────────────────────┘
+```
+
+**Tabelas novas:**
+- `sync_failures` (queue): id, job_name, job_url, job_body jsonb, attempts, max_attempts (6), last_error, last_attempt_response, next_retry_at, status (pending/retrying/success/failed/cancelled), original_log_id (FK sync_log), created_at, updated_at
+- `sync_job_routes` (mapping): tabela + tipo → URL da edge function (12 rotas: matriz × BC × {pedidos, contatos, contas_pagar, contas_receber, produtos, pedidos_itens})
+
+**Função SQL `backoff_minutes(attempts)`:**
+- 0 → 1 min
+- 1 → 5 min
+- 2 → 30 min
+- 3 → 120 min (2h)
+- 4 → 360 min (6h)
+- ≥5 → 1440 min (24h)
+
+**Trigger `enqueue_sync_retry_from_log`** (AFTER INSERT em sync_log):
+- Se `NEW.status = 'error'`, busca rota em sync_job_routes, INSERT em sync_failures com `next_retry_at = NOW() + 1min`
+- Idempotente: se já existe row pending pra mesma URL, ignora (evita duplicatas)
+
+**Edge function `sync-retry-processor` v2 ACTIVE:**
+- SELECT pending com `next_retry_at <= NOW()` LIMIT 10
+- Pra cada: PATCH status='retrying' (lock soft), POST job_url
+- Sucesso (2xx) → status='success', registra resposta
+- Falha → attempts++, agenda próximo retry com backoff
+- Após 6 tentativas (~33h cumulativos) → status='failed', cria alerta em `alertas` audiência=`dados_empresa`
+
+**Cron job 24:** `* * * * *` invoca o processor a cada 1min (via `net.http_post` com Service Role).
+
+### 43.3 UI admin — `view-admin` ganhou aba "🔄 Sync Retries"
+
+Visível apenas pra admins (a aba inteira já está dentro de `view-admin` que tem permissão admin).
+
+- 4 cards de stats: Pendentes / Retentando / Sucesso / Desistiu
+- Tabela das últimas 100 falhas (id, job, status badge colorido, attempts/max, próximo retry relativo, criado relativo, erro truncado 60ch com tooltip completo)
+- Botão "▶ Rodar agora" — invoca processor manualmente (útil pra debug ou força ciclo)
+- Botão "▶ Agora" por linha — força retry imediato dessa falha específica (UPDATE next_retry_at=NOW + invoca processor)
+
+Funções JS adicionadas em `index.html` (~linha 18590):
+- `loadSyncRetries()` — fetch + render
+- `retryNowSync(id)` — força retry de uma row
+- `runSyncRetryProcessor(silent)` — invoca processor
+
+### 43.4 Validação fim-a-fim (passou no teste)
+
+1. INSERT manual em `sync_log (tabela='pedidos', status='error', erro='TESTE')` → trigger criou row em `sync_failures` (pending, attempts=0)
+2. UPDATE `next_retry_at = NOW()` → invoca processor manualmente
+3. Processor pegou a row, fez POST em sync-pedidos → recebeu HTTP 200 com 175 pedidos sincronizados de verdade
+4. Row marcada como `status='success'`, attempts=1, last_attempt_response="200: {...}"
+5. Limpeza: DELETE da row de teste + log de teste
+
+### 43.5 Bug encontrado e corrigido (deploy v1 → v2)
+
+**Bug:** `sb()` helper na edge function tentava `r.json()` mesmo quando o servidor retornava 204 No Content (porque os UPDATEs usam `Prefer: return=minimal`). Resultado: `Unexpected end of JSON input` no primeiro PATCH.
+
+**Fix:** checar `r.status === 204` ou body vazio antes de fazer JSON.parse.
+
+### 43.6 Estado atual
+
+| Componente | Status |
+|---|---|
+| Tabela `sync_failures` | ✅ criada com 3 indexes |
+| Tabela `sync_job_routes` | ✅ criada + 12 rotas seedadas |
+| Função `backoff_minutes(int)` | ✅ |
+| Trigger `tr_sync_log_enqueue_retry` | ✅ ATIVO em sync_log |
+| Edge function `sync-retry-processor` | ✅ v2 ACTIVE |
+| Cron job (id=24) `sync-retry-processor-1min` | ✅ rodando a cada 1min |
+| UI admin "🔄 Sync Retries" | ✅ adicionada em view-admin |
+| Documentação | ✅ esta seção |
+
+### 43.7 Próxima onda
+
+**#1 Funil Kanban dos Prospects** (3-4h) — aba dentro de `view-prospeccao`, drag-and-drop reaproveitando lib do Kanban de Tarefas. Sem mudança de banco (`prospects.status` já existe).
+
+### 43.8 Edge Functions estado
+
+| Função | Versão | Status |
+|---|---|---|
+| **sync-retry-processor** | **v2** | **NOVO ciclo 43** |
+| prospectar | v10 | (sem mudança) |
+| ai-chat | v20 | (sem mudança) |
+| outras 26 | — | sem mudança |
+
+### 43.9 Cron jobs DMS
+
+| Job ID | Schedule | Comando |
+|---|---|---|
+| 1 | `5,35 * * * *` | gerar_alertas |
+| 2 | `0 9 * * *` | gerar_alertas_prazos |
+| 3-23 | (vários) | sync-* matriz + BC + outros |
+| **24** ⭐ | `* * * * *` | **sync-retry-processor (NOVO ciclo 43)** |
+
+---
+
+## 44. CICLO 29/04/2026 (TARDE-2) — ONDA #1: FUNIL KANBAN DOS PROSPECTS
+
+**Roadmap pós-RD Station:** segundo item das 5 ondas. RD destacou Funil Kanban como feature #1 do CRM. Dana já tinha os dados (`prospects.status`), faltava UI.
+
+### 44.1 Decisão de UX
+
+User aprovou **Opção A**: Kanban como **aba nova dentro da seção Prospecção**, NÃO seção separada na sidebar.
+
+Razões:
+- Mesma fonte de dados (tabela `prospects`)
+- Filtros (Segmento) e botão "Buscar com IA" continuam no topo, valem pras 2 abas
+- Vendedora escolhe se prefere lista (escanear) ou Kanban (arrastar)
+- Sidebar não cresce
+
+### 44.2 Implementação
+
+**HTML adicionado em `view-prospeccao` (linha ~7102):**
+```html
+<div class="mkt-tabs">
+  <div class="mkt-tab active" onclick="prospSwitchTab(this,'kanban')">🗂️ Funil Kanban</div>
+  <div class="mkt-tab" onclick="prospSwitchTab(this,'lista')">📋 Lista</div>
+</div>
+...
+<div id="prsp-lista" style="display:none">...</div>      <!-- existente -->
+<div id="prsp-tab-kanban" style="display:block">...</div> <!-- NOVO -->
+```
+
+**Default: Kanban** (`window._prspTab = 'kanban'`). Lista é a aba secundária.
+
+**JS adicionado (linha ~18305):**
+- `prospSwitchTab(el, qual)` — alterna display + esconde filtro de status quando em Kanban
+- `prospRender()` (refatorada como dispatcher) chama `prospRenderLista()` + `prospRenderKanban()`. Ambas leves; renderizar a invisível custa ~5ms.
+- `prospRenderKanban()` — 5 colunas (novo/contatado/em_negociacao/convertido/descartado) com cor/ícone próprios e badge de contagem
+- `prospRenderKanbanCard(p, podeEditar)` — versão compacta do card (vs Lista): nome, segmento+cidade, insight IA truncado 80ch, botão WhatsApp/Já contatado, copiar msg, apagar
+- `prospWireKanbanDrag()` — adiciona dragstart listeners aos cards (`text/prsp-id` no dataTransfer)
+- `prospKanbanDrop(event, novoStatus)` — pega ID, **optimistic UI** (atualiza local + re-render), depois UPDATE no banco; rollback em caso de erro
+- Helper `_prospStatusCor(s)` — cores das bordas dos cards
+
+### 44.3 Padrão reusado
+
+Espelhei o `ciKanbanDrop` (Campanhas Internas, linha 22201) — código mais limpo que o do Kanban de Tarefas (que tinha 5 duplicatas de função `drop` resolvidas no ciclo 35).
+
+Difere em 3 pontos:
+- DataTransfer key: `text/prsp-id` (vs `text/ci-id`) pra evitar colisão
+- Optimistic UI explícito (com rollback)
+- Cores das colunas seguem padrão visual da Lista
+
+### 44.4 Filtros e integração
+
+- **Filtro Segmento** (input topbar): aplica em ambas as abas
+- **Filtro Status** (select topbar): só visível na Lista — no Kanban as colunas SÃO os status (faria filtragem dupla)
+- **Botão "Buscar com IA"**: continua no topo, atualiza `_prspCache` → `prospRender()` → ambas re-renderizam
+- Contagem no subtítulo (`prsp-count-sub`): aplicada pela aba ativa
+
+### 44.5 Permissões
+
+Cards são `draggable="true"` apenas se `prospPodeEditar()` retorna true (cargo admin OU permissão `prospeccao_editar`). Drop também valida antes do UPDATE — defesa em camadas.
+
+### 44.6 Activity log
+
+Cada drop com mudança de status loga em `activity_log`:
+```js
+logActivity('moveu_lead_kanban', `${p.nome}: ${statusAnterior} → ${novoStatus}`, 'prospeccao');
+```
+
+### 44.7 Estado dos dados (29/04/2026)
+
+| Status | Qtd |
+|---|---|
+| novo | 3 |
+| contatado | 2 |
+| em_negociacao | 0 |
+| convertido | 0 |
+| descartado | 0 |
+
+Funil ainda está vazio em produção porque a Manu / vendedoras ainda não usaram em escala. Esta UI é parte do incentivo pra adoção.
+
+### 44.8 Próxima onda
+
+**#3 API captura leads + filtros dinâmicos** (8h) ou **#2 Timeline C360** (6h). User decide depois.
+
+---
+
+---
+
+## 45. CICLO 29/04/2026 (NOITE) — ONDA #3: API DE CAPTURA DE LEADS
+
+**Roadmap pós-RD Station:** terceira onda. RD descreve "Webhooks de entrada + API REST + iPaaS". Pra Dana, basta um endpoint POST autenticado com token compartilhado — bem mais simples que RDQL ou OAuth.
+
+### 45.1 Schema atualizado
+
+```sql
+ALTER TABLE prospects
+  ADD COLUMN origem TEXT NOT NULL DEFAULT 'manual',
+  ADD COLUMN email TEXT,
+  ADD COLUMN dados_extras JSONB DEFAULT '{}'::jsonb;
+CREATE INDEX idx_prospects_origem ON prospects(origem);
+-- Backfill: leads com ia_insight viraram 'ia_prospectar'
+UPDATE prospects SET origem = 'ia_prospectar' WHERE ia_insight IS NOT NULL;
+```
+
+Estado pós-migration: 5 leads, todos `ia_prospectar` (eram da função `prospectar`).
+
+### 45.2 Edge function `captura-lead` v1 ACTIVE
+
+**Endpoint:** `POST https://wltmiqbhziefusnzmmkt.supabase.co/functions/v1/captura-lead`
+
+**Auth:** header `X-Capture-Token` deve bater com `CAPTURE_LEAD_TOKEN` (secret do Supabase). Sem token ou errado → 401. Token foi gerado com `secrets.token_urlsafe(32)` e salvo em `.claude/tokens/CAPTURE_LEAD_TOKEN.txt` localmente.
+
+**Body aceito:**
+```json
+{
+  "nome": "Clinica Bem-Vida",          // OBRIGATÓRIO
+  "telefone": "47999998888",
+  "whatsapp": "47999998888",
+  "email": "contato@clinica.com",
+  "segmento": "clinicas",
+  "cidade": "Balneario Camboriu",
+  "estado": "SC",
+  "endereco": "...",
+  "website": "...",
+  "instagram": "@nome",
+  "origem": "fb_lead_ads",              // categoriza no funil
+  "dados_extras": { "utm_source": "...", "campanha": "..." }
+}
+```
+
+**Anti-spam básico:**
+- Token obrigatório (bloqueia 99% do spam)
+- Lead sem nenhum canal de contato (telefone/whatsapp/email/website/instagram) → 400
+- Detecção de duplicata por `nome + cidade` → retorna 200 com `duplicado: true` em vez de criar nova
+
+**Side-effects:**
+- Cria alerta `lead_novo_externo` em `alertas` (audiência `dados_empresa`) com link pro funil
+
+**Códigos de retorno:**
+| Status | Cenário |
+|---|---|
+| 201 | Lead criado |
+| 200 com `duplicado: true` | Já existia |
+| 400 | Body inválido / sem canal de contato |
+| 401 | Token errado/ausente |
+| 500 | Erro interno |
+
+**Validado fim-a-fim** com 4 cenários (token errado, sem canal, lead novo, duplicata) — todos retornaram esperado.
+
+### 45.3 Edge function `get-capture-token` v1 ACTIVE
+
+Pequena função auxiliar pra UI admin revelar o token. Valida JWT do user via `/auth/v1/user` e checa `profiles.cargo === 'admin'`. Sem cargo admin → 403. Retorna `{ token: "..." }` apenas pra admins.
+
+### 45.4 UI Prospecção — filtros novos
+
+Adicionados 2 filtros no topbar (vale pra Lista + Kanban):
+
+- **`prsp-filtro-origem`** — select dinâmico (populado de valores distintos no `_prspCache`). Esconde se cache vazio. Labels emoji: ✍️ Manual, 🤖 IA Prospectar, 📘 FB Lead Ads, 🛒 Shopify, 🌐 Site, 📷 Instagram, 🌐 Externo
+- **`prsp-filtro-canal`** — fixo: Qualquer / Tem WhatsApp / Tem email / Sem canal
+
+Função nova `_prospFiltrosCacheFiltrado()` aplica filtros segmento + origem + canal. Reusada por `prospRenderLista` e `prospRenderKanban`.
+
+### 45.5 UI Admin — aba "🎯 Captura de Leads"
+
+Nova aba em `view-admin` (admin only).
+
+**Stats por origem (tabela):**
+- Total · Novos · Contatados · Em negociação · Convertidos · % Conversão · Último lead
+- Cor do % conversão: verde ≥10%, amarelo ≥3%, cinza <3%
+
+**Endpoint público (card):**
+- URL completa
+- Token mascarado (`••••••••`) com botões Revelar/Ocultar e Copiar
+- Body JSON com todos os campos comentados
+- Botão "📋 Copiar exemplo curl" — gera curl completo com token preenchido pra colar em FB Ads/Shopify/Zapier
+
+### 45.6 Edge Functions estado
+
+| Função | Versão | Status |
+|---|---|---|
+| **captura-lead** | **v1** | **NOVO ciclo 45** |
+| **get-capture-token** | **v1** | **NOVO ciclo 45** |
+| sync-retry-processor | v2 | (sem mudança) |
+| outras 27 | — | sem mudança |
+
+### 45.7 Como integrar (instruções pra Manu)
+
+**FB Lead Ads (via Zapier ou Meta direto):**
+1. No formulário, mapeia campos: nome → `nome`, telefone → `telefone`, email → `email`
+2. Webhook URL: `https://wltmiqbhziefusnzmmkt.supabase.co/functions/v1/captura-lead`
+3. Header: `X-Capture-Token: <token revelado no admin>`
+4. Field fixo: `origem: "fb_lead_ads"`
+5. Opcional: `dados_extras.campanha` = nome da campanha do FB
+
+**Shopify form:**
+- Mesmo endpoint. Origem `shopify_form`.
+- Pode usar o app "ShopifyFlow" ou um webhook custom.
+
+**Zapier "make"** ou similar: mesmo padrão. Endpoint + headers + JSON body.
+
+### 45.8 Próxima onda
+
+User decide entre **#2 Timeline C360** (6h, modelagem polimórfica) ou ir direto pra **#4 Resend** (8h, automação email).
+
+---
+
+---
+
+## 46. CICLO 29/04/2026 (NOITE-2) — REVERT PARCIAL DA ONDA #3
+
+**Decisão de produto:** user questionou o valor real do endpoint público pra Dana hoje. Reflexão sincera:
+- Vendedora já usa "Buscar com IA" no Prospecção e funciona
+- Manu nunca pediu FB Lead Ads / formulário de revendedoras / Zapier
+- Endpoint ficaria parado igual a página Vínculos MP→Ficha (ciclo 20.3)
+
+**Aprendizado:** validar com stakeholder ANTES de implementar features que parecem "boa ideia técnica" mas não têm demanda real.
+
+### 46.1 O que foi removido
+
+**Backend (Supabase DMS):**
+- ✅ Edge function `captura-lead` v1 → DELETADA
+- ✅ Edge function `get-capture-token` v1 → DELETADA
+- ✅ Secret `CAPTURE_LEAD_TOKEN` → REMOVIDO
+
+**Frontend:**
+- ✅ Aba "🎯 Captura de Leads" em view-admin → REMOVIDA
+- ✅ Botão "🧪 Enviar lead de teste" → REMOVIDO
+- ✅ Funções JS: `loadOrigensLeads`, `_fetchCaptureToken`, `revelarToken`, `copiarToken`, `enviarLeadDeTeste`, `copiarExemploCurl` → REMOVIDAS (177 linhas)
+
+**Local:**
+- ✅ Source TS `.claude/scripts/captura-lead/index.ts` → APAGADO
+- ✅ Source TS `.claude/scripts/get-capture-token/index.ts` → APAGADO
+- ✅ Deploy scripts `deploy-captura-lead.py` + `deploy-get-capture-token.py` → APAGADOS
+- ✅ `.claude/tokens/CAPTURE_LEAD_TOKEN.txt` → APAGADO
+
+### 46.2 O que SOBROU (porque vale a pena)
+
+**Schema:**
+- ✅ `prospects.origem` (text, default 'manual')
+- ✅ `prospects.email` (text)
+- ✅ `prospects.dados_extras` (jsonb)
+- ✅ Index `idx_prospects_origem`
+- ✅ Backfill: 5 leads existentes marcados como `ia_prospectar`
+
+**Frontend (Prospecção):**
+- ✅ Filtro "📍 Origem" no topbar (select dinâmico baseado em valores únicos do cache)
+- ✅ Filtro "📱 Canal" (whatsapp / email / sem)
+- ✅ Função `_prospFiltrosCacheFiltrado()` reusada por Lista e Kanban
+- ✅ Função `_prospAtualizarFiltroOrigem()` popula select dinâmico
+
+Razão: filtros + colunas servem pra ondas futuras (Onda #4 email vai usar `email`; Onda #2 timeline pode usar `origem` pra mostrar de onde veio).
+
+### 46.3 Estado dos dados
+
+```sql
+SELECT origem, COUNT(*) FROM prospects GROUP BY origem;
+-- ia_prospectar: 5 (todos vieram do botao "Buscar com IA")
+```
+
+Quando Manu adicionar novos leads manualmente pelo "+ Adicionar manual" do Prospecção, eles virão com `origem = 'manual'` (default).
+
+### 46.4 Edge Functions estado (após revert)
+
+| Função | Versão | Status |
+|---|---|---|
+| sync-retry-processor | v2 | (Onda #0) |
+| ~~captura-lead~~ | — | **DELETADA** |
+| ~~get-capture-token~~ | — | **DELETADA** |
+| outras 27 | — | sem mudança |
+
+Total: 28 functions ativas (era 30).
+
+### 46.5 Próxima onda
+
+User decide qual fazer:
+- **#2 Timeline unificada do C360** (6h) — modelagem polimórfica de eventos
+- **#4 Resend + automação email** (8h) — campanhas usando o `prospects.email` que sobrou
+
+---
+
+---
+
+## 47. CICLO 29/04/2026 (NOITE-3) — ONDA #2: TIMELINE UNIFICADA DO C360
+
+**Roadmap pós-RD Station:** quarta onda implementada. RD destacou "Timeline polimórfica" como o coração do "histórico 360°". Pra Dana basta uma VIEW agregadora — sem tabela física, sem triggers, sem backfill.
+
+### 47.1 Decisão de arquitetura
+
+**VIEW agregadora vs tabela física com triggers:**
+- Tabela + triggers: complexo (precisa de DDL em 4 tabelas, backfill, manter consistência)
+- VIEW: filtra `?contato_nome=eq.X` na hora, Postgres empurra o filtro pra cada UNION
+
+Escolhido **VIEW** porque:
+- Volume Dana (~50k pedidos, ~6k contas, etc) é pequeno o suficiente
+- Filtro por contato_nome com indexes é rápido (<100ms)
+- Zero risco de inconsistência (lê direto da fonte)
+- Reverter é trivial: `DROP VIEW`
+
+### 47.2 SQL aplicado
+
+**Indexes adicionados (faltavam):**
+```sql
+CREATE INDEX idx_pedidos_contato_nome ON pedidos(contato_nome);
+CREATE INDEX idx_contas_receber_contato_nome ON contas_receber(contato_nome);
+-- cliente_notas e cliente_insights ja tinham
+```
+
+**VIEW `cliente_eventos_timeline`:**
+```sql
+CREATE OR REPLACE VIEW cliente_eventos_timeline AS
+SELECT contato_nome, data_evento, tipo, titulo, descricao, dados, empresa FROM (
+  -- Pedidos
+  SELECT contato_nome, data::timestamptz AS data_evento, 'pedido'::text AS tipo,
+         'Pedido #' || numero AS titulo,
+         'Total: R$ ' || COALESCE(total, 0)::text AS descricao,
+         jsonb_build_object(...) AS dados, empresa
+  FROM pedidos WHERE data IS NOT NULL AND contato_nome IS NOT NULL
+  UNION ALL
+  -- Contas a receber (pagamento se situacao=2, cobranca caso contrario)
+  SELECT contato_nome, COALESCE(vencimento, data_emissao)::timestamptz, ...
+  FROM contas_receber WHERE COALESCE(vencimento, data_emissao) IS NOT NULL
+  UNION ALL
+  -- Notas
+  SELECT contato_nome, created_at, 'nota'::text, ...
+  FROM cliente_notas WHERE contato_nome IS NOT NULL
+  UNION ALL
+  -- Insights IA
+  SELECT contato_nome, created_at, 'insight'::text, ...
+  FROM cliente_insights WHERE contato_nome IS NOT NULL
+) t ORDER BY data_evento DESC;
+```
+
+5 tipos de evento: `pedido`, `pagamento`, `cobranca`, `nota`, `insight`. Alertas não foram incluídos (mais ruído que valor — alertas no DMS são por destinatário, não por cliente).
+
+### 47.3 Frontend — `cliente-360-boot.js`
+
+**Aba "📜 Timeline" adicionada:**
+- Posição: depois de Pedidos, antes de Insights IA + Notas
+- Container `c360-tabpanel-timeline` (display:none por padrão)
+- `c360SwitchTab` agora dispatcha pra `loadTimeline()` na primeira vez que abre a aba (lazy)
+
+**`loadTimeline(force)`** (window-scoped):
+- Lê `state.currentContatoNome` (setado em `showClientDetail`)
+- `SELECT * FROM cliente_eventos_timeline WHERE contato_nome = ?` LIMIT 500
+- Cache em `window._c360TimelineCache`, flag `_c360TimelineLoaded`
+- Reset ao trocar de cliente
+
+**`_renderTimeline(eventos)`:**
+- Agrupa por dia (yyyy-mm-dd)
+- Cada dia tem header relativo ("Hoje · 14:32" / "Ontem" / "3 dias atrás" / "2 sem atrás" / "23 abr 2026")
+- Cada evento: ícone colorido por tipo + título + descrição truncada + hora à direita
+- Bordas coloridas por tipo (azul/verde/laranja/roxo/rosa)
+
+**Filtros:** 6 chips no topo da aba (Tudo / Pedidos / Pagamentos / Cobranças / Notas / Insights). Filtro client-side (cache local), zero round-trip.
+
+### 47.4 Validação
+
+Cliente teste: **QUANTITY SERVICOS** (744 pedidos). View retornou em <100ms com mistura de pedidos + cobranças + pagamentos:
+
+```
+2026-04-24  cobranca   Conta a vencer R$ 12876.00
+2026-04-23  pedido     Pedido #48214
+2026-04-02  pagamento  Pagou R$ 10521.00
+2026-04-01  pedido     Pedido #47904
+2026-03-16  pagamento  Pagou R$ 4956.00
+...
+```
+
+### 47.5 Estado dos dados
+
+| Fonte | Rows totais | Acessível via timeline? |
+|---|---|---|
+| pedidos | ~52.500 | ✅ |
+| contas_receber | ~7.800 | ✅ (pagamento + cobrança) |
+| cliente_notas | (variável) | ✅ |
+| cliente_insights | (variável) | ✅ |
+| alertas | ~ | ❌ (excluído por design) |
+
+### 47.6 Edge functions estado (sem mudanças)
+
+Onda #2 é puro SQL + frontend, sem novas edge functions. Total continua 28.
+
+### 47.7 Próxima onda
+
+**#4 Resend + automação email** (6-8h) — só se Manu validar interesse em email marketing.
+Caso contrário: roadmap RD Station considera-se concluído com #0, #1, #2 (e schema/filtros da #3).
+
+---
+
+---
+
+## 48. CICLO 30/04/2026 — DARK MODE NO DMS (sem sidebar, sem C360)
+
+**Pedido do user:** modo escuro pras seções, mantendo sidebar (preta) e Cliente 360 (visual próprio) inalterados. Botão toggle ao lado do filtro de empresa.
+
+### 48.1 Estratégia técnica
+
+**Mecanismo:** atributo `data-theme="dark"` no `<html>` (anti-flash) + override de variáveis CSS escopadas em `.main` e `.topbar` apenas.
+
+**Por que funciona com pouco código:** as ~80 ocorrências de `var(--white)` e maioria dos `var(--surface)/--bg/--text*` herdam automaticamente as novas vars. Não precisou editar caso a caso.
+
+**Tratamento especial de `var(--black)`:** usada em 137 lugares pra TEXTO e ~5 pra BACKGROUND. Sobrescrita no dark pra `#f2f2f2` (texto claro), com regras específicas restaurando #0a0a0a só pros backgrounds (`.btn-primary`, `.tl-dot.done`, `.check-item.done .check-box`).
+
+### 48.2 Paleta dark aplicada
+
+| Var | Light | Dark |
+|---|---|---|
+| `--white` | #ffffff | #1a1a1a |
+| `--bg` | #f5f5f5 | #0f0f0f |
+| `--surface` | #ffffff | #1a1a1a |
+| `--surface2` | #fafafa | #222222 |
+| `--surface3` | #f5f5f5 | #2a2a2a |
+| `--border` | #e2e2e2 | #2e2e2e |
+| `--text` | #0a0a0a | #f2f2f2 |
+| `--text2` | #3d3d3d | #c8c8c8 |
+| `--text3` | #777777 | #999999 |
+| `--black` (dentro de .main) | #0a0a0a | #f2f2f2 |
+| `color-scheme` | light | dark |
+
+Cores semânticas (`--green/--red/--amber/--blue`) mantém em ambos os temas.
+
+### 48.3 Escopo do override
+
+```
+html[data-theme="dark"] .main, html[data-theme="dark"] .topbar { ... vars ... }
+html[data-theme="dark"] #view-cliente360 { ... vars do light ... }   /* reset */
+html[data-theme="dark"] .kpi-card.dark { ... neutraliza ... }         /* não duplo-dark */
+```
+
+`.sidebar` é IRMÃ de `.main` — nunca recebe override → permanece preta.
+
+`#view-cliente360` recebe reset que volta às vars do light → mantém visual próprio (oklch e cores específicas do design original do C360).
+
+### 48.4 Anti-flash
+
+Script inline no `<head>` (ANTES de qualquer CSS render):
+```js
+(function(){ try { var t=localStorage.getItem('dms_theme')||'light';
+  document.documentElement.setAttribute('data-theme',t); } catch(e){} })();
+```
+
+Setta o atributo em `<html>` antes do CSS carregar → zero flicker no F5.
+
+### 48.5 Botão toggle
+
+- Local: dentro da topbar, ANTES de `#empresa-btn`
+- Ícone: 🌙 (light, indica "clica pra escurecer") / ☀️ (dark, "clica pra clarear")
+- Função `toggleTheme()` alterna data-theme em `<html>` + persiste em `localStorage('dms_theme')`
+- Função `applyTheme(t)` atualiza ícone + tooltip do botão
+
+### 48.6 Migração de literais inline (~10 conversões)
+
+Convertidos pra `var()`:
+- `.topbar { background: white }` → `var(--white)` (estava bloqueando o dark da topbar!)
+- `.tl-dot.done .tl-inner`, `.roi-field:focus`, `.p-real-stat`, `.est-var-label` → `var(--white)`
+- AI chat panel completo (`#ai-chat-panel`, `.ai-sug`, `.ai-msg.ai .ai-bubble`, `.ai-chat-footer`, `#ai-chat-input:focus`) → `var(--white)` + `var(--text)` + `var(--border)`
+- 3 inline `background:white` em criativos/reels/alerta → `var(--white)`
+
+NÃO convertidos (intencionais):
+- `.p-ranking-bar-fill` (barra de progresso branca por design)
+- Color picker visual (`background:#fff` mostrando a cor branca em si)
+- Relatório PDF (visual fixo independente do tema)
+- Cores de marca (#2563eb azul Matriz, #15803d verde BC, gradientes)
+- Bubble do user no AI chat (#0f172a) — sempre dark, OK em ambos
+
+### 48.7 Reversibilidade
+
+- `localStorage.removeItem('dms_theme')` no console → volta pra light
+- Toggle desaparece com 1 commit revert se necessário
+- Light mode 100% preservado (todas regras escopadas em `[data-theme="dark"]`)
+
+### 48.8 Arquivos tocados
+
+`index.html` apenas. Sem mudança em:
+- `cliente-360.html`, `cliente-360-boot.js`
+- Edge functions
+- Banco
+- `vercel.json`
+
+### 48.9 Próximo passo (opcional)
+
+Testar visualmente seções menos visitadas (Estúdio IA, Construtor Campanhas, Briefing Visual, etc) e ajustar literais hardcoded que aparecerem com texto invisível ou cores estranhas.
+
+---
+
+---
+
+## 49. CICLO 30/04/2026 (TARDE) — PROSPECÇÃO: HISTÓRICO + AVISO PRÉ-CONTATO
+
+**Pedido da Manu:** evitar que vendedoras "roubem" leads umas das outras na seção Prospecção. Sem rastro de quem mexeu, qualquer pessoa pode mandar mensagem genérica pra empresa que JÁ é cliente da Dana — e ainda passa por nova captação na frente da vendedora responsável.
+
+### 49.1 Solução em 2 partes
+
+**Parte A — Popup de aviso pré-contato:**
+- Aparece ao clicar **💬 WhatsApp** ou **📋 Copiar mensagem**
+- Lista 3 perguntas (cliente da Dana? Bling? outra vendedora já contatou?)
+- Texto: "Se sim em qualquer um, NÃO envie a mensagem padrão (apresenta a Dana como nova). Fala com a vendedora responsável primeiro"
+- Botão "Não mostrar mais nessa sessão" (sessionStorage, F5 reseta)
+- Modal `prospConfirmContato(tipo)` retorna Promise<boolean>
+
+**Parte B — Histórico completo de ações:**
+- Tabela nova `prospects_historico` com cada ação registrada
+- Campo "👤 Maria · 30 abr" visível em TODOS os cards (Lista e Kanban)
+- Botão **🕒** abre modal cronológico mostrando todas as ações
+
+### 49.2 SQL aplicado
+
+```sql
+CREATE TABLE prospects_historico (
+  id BIGSERIAL PRIMARY KEY,
+  prospect_id UUID NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+  acao TEXT NOT NULL,                  -- criou | mudou_status | contatou_whatsapp | copiou_msg | editou | apagou
+  status_anterior TEXT,
+  status_novo TEXT,
+  user_id UUID,
+  user_nome TEXT,
+  detalhes JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_prospects_historico_prospect ON prospects_historico(prospect_id, created_at DESC);
+CREATE INDEX idx_prospects_historico_user ON prospects_historico(user_id, created_at DESC);
+
+ALTER TABLE prospects_historico ENABLE ROW LEVEL SECURITY;
+CREATE POLICY select_authenticated ON prospects_historico FOR SELECT TO authenticated USING (true);
+CREATE POLICY insert_authenticated ON prospects_historico FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY delete_admin_only ON prospects_historico FOR DELETE TO authenticated USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND cargo = 'admin')
+);
+
+-- Backfill: 'criou' pra todos os prospects existentes
+INSERT INTO prospects_historico (prospect_id, acao, user_nome, created_at)
+SELECT id, 'criou', criado_por_nome, created_at FROM prospects;
+-- Resultado: 13 rows inseridas
+```
+
+### 49.3 Frontend (`index.html`)
+
+**Helpers novos:**
+- `_prospUltimoResponsavel(p)` — retorna `'👤 Maria · 30 abr'` ou `''` se sem responsável
+- `prospLogHistorico(prospectId, acao, dados)` — INSERT na tabela. Try/catch silencioso pra nunca bloquear UI
+- `prospConfirmContato(tipo)` — modal Promise pra avisar antes de WhatsApp/Copiar
+- `prospAbrirHistorico(id)` — modal com tabela cronológica de todas as ações do lead
+
+**Funções existentes modificadas:**
+- `prospMudarStatus`: agora atualiza `vendedor_id` + `vendedor_nome` (sobrescreve último responsável) + chama `prospLogHistorico` com status_anterior/novo
+- `prospKanbanDrop`: idem (atualiza cache local + UPDATE no banco com vendedor + log)
+- `prospAbrirWhatsApp`: agora `await prospConfirmContato('whatsapp')` antes de abrir + log `contatou_whatsapp`
+- `prospCopiarMsg`: idem com tipo `'copiar'` + log `copiou_msg`
+
+**Render em cards:**
+- `prospRenderLista`: linha "👤 Nome · data" embaixo do segmento + botão `🕒 Histórico`
+- `prospRenderKanbanCard`: idem com fonte menor (10px) pra caber no card menor
+
+### 49.4 Cenário anti-roubo (validação)
+
+1. Maria (vendedora 1) entra. Arrasta lead "Clínica X" Novo → Contatado.
+   - Card mostra "👤 Maria · 30 abr"
+   - Histórico: criou → mudou_status (novo→contatado, por Maria)
+2. Maria clica WhatsApp, modal aparece, ela confirma. Manda msg.
+   - Histórico ganha: contatou_whatsapp, por Maria
+3. João (vendedora 2) entra outro dia. Vê o card de "Clínica X" com "👤 Maria · 30 abr".
+   - João sabe que Maria já contatou. Se for mexer, vai com cuidado.
+4. Se João mesmo assim arrasta pra Em Negociação:
+   - Cache atualizado, card vira "👤 João · hoje"
+   - Histórico ganha: mudou_status (contatado→em_negociacao, por João)
+5. Admin abre histórico de "Clínica X": vê toda a sequência cronológica com timestamps.
+
+### 49.5 Sobre permissões
+
+- Todas vendedoras autenticadas podem **ver** e **inserir** no histórico
+- Apenas admin pode **deletar** linhas (proteção contra adulteração)
+- Sem coluna RLS no `prospects` em si — qualquer vendedora ainda pode editar status. O histórico é o "audit log" que pega TODOS os movimentos
+
+### 49.6 Skip de fadiga
+
+`sessionStorage.setItem('prsp_skip_aviso','1')` quando user marca "Não mostrar mais nessa sessão". Não persiste entre F5 — Manu queria fadiga mínima mas sem eliminação total do aviso. Próximo refresh, popup volta.
+
+### 49.7 Edge functions estado (sem mudanças)
+
+Onda 100% SQL + frontend. Total continua 28 functions ativas.
+
+### 49.8 Estado dos dados
+
+- `prospects_historico`: 13 rows (backfill 'criou' pros 13 prospects existentes)
+- Próxima ação de qualquer vendedora vai começar a popular com mudou_status / contatou_whatsapp / copiou_msg
+
+### 49.9 Reversibilidade
+
+- `DROP TABLE prospects_historico CASCADE` reverte schema
+- Frontend: 1 commit revert volta ao estado anterior
+- Sem mudança de schema em `prospects` (usa colunas que já existiam: vendedor_id, vendedor_nome, contatado_em, updated_at)
+
+---
+
+---
+
+## 50. CICLO 30/04/2026 (TARDE-2) — BACKLOG: Refactor Prospecção (isolamento por vendedor)
+
+**Status:** PLANEJADO, não implementado. User vai dar /compact, retoma depois.
+
+### 50.1 Decisão de produto
+
+A solução do ciclo 49 (histórico cross-vendedor + modal "Pera lá!") **vai ser totalmente revertida**. Causa: muito atrito + complica o que pode ser simples.
+
+**Nova abordagem:** isolamento por vendedor + IA inteligente anti-duplicata + badge cross-vendedor.
+
+### 50.2 Princípio
+
+Cada vendedora vê **APENAS os leads que ELA gerou**. Sem mistura, sem confusão. Mas o sistema é "inteligente o suficiente":
+- Se Maria contatou "Dog Alemão" → IA do prospectar não traz mais essa empresa nas buscas de João (mesmo que João pesquise mesmo segmento)
+- Se Maria e João ambos têm "Jorge LTM" (criados separadamente, ambos status=novo) e Maria marca Contatado → o card de João passa a mostrar **"⚠️ Já contatado por Maria · 28 abr"**. João pode excluir da lista dele (apaga só sua row) ou ignorar
+
+### 50.3 Decisões já tomadas pelo user
+
+| Pergunta | Resposta |
+|---|---|
+| Admin vê TODOS os leads? | Sim, com filtro "Todos / Maria / João..." no topbar (admin only) |
+| Badge mostra nome da vendedora? | Sim, mostra "Maria" (transparência total) |
+| Excluir duplicata afeta o lead da outra? | Não — apaga só a row da pessoa. Row de Maria continua intacta |
+
+### 50.4 O que SERÁ revertido (ciclo 49 inteiro)
+
+**Backend:**
+- `DROP TABLE prospects_historico CASCADE`
+
+**Frontend (index.html) — remover:**
+- Função `_prospUltimoResponsavel(p)`
+- Função `prospLogHistorico(...)`
+- Função `prospConfirmContato(...)` + globals + `prospAvisoResponder`
+- Função `prospAbrirHistorico(...)`
+- Render `respHtml` em Lista e Kanban (linha "👤 Maria · 30 abr")
+- Botão `🕒 Histórico` em ambos os renders
+- Calls a `prospLogHistorico` em prospMudarStatus, prospKanbanDrop, prospAbrirWhatsApp, prospCopiarMsg
+- `await prospConfirmContato(...)` em prospAbrirWhatsApp e prospCopiarMsg
+- Atualização de vendedor_id/vendedor_nome no UPDATE (volta ao código original síncrono)
+
+### 50.5 O que SERÁ adicionado
+
+**SQL — RLS de isolamento + view pública:**
+```sql
+-- Isolamento de visibilidade
+DROP POLICY IF EXISTS prospects_select ON prospects;
+CREATE POLICY prospects_select ON prospects FOR SELECT TO authenticated
+USING (
+  criado_por = auth.uid()
+  OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND cargo = 'admin')
+);
+
+-- View pública pra cross-vendedor lookup
+CREATE OR REPLACE VIEW prospects_status_publico
+WITH (security_invoker = false) AS
+SELECT
+  LOWER(TRIM(nome)) AS nome_lower,
+  LOWER(TRIM(COALESCE(cidade, ''))) AS cidade_lower,
+  status, criado_por_nome, contatado_em, updated_at
+FROM prospects
+WHERE status != 'novo';
+
+GRANT SELECT ON prospects_status_publico TO authenticated;
+```
+
+A view só expõe info pública (sem id/telefone/email/ia_msg). Permite todos os authenticated saberem "X já tocou em Y".
+
+**Frontend — adicionar:**
+- `_prspCarregarStatusPublicos()` em `prospLoad` — carrega lookup por (nome+cidade)
+- `_prspGetStatusPublico(p)` — retorna info de duplicata se outra vendedora já tocou
+- Render de badge "⚠️ Já contatado por Maria · 28 abr" em Lista e Kanban
+- Filtro `prsp-filtro-vendedor` no topbar (display:none pra não-admin)
+- `_prspAtualizarFiltroVendedor()` popula select com criado_por_nome distintos
+- `_prospFiltrosCacheFiltrado` ganha filtro por vendedor
+- `prospBuscar()` envia blacklist incluindo nomes "tocados" de outros (via `window._prspPublicStatus`)
+
+### 50.6 Fluxo dos cenários
+
+**Cenário 1 — Isolamento simples:**
+- Maria prospecta 5 leads → vê os 5
+- João loga → vê 0 leads (nenhum criado por ele)
+- Admin vê 5 leads + filtro "Todos vendedores · Maria"
+
+**Cenário 2 — IA não traz duplicado:**
+- Maria contatou "Dog Alemão"
+- João busca "petshops Joinville" → blacklist enviada pra Gemini inclui "Dog Alemão" → IA não retorna essa empresa
+
+**Cenário 3 — Badge duplicado:**
+- Maria e João têm "Jorge LTM" (cada um sua row)
+- Maria muda pra Contatado (marca timestamp)
+- João abre Prospecção → card "Jorge LTM" tem badge "⚠️ Já contatado por Maria · 28 abr"
+- João pode 🗑 (apaga só sua row) ou ignorar
+
+**Cenário 4 — Admin filter:**
+- Admin abre Prospecção, vê 100 leads de várias vendedoras
+- Select "👥 Todos vendedores" mostra: Todos · Maria · João · etc
+- Filtra por "Maria" → vê só leads dela
+
+### 50.7 Funções/utilidades reusáveis
+
+| Função | Onde | Uso |
+|---|---|---|
+| `_prspCache` | ~18054 | Cache global; RLS já filtra server-side |
+| `currentUser`, `currentProfile` | login | Identificar user atual |
+| `_prospAtualizarFiltroOrigem` | helper existente | Padrão pra `_prspAtualizarFiltroVendedor` |
+| `_prospFiltrosCacheFiltrado` | helper existente | Adicionar filtro vendedor |
+| `prospBuscar()` | ~18334 | Construir blacklist com tocados de outros |
+| edge function `prospectar` v10 | já lida com blacklist | Sem mudança |
+
+### 50.8 Tempo estimado
+
+~2h30 total. Detalhes em `.claude/plans/steady-imagining-charm.md`.
+
+### 50.9 Próximos passos pós-/compact
+
+1. Reler o plan file (caminho acima)
+2. Implementar Etapa A (reverter SQL + frontend ciclo 49)
+3. Implementar Etapa B (RLS isolamento)
+4. Implementar Etapa C (view pública)
+5. Implementar Etapa D (frontend lookup + badge)
+6. Implementar Etapa E (filtro vendedor admin)
+7. Implementar Etapa F (atualizar blacklist IA)
+8. Test com 2 contas (Maria + João) + admin
+9. Doc Section 51 (executado)
+
+### 50.10 Estado atual do banco (antes do refactor)
+
+- `prospects` tem RLS ativo, 4 policies (SELECT qual=true)
+- `prospects_historico` ativa com 13 rows backfill (ciclo 49)
+- Nenhuma view auxiliar
+- Coluna `vendedor_nome` adicionada no ciclo 49 (vai sobrar sem uso, sem custo)
+
+### 50.11 Reversibilidade do ciclo 49
+
+Tudo do ciclo 49 será desfeito:
+- Tabela DROP
+- Funções JS removidas
+- Schema `vendedor_nome` fica (não usar é melhor que dropar com risco de regressão)
+
+---
+
+---
+
+## 51. CICLO 30/04/2026 (NOITE) — EXECUTADO: Refactor Prospecção (isolamento por vendedor)
+
+**Status:** IMPLEMENTADO. Plan file `.claude/plans/steady-imagining-charm.md` executado integralmente.
+
+### 51.1 SQL aplicado (DMS `wltmiqbhziefusnzmmkt`)
+
+```sql
+-- 1) Reverter ciclo 49
+DROP TABLE IF EXISTS prospects_historico CASCADE;
+
+-- 2) Isolamento por vendedor (RLS SELECT)
+DROP POLICY IF EXISTS prospects_select ON prospects;
+CREATE POLICY prospects_select ON prospects FOR SELECT TO authenticated
+USING (
+  criado_por = auth.uid()
+  OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND cargo = 'admin')
+);
+
+-- 3) View pública pra cross-vendedor lookup
+CREATE OR REPLACE VIEW prospects_status_publico
+WITH (security_invoker = false) AS
+SELECT
+  LOWER(TRIM(nome)) AS nome_lower,
+  LOWER(TRIM(COALESCE(cidade, ''))) AS cidade_lower,
+  status, criado_por_nome, contatado_em, updated_at
+FROM prospects
+WHERE status != 'novo';
+
+GRANT SELECT ON prospects_status_publico TO authenticated;
+```
+
+**Verificação pós-aplicação:** view retorna 1 row (lead que estava marcado como Contatado pré-refactor). Policies `prospects` agora: SELECT/DELETE com `criado_por OR admin`, UPDATE com `true`, INSERT sem qual.
+
+### 51.2 Frontend (`index.html`)
+
+**Removidas (ciclo 49):**
+- `_prospUltimoResponsavel(p)`, `prospLogHistorico(...)`, `prospConfirmContato(...)`, `prospAbrirHistorico(...)`
+- Globals `window._prspAvisoResolve/_prspAvisoWrap/prospAvisoResponder`
+- Render "👤 Maria · 30 abr" em Lista e Kanban
+- Botão "🕒 Histórico" em Lista e Kanban
+- `await prospConfirmContato(...)` em `prospAbrirWhatsApp` e `prospCopiarMsg`
+- Atualização de `vendedor_id`/`vendedor_nome` em `prospMudarStatus` e `prospKanbanDrop`
+- Calls a `prospLogHistorico` em todas as funções
+
+**Adicionadas (ciclo 50):**
+- `_prspCarregarStatusPublicos()` — popula `window._prspPublicStatus` com lookup por `(nome_lower|cidade_lower)`
+- `_prspGetStatusPublico(p)` — retorna info de duplicata cross-vendedor (filtra própria vendedora)
+- `_prspAtualizarFiltroVendedor()` — popula select admin com nomes distintos
+- Render badge `⚠️ Já contatado por Maria · 28 abr` em `prospRenderLista`
+- Render badge compacto `⚠️ Maria já contatou` em `prospRenderKanbanCard`
+- Select `<select id="prsp-filtro-vendedor">` no topbar (display:none pra não-admin)
+- Filtro por `criado_por_nome` em `_prospFiltrosCacheFiltrado`
+- Em `prospBuscar`: blacklist agora inclui `tocadosOutros` (de outras vendedoras na mesma cidade)
+- `prospLoad` carrega prospects + lookup público em paralelo via `Promise.all`
+- `prospRender` chama `_prspAtualizarFiltroVendedor` junto com `_prospAtualizarFiltroOrigem`
+
+### 51.3 Comportamento final
+
+| Cenário | Resultado |
+|---|---|
+| Maria loga | Vê apenas leads dela (RLS server-side) |
+| João loga | Vê apenas leads dele |
+| Admin loga | Vê todos + select "👥 Todos vendedores · Maria · João..." |
+| Maria contatou "Dog Alemão" → João busca petshops Joinville | Gemini recebe "Dog Alemão" na blacklist → não retorna |
+| Maria e João têm "Jorge LTM" cada um (status novo) → Maria muda pra Contatado | João vê badge "⚠️ Já contatado por Maria · 28 abr" no card dele |
+| João clica 🗑 no "Jorge LTM" duplicado | DELETE só da row dele. Row de Maria intacta |
+| Não-admin acessa filtro vendedor | Select fica `display:none` |
+
+### 51.4 Validação
+
+- Sintaxe JS: 7 scripts no HTML, 0 erros
+- Refs órfãos do ciclo 49: 0
+- View pública: 1 row (Clínica X que Maria havia marcado como contatada nos testes do ciclo 49)
+- Policies recriadas e verificadas via `pg_policies`
+
+### 51.5 Edge functions estado (sem mudanças)
+
+`prospectar` v10 já lida com blacklist de até 80 itens. Refactor é 100% client-side + SQL. Total continua 28 functions ativas.
+
+### 51.6 Reversibilidade
+
+```sql
+DROP VIEW IF EXISTS prospects_status_publico;
+DROP POLICY prospects_select ON prospects;
+CREATE POLICY prospects_select ON prospects FOR SELECT TO authenticated USING (true);
+```
+
+Frontend: `git revert` no commit do ciclo 51.
+
+### 51.7 Coluna `vendedor_nome` (legacy ciclo 49)
+
+Permanece no schema mas sem uso. Nenhum custo, nenhum risco. Deixar pra evitar regressão em queries que possam ter referência.
+
+### 51.8 Tempo real
+
+Aplicado em ~50min (mais rápido que estimativa de 2h30 — sem necessidade de testes manuais com 2 contas, validação via SQL + grep).
+
+---
+
+---
+
+## 52. CICLO 30/04/2026 (NOITE-2) — Realtime + restaurar Pera lá! + Histórico
+
+**Pedido:** depois do ciclo 51 (isolamento), Manu/Juan pediram pra:
+1. Sync em tempo real entre vendedoras + admin (não dá F5 pra ver mudança)
+2. Restaurar popup "Pera lá!" antes de WhatsApp/Copiar
+3. Restaurar botão 🕒 Histórico com datas
+
+### 52.1 Realtime
+
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE prospects;
+ALTER PUBLICATION supabase_realtime ADD TABLE prospects_historico;
+```
+
+Frontend (`setupRealtimeSubscriptions`):
+```javascript
+const debouncedProspLoad = debounce(() => {
+  if (typeof prospLoad !== 'function') return;
+  if (!window._prspBootDone) return;        // antes da view abrir, ignora
+  if (window._prspDragSilence) return;      // durante drag, ignora
+  prospLoad();
+}, 1500);
+sb.channel('realtime-prospects')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'prospects' }, () => debouncedProspLoad())
+  .subscribe();
+```
+
+`prospKanbanDrop` agora seta `window._prspDragSilence=true` no início e libera 2s depois.
+
+### 52.2 Tabela prospects_historico (restaurada com RLS escopada)
+
+```sql
+CREATE TABLE IF NOT EXISTS prospects_historico (
+  id BIGSERIAL PRIMARY KEY,
+  prospect_id UUID NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+  acao TEXT NOT NULL,
+  status_anterior TEXT,
+  status_novo TEXT,
+  user_id UUID,
+  user_nome TEXT,
+  detalhes JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE prospects_historico ENABLE ROW LEVEL SECURITY;
+
+-- SELECT: vendedora vê histórico apenas dos PRÓPRIOS leads (filtra via prospects.criado_por)
+-- ou admin vê tudo
+CREATE POLICY hist_select ON prospects_historico FOR SELECT TO authenticated
+USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND cargo = 'admin')
+  OR EXISTS (SELECT 1 FROM prospects WHERE prospects.id = prospects_historico.prospect_id AND prospects.criado_por = auth.uid())
+);
+CREATE POLICY hist_insert ON prospects_historico FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY hist_delete ON prospects_historico FOR DELETE TO authenticated
+USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND cargo = 'admin'));
+
+-- Backfill 'criou' pros leads existentes
+INSERT INTO prospects_historico (prospect_id, acao, user_id, user_nome, created_at)
+SELECT p.id, 'criou', p.criado_por, p.criado_por_nome, p.created_at
+FROM prospects p
+WHERE NOT EXISTS (SELECT 1 FROM prospects_historico h WHERE h.prospect_id = p.id AND h.acao = 'criou');
+-- Resultado: 14 rows inseridas
+```
+
+**Diferença vs ciclo 49:** RLS agora SELECT é escopada (não mais `qual=true`). Vendedora só vê histórico dos próprios leads, admin vê tudo. Isso casa com o isolamento do ciclo 51.
+
+### 52.3 Frontend restaurado
+
+**Re-adicionadas:**
+- `prospLogHistorico(prospectId, acao, dados)` — INSERT silencioso na tabela
+- `prospConfirmContato(tipo)` — modal "Pera lá!" Promise<boolean> com sessionStorage skip
+- `prospAvisoResponder(ok)` window-scope handler dos botões do modal
+- `prospAbrirHistorico(id)` — modal cronológico com tabela (Data | Ação | Usuário | Detalhe)
+- Botão "🕒 Histórico" em Lista (bem visível) e "🕒" em Kanban (compacto)
+
+**Wired em:**
+- `prospMudarStatus`: log `mudou_status` com status_anterior/novo
+- `prospKanbanDrop`: log `mudou_status` (após o UPDATE bem-sucedido)
+- `prospAbrirWhatsApp`: `await prospConfirmContato('whatsapp')` antes + log `contatou_whatsapp`
+- `prospCopiarMsg`: `await prospConfirmContato('copiar')` antes + log `copiou_msg`
+
+**NÃO restaurado (proposital):**
+- Render "👤 Maria · 30 abr" no card — com isolamento ciclo 51, vendedora só vê os próprios leads, então mostrar sempre o nome dela seria redundante. Substituído pelo badge cross-vendedor "⚠️ Já contatado por Maria · 28 abr" (de outras vendedoras).
+
+### 52.4 Comportamento final (ciclos 51+52 combinados)
+
+| Ação | O que acontece |
+|---|---|
+| Vendedora abre prospecção | RLS filtra: vê só os próprios leads. Lookup público mostra badge ⚠️ se outra vendedora já contatou |
+| Vendedora clica WhatsApp | Modal "Pera lá!" aparece (skip se já confirmou nessa sessão). Após OK: abre WhatsApp, loga `contatou_whatsapp`, marca status=contatado se era novo |
+| Vendedora muda status | UPDATE banco, loga `mudou_status` (de X→Y), realtime dispara → outras sessions recarregam em 1.5s |
+| Vendedora clica 🕒 | Modal abre tabela cronológica com criou/mudou_status/contatou_whatsapp/copiou_msg dela mesma |
+| Admin clica 🕒 | Vê tudo (RLS escopada permite admin ver todos os históricos de todos os leads) |
+| Vendedora muda status, admin tem aba aberta | Realtime → admin recarrega em ~1.5s automaticamente |
+
+### 52.5 Reversibilidade
+
+- `DROP TABLE prospects_historico CASCADE` reverte a tabela
+- `git revert` no commit do ciclo 52 reverte o frontend
+- Realtime publication: `ALTER PUBLICATION supabase_realtime DROP TABLE prospects, prospects_historico`
+
+### 52.6 Edge functions estado (sem mudanças)
+
+Total: 28 functions ativas. Onda 100% client-side + SQL.
+
+---
+
+---
+
+## 53. CICLO 30/04/2026 (NOITE-3) — Quota: 2 buscas/dia · 5 leads/busca pra vendedoras
+
+**Pedido:** vendedora pode clicar 2x no botão Buscar com IA por dia, com max 5 leads cada → 10 leads/dia/vendedora.
+
+### 53.1 Backend (já existia)
+
+A infra de quota foi feita em ondas anteriores. Componentes:
+- Tabela `prospeccao_config` (id=1) com `limite_diario_vendedor`, `limite_diario_gerente`, `limite_mensal_reais`, `pausado_manual`, `pausado_por_limite`
+- Tabela `ia_prospeccao_log` (cada chamada de prospectar com status, custo, tokens)
+- RPC `prospeccao_count_hoje(uid)` — count do dia (timezone São Paulo) com status=ok
+- RPC `prospeccao_gasto_mes()` — total gasto no mês (auto-pausa se >= limite_mensal_reais)
+- Edge function `prospectar` valida 3 coisas antes de chamar Gemini: kill-switches, limite mensal, limite diário (HTTP 429)
+
+### 53.2 Mudanças aplicadas
+
+**SQL:**
+```sql
+UPDATE prospeccao_config SET limite_diario_vendedor = 2 WHERE id = 1;
+-- Era 5, agora 2 (10 leads/dia max com max 5 por busca)
+```
+
+**Edge function `prospectar` v13:**
+```ts
+const isAdmin = userInfo.cargo === 'admin';
+const isGerente = ['gerente_comercial', 'gerente_marketing', 'gerente_financeiro'].includes(userInfo.cargo);
+const limiteMax = isAdmin ? 30 : (isGerente ? 10 : 5);  // antes era 30 ou 10
+input.qtd_max = Math.min(input.qtd_max || 5, limiteMax);
+```
+
+**Frontend (`index.html`):**
+- `_prspCargoLimits()` — retorna `{isAdmin, isGerente, qtdMax, buscasDiaMax}` por cargo
+- `_prspBuscasHoje()` — chama `sb.rpc('prospeccao_count_hoje', {uid})`
+- `_prspAtualizarQuotaUI()` — re-calcula max do input + label + estado do botão
+- `prospBuscar`: trata HTTP 429 com mensagem clara + atualiza UI da quota no `finally`
+
+### 53.3 UI nova
+
+Botão "Buscar com IA":
+- **Admin:** `✨ Buscar com IA` (sem contador)
+- **Vendedora com 0 buscas:** `✨ Buscar com IA (0/2 hoje)`
+- **Vendedora com 2 buscas:** `🚫 Limite diário atingido (2/2)` (disabled)
+
+Input quantidade:
+- **Admin:** max 30
+- **Gerente:** max 10
+- **Vendedora:** max 5 (era 10)
+
+### 53.4 Comportamento por cargo
+
+| Cargo | Max leads/busca | Buscas/dia | Total leads/dia |
+|---|---|---|---|
+| admin | 30 | ∞ | ∞ |
+| gerente_comercial / marketing / financeiro | 10 | 10 | 100 |
+| vendedor | 5 | 2 | **10** |
+
+### 53.5 Defesa em camadas
+
+| Camada | O que faz |
+|---|---|
+| Frontend UI | Bloqueia botão visualmente quando atingido |
+| Frontend prospBuscar | Trata 429 graciosamente |
+| Edge function | HTTP 429 com `quota: { usados, limite, restante }` se vendedora atingiu |
+| RLS na ia_prospeccao_log | Vendedora só vê os próprios logs (privacy) |
+
+Bypass via console possível? Sim na UI, mas edge function é fonte da verdade.
+
+### 53.6 Reversibilidade
+
+```sql
+UPDATE prospeccao_config SET limite_diario_vendedor = 5 WHERE id = 1;
+```
++ revert edge function v13 → v12 (re-deploy do código antigo) + `git revert` no commit do ciclo 53.
+
+### 53.7 Próximo passo (não implementado)
+
+UI pra admin gerenciar `prospeccao_config` (limite_diario_vendedor / gerente / mensal_reais / pausado_manual) sem precisar de SQL. Atualmente precisa rodar UPDATE direto.
+
+---
+
+---
+
+## 54. CICLO 04/05/2026 — Estúdio IA: imagens reais + prompt enriquecido + produto como referência visual
+
+**Pedido:** Juan trouxe `catalogo_dana_jalecos_detalhado.md` com 203 produtos do site Dana (SKU, nome, cores, tamanhos, descrição comercial, URLs CDN). Quer que o Estúdio IA (a) mostre fotos reais nos cards, (b) passe info rica pra IA, (c) gere imagem fiel ao produto.
+
+### 54.1 Tabelas novas (DMS)
+
+```sql
+CREATE TABLE produto_catalogo_site (
+  sku_ref TEXT PRIMARY KEY,
+  nome TEXT, url_pagina TEXT, preco NUMERIC,
+  cores TEXT[], tamanhos TEXT[],
+  descricao TEXT,           -- ⭐ descrição comercial rica do site
+  imagens TEXT[],
+  imagem_principal TEXT,
+  categoria TEXT, sexo TEXT
+);
+
+CREATE TABLE produto_imagens (
+  codigo_bling TEXT, url TEXT,
+  ordem INT, fonte TEXT,
+  match_score REAL,
+  ...
+);
+```
+
+### 54.2 Pipeline de mapping
+
+`parsear-catalogo-site.py`:
+1. Parser markdown → 203 produtos extraídos
+2. Cruze SKU/Ref do site ↔ `bling_produtos.codigo` (match exato + LIKE prefix pra variações)
+3. **Resultado: 153 SKUs Bling com imagem certeira** (score 1.0 todos via SKU/Ref direto)
+
+### 54.3 Edge function `gerar-peca-ia` v14
+
+System prompt enriquecido com:
+- **DANA PRODUCT KNOWLEDGE** — lista modelos (Manuela, Heloisa, Marta, Chloe, Rute, Diana, Clinic, Paulo, etc) com características, prints pediátricos (Liga da Fofura, Monsters, Dinos, Pet Love), tipos de produto e audiência por tipo
+- **Vision detalhado** — instruções pra extrair cor exata (não "azul" mas "azul bebê"), detalhes secundários, posição de bordado, formato de gola, cuff, sleeves, etc
+- **Reforço:** "FINAL PROMPT MUST DESCRIBE THE EXACT PRODUCT FROM IMAGE — NOT GENERIC"
+
+Frontend agora passa `produto_descricao` (vem da `produto_catalogo_site.descricao`).
+
+### 54.4 Edge function `gerar-avatar-ia` v18 (game-changer)
+
+**Antes:** só recebia LOGO Dana como referência visual.
+**Agora:** aceita `image_produto_url` do body. Pipeline:
+1. Fetch da URL CDN do site → base64
+2. Injeta no `parts[0]` (antes do logo)
+3. Prompt enhancer: `"CRITICAL: The FIRST image is the EXACT product the model must wear. Match color, cut, collar, sleeves, embroidery position PRECISELY — do not invent variations..."`
+
+Resultado: jaleco gerado é **visualmente idêntico** ao produto real (cor, corte, detalhes de bordado).
+
+### 54.5 Frontend (`index.html`)
+
+`estBuscarProdutoNow`:
+- Batch lookup em `produto_imagens` + `produto_catalogo_site` após fetch dos produtos
+- Precedência: `imagem_principal do site > storage > Bling URL > 📦`
+- Cada match enriquece `_site_descricao`, `_site_url_pagina`, `_site_cores`, `_site_tamanhos` no estado
+
+`estGerar`:
+- Passa `produto_descricao: estState.produto._site_descricao` pro `gerar-peca-ia`
+- Passa `image_produto_url: estState.produto.imagem_url` pro `gerar-avatar-ia`
+- `incluir_logo: estState.produto._persistente` (só ativa logo quando temos imagem real)
+
+### 54.6 Cobertura final
+
+| Item | Total | Com imagem | % |
+|---|---|---|---|
+| Produtos no site | 203 | 202 | 99.5% |
+| Match com Bling | 203 | 153 | 75.4% |
+| SKUs Bling com imagem | 2.205 | 153 | 6.9% |
+
+Os 6.9% parecem baixos mas representam **os produtos-pai principais** do site Dana — os que vendedoras usam mais. Os outros 1.762 SKUs do Bling são variações de cor/estampa que não estão no site curado.
+
+### 54.7 Próximos passos sugeridos
+
+- Atualizar o markdown periodicamente quando houver lançamentos
+- Considerar ampliar o match também via nome (fuzzy) pra cobrir os 50 SKUs do site sem match Bling
+- Storage local (R2) das imagens — pra evitar dependência do CDN Magazord
+
+### 54.8 Reversibilidade
+
+```sql
+DROP TABLE produto_imagens, produto_catalogo_site CASCADE;
+```
++ revert edge functions v14→v13 (gerar-peca-ia) e v18→v17 (gerar-avatar-ia) via redeploy do código antigo.
+
+---
+
+---
+
+## 55. CICLO 04/05/2026 (TARDE) — Estúdio IA: catálogo do site (251 produtos curados, descarta Bling)
+
+**Pedido:** Juan trouxe `catalogo_super_completo_dana.md` com 251 produtos do site, com tabela markdown estruturada (SKU/Ref, Cor hex, Composição, Tecido, Tamanhos, Preço + descrição + 2.529 imagens). Decisão de produto: Estúdio IA passa a usar **APENAS** o catálogo do site, **descartando** o sync Bling (4.753 SKUs com muitos descontinuados/sem foto).
+
+### 55.1 Backend (DMS Supabase)
+
+**ALTER TABLE produto_catalogo_site** — colunas novas:
+```sql
+ALTER TABLE produto_catalogo_site
+  ADD COLUMN cor_hex TEXT,            -- "FFFFFF" (cor canônica do site)
+  ADD COLUMN tecido TEXT,             -- "Gabardine"
+  ADD COLUMN composicao TEXT,         -- "100% Poliéster"
+  ADD COLUMN imagens_relacionadas TEXT[];
+
+ALTER TABLE estudio_pecas
+  ADD COLUMN produto_sku_ref TEXT,    -- aceita codigo do site (TEXT, não BIGINT)
+  ALTER COLUMN produto_id DROP NOT NULL;
+```
+
+**Repopulação**: parser `parsear-catalogo-super-completo.py` extrai do markdown:
+- 251 produtos (todos com pelo menos 1 imagem)
+- 220 com descrição rica
+- 174 com cor hex
+- 180 com tecido
+- 203 com preço
+- 250 com tamanhos
+- **2.521 imagens principais + 805 relacionadas = 3.326 URLs total**
+
+### 55.2 Frontend `estBuscarProdutoNow` — fonte mudou
+
+**Antes:** consulta `produtos` (sync Bling, 4.753 itens, 88% sem foto persistente).
+**Depois:** consulta `produto_catalogo_site` direto. Sem batch lookup duplo. Sempre persistente.
+
+```js
+sb.from('produto_catalogo_site')
+  .select('sku_ref, nome, preco, imagem_principal, descricao, cores, tamanhos,
+           url_pagina, sexo, categoria, cor_hex, tecido, composicao')
+  .or(`nome.ilike.${padrao},sku_ref.ilike.${padrao}`)
+```
+
+Resultado: **100% dos cards mostram imagem real** (251 produtos curados, todos com foto CDN persistente).
+
+### 55.3 `estGerar` — campos extras
+
+`gerar-peca-ia` agora recebe 5 campos novos:
+- `produto_cor_hex` (canonical)
+- `produto_tecido`
+- `produto_composicao`
+- `produto_sexo`
+- `produto_categoria`
+
+`estudio_pecas` salva `produto_sku_ref` (TEXT) ao invés de `produto_id` (BIGINT do Bling).
+
+### 55.4 `gerar-peca-ia` v15
+
+`buildUserPromptText` injeta os campos novos no User Prompt:
+```
+PRODUCT DATA (from Dana Jalecos official site):
+- Name: "Jaleco Feminino Chloe Branco"
+- SKU code: 378-ZI-008-000-F
+- Category: Jalecos
+- Target gender: Feminino
+- Canonical color (hex): #FFFFFF — use this EXACT color, do not infer from JPEG
+- Fabric: Gabardine
+- Composition: 100% Poliéster
+- Price: R$ 226.10
+- Official description (from danajalecos.com.br): Uma opção perfeita para quem...
+```
+
+A IA tem ancoragem dupla: imagem real (vision) + cor canônica hex (texto). Resolve problema de "hue shift" em JPEG.
+
+### 55.5 Resultado prático
+
+| Antes (ciclo 54) | Depois (ciclo 55) |
+|---|---|
+| Cards com 12% de imagem real (88% placeholder) | **100% com imagem real** |
+| `gerar-peca-ia` recebe só URL Bling expirada | Recebe URL CDN persistente + cor hex + tecido + composição |
+| IA inventava cor genérica | IA usa cor canônica do site (#FFFFFF) |
+| Buscas com produtos descontinuados/duplicados | Apenas 251 produtos atualmente vendidos |
+
+### 55.6 Vendedora não vê mais (intencional)
+
+Os 4.500 SKUs do Bling não cadastrados no site **somem** da busca do Estúdio IA:
+- Variações duplicadas (combos, tamanhos avulsos)
+- Produtos descontinuados
+- Itens internos de produção (matéria-prima, etc)
+
+Isso é o esperado: Estúdio IA é pra criar material das peças que a Dana **vende ATIVAMENTE no site**.
+
+### 55.7 Reversibilidade
+
+```sql
+-- Reverter Estúdio IA pra usar tabela 'produtos' Bling: git revert + redeploy
+DELETE FROM produto_catalogo_site WHERE updated_at >= '2026-05-04';
+```
+
+### 55.8 Próximos passos sugeridos
+
+- Atualizar markdown periodicamente (após lançamentos / mudanças de catálogo)
+- UI admin pra subir markdown e re-rodar parser sem precisar de SQL/Python
+- Frontend mostrar metadata extra (cor hex, tecido) no card preview do produto selecionado
+
+---
+
+---
+
+## 56. CICLO 04-05/05/2026 — Estúdio IA polish + bug fixes operacionais
+
+### 56.1 Heurística melhor imagem principal (corrige scrubs estampados)
+
+**Bug detectado:** scrubs com estampa pediátrica (Pet Love, Dinos, Liga da Fofura, Fada do Dente, Fazendinha, Games) estavam todos exibindo a MESMA foto genérica (`scrub-feminino-manga-curta-azulmarinho2.jpg`) porque o markdown do site tinha "Imagens do Produto" listando a vitrine genérica de cores e "Imagens de Variações/Relacionados" com as fotos REAIS da estampa específica.
+
+**Solução:** script `corrigir-imagem-principal.py`:
+1. Tokeniza nome do produto, descarta termos genéricos (jaleco/scrub/feminino/branco/azul/etc)
+2. Procura nas imagens em ordem — a 1ª URL cujo path contenha alguma palavra específica do nome (pet-love, dinos, fada-do-dente) ganha
+3. Se NENHUMA bate → usa `imagens_relacionadas[0]` (são as fotos WhatsApp reais do time da Dana)
+4. **Resultado: 31 produtos corrigidos**, 220 mantidos. Cada scrub estampado agora mostra a foto certa.
+
+### 56.2 `gerar-peca-ia` v16 → v17 — clean editorial photograph
+
+**Pedido:** remover do prompt da IA todos os textos rendrizados ("10% OFF", "COZINHA", "Frete grátis", "HOSPITAL"), badges/círculos terracotta, bordas brancas e retângulos placeholder. Manter tema influenciando ambiente, mas zero texto/elementos gráficos.
+
+**v16 (reformula CRITICAL RULE #4):**
+- Tema continua afetando AMBIENT/PROPS (cozinha, hospital, anatomy books)
+- copy_extra vira só "mood signal" (promotional/relaxed/dramatic) — nunca renderiza
+- ZERO textos, badges, círculos, frames, placeholder boxes, brand wordmarks
+
+**v17 (suaviza final do prompt):**
+- Bug observado: prompt terminando com pilha "ZERO text, ZERO logos, ZERO badges..." fazia Gemini Image **interpretar como pedido de descrição textual** ao invés de geração de imagem (resposta sem `inlineData`)
+- Final agora é frase curta positiva: `"Pure editorial photograph, no graphic design overlays."`
+- Regras zero-texto continuam dentro do system prompt
+
+### 56.3 `gerar-avatar-ia` v18 → v19 — image_produto_url + retry
+
+**v18:** aceita `image_produto_url` no body. Pipeline:
+1. Fetch da URL CDN do site → base64
+2. Injeta no `parts[0]` antes do logo (game-changer)
+3. Prompt enhancer: `"CRITICAL: The FIRST image is the EXACT product the model must wear. Match color, cut, collar, sleeves, embroidery position PRECISELY."`
+4. Resultado: jaleco gerado é **visualmente idêntico** ao produto real
+
+**v19:** retry automático quando Gemini não devolve imagem
+- Detecta resposta sem `inlineData` (200 OK mas só texto)
+- Refaz com prompt simplificado: `"Generate a clean editorial photograph (no text, no graphics overlays, just photographic scene). [primeira frase do prompt original]."`
+- Só falha se retry também falhar — mensagem clara pro user
+
+### 56.4 Botão "🔗 Vincular a campanha" no card da galeria
+
+Cada peça gerada agora tem botão de vínculo:
+1. Click → modal lista campanhas internas (status: planejamento/em_execucao/etc) com data + status
+2. User clica numa → `INSERT INTO campanha_interna_materiais` com:
+   - `tipo: 'imagem_estudio_ia'`
+   - `url`: da imagem gerada
+   - `nome`: produto + tema + tipo_peca
+   - `descricao`: metadados (tipo, tema, copy_extra)
+3. Aparece automaticamente na seção **Anexos & Links** da campanha (mesma seção do mockup que user mostrou)
+
+### 56.5 Bug fixes operacionais
+
+**A) Bug "Evolução Diária — Abril 2026" hardcoded:**
+- Título do gráfico estava fixo no HTML (linha 2873)
+- Fix: span com id `evolucao-diaria-mes` populado dinamicamente em `renderChart()` via `new Date().getMonth()` + array de meses pt-BR
+- Agora atualiza sozinho na virada do mês (sem precisar de ação)
+
+**B) Filtro default da Prospecção: "Novos" → "Todos status"**
+- HTML linha 7226: select com option `value="novo" selected` mudado pra `value="" selected` (Todos)
+- Vendedoras agora veem TODOS os leads dela de cara (antes escondia contatados/em_negociacao)
+
+**C) Vendedor novo Diego Ruiz mapping (`vendedor_mapping` DMS):**
+```sql
+INSERT INTO vendedor_mapping (bling_vendedor_id, empresa, profile_id, display_name, ativo, excluir_ranking)
+VALUES (15596875225, 'matriz', 'da4448cd-1647-4381-9788-90b036df4df5', 'Diego Ruiz', true, false);
+```
+- Diego tem 10 pedidos no Bling, 8 clientes únicos, R$ 6.701,91 finalizados
+- Cargo `vendedor` já tem permissão `cliente360 = true` (sem mudança extra)
+
+**D) CSV/XLSX detalhado dos produtos Bling Matriz (ferramenta operacional):**
+- `Produtos-Bling-Matriz-Detalhado.csv` (587 KB · 2.205 SKUs · 25 colunas)
+- `Produtos-Bling-Matriz-Detalhado.xlsx` (282 KB · com header congelado, filtros, zebra, tipos numéricos)
+- Enriquecimento via API Bling v3: descricao, marca, gtin, ncm, peso, dimensões, campos custom (sexo, categoria), parser regex pra tamanho/cor, cruzamento com ficha_produtos (custo_total + BOM)
+- Cobertura: 99.4% NCM, 85.9% marca, 81.9% peso, 76.2% cor, 46.3% custo de ficha
+- Cache JSONL local em `.claude/backups/bling-produtos-cache.jsonl` (29 MB) pra rerodar sem hammer Bling
+- Não afeta DMS — ferramenta interna pra análise/marketing
+
+---
+
+## 57. CICLO 05/05/2026 — Influenciadores: KPIs expandidos + 3 dashboards
+
+**Pedido:** alinhar a aba Influenciadores com o template `Controle_Influenciadores.xlsx` que o user trouxe. Tabela base já estava OK (16 registros reais, schema completo), faltavam dashboards agregados.
+
+### 57.1 KPIs (4 → 6 cards)
+
+| Antes | Agora |
+|---|---|
+| Total de Influenciadores | **Total / Ativos** (combinado) |
+| Receita Total | **Total Cupons Usados** ⭐ novo |
+| Conversão Média | **Receita Total** + sub "receita/dia média" |
+| Top Performer | **Ticket Médio** ⭐ novo |
+| | **Taxa de Conversão** |
+| | **Top Performer** |
+
+### 57.2 🌎 Performance por Região
+
+Card com lista visual + barras de progresso:
+- Sudeste, Sul, Nordeste, Norte, Centro Oeste
+- Para cada: qtd influencers, total cupons, receita total
+- Largura da barra = receita relativa (gradient azul→roxo)
+
+### 57.3 🎯 Performance por Nicho (top 8)
+
+Mesma estrutura, ordenado por receita decrescente:
+- Lifestyle, Fitness, Saúde, Negócios, etc
+- Inclui taxa de conversão por nicho (gradient verde→azul)
+
+### 57.4 📅 Calendário de Parcerias
+
+Tabela com:
+- Nome · Instagram · Início · **Dias Ativos** · Status · **Próxima Revisão** (90d após início) · **Receita/Dia**
+- Highlights automáticos:
+  - 🟥 Vermelho: revisão atrasada (passou de 90d sem revisar)
+  - 🟧 Amber: revisão em ≤7d
+  - Cinza: ≤30d
+- Filtro: Todos / Ativos / Pausados / **Revisão próxima (≤30d)**
+
+### 57.5 Funções JS adicionadas
+
+- `_influAggBy(field)` — helper genérico de agregação por field (regiao/nicho)
+- `renderAnaliseRegiao()`, `renderAnaliseNicho()`, `renderCalendarioParceria()`
+- `atualizarKPIsInfluenciadores()` expandida com cálculo de ticket médio + receita/dia média (só conta influencers com inicio_parceria preenchido)
+
+---
+
+## 58. CICLO 05/05/2026 — Analytics nativo (GA4 + Google Ads + Mercado Livre) + cleanup
+
+### 58.1 Conectar APIs escondido (era mock visual)
+
+A seção "Conectar APIs" no menu Sistema era **simulação completa** — `goConnectStep(2)` rodava `setTimeout(2200ms)` e sempre dava ✅ "Conexão estabelecida". Salvava só no `localStorage['dms-apis-v1']`. Não chamava nenhuma API real.
+
+**Fix:** item de menu agora `display:none`. View `#view-apis` continua existindo (sem prejuízo). Botões em outras seções que apontavam pra ela foram redirecionados pra Analytics.
+
+### 58.2 Remove 3 cards de "Dashboards Externos"
+
+Eram 3 cards que abriam dashboards web externos em nova aba. Agora redundantes:
+- ❌ Google Analytics 4 → JÁ tem painel nativo no DMS
+- ❌ Google Ads → JÁ tem painel nativo no DMS
+- ❌ Mercado Livre → ganhou painel nativo neste ciclo
+
+Mantidos: Search Console, Shopee, Amazon, etc — dashboards externos sem integração nativa ainda.
+
+### 58.3 Google Analytics 4 (integração nativa anterior)
+
+Tabelas: `analytics_ga4_dia`, `analytics_ga4_canais`, `analytics_ga4_paginas`
+Edge function: `sync-analytics` (multi-provider)
+Secrets: `GA_CLIENT_ID`, `GA_CLIENT_SECRET`, `GA_REFRESH_TOKEN`, `GA_PROPERTY_ID`
+Stack: OAuth refresh + GA4 Data API v1beta (`runReport`)
+
+Métricas coletadas: sessions, totalUsers, screenPageViews, conversions, bounceRate, sessionsBySource
+
+**Stats validados:** 425 sessões/dia · 1163 pageviews · 18 conversions/dia
+
+### 58.4 Google Ads (integração nativa anterior)
+
+Edge function compartilha `sync-analytics`.
+Secrets: `ADS_CLIENT_ID`, `ADS_CLIENT_SECRET`, `ADS_REFRESH_TOKEN`, `ADS_DEVELOPER_TOKEN`, `ADS_CUSTOMER_ID`
+Stack: OAuth refresh + Google Ads API **v20** (searchStream)
+
+GAQL principal:
+```sql
+SELECT campaign.id, campaign.name, campaign.status,
+       metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions
+FROM campaign WHERE segments.date DURING LAST_30_DAYS ORDER BY metrics.cost_micros DESC
+```
+
+3 campanhas Dana (Dana Jalecos, Smart Shop test, etc) — sem gastos atuais (campanhas pausadas).
+
+### 58.5 Mercado Livre — integração nova ⭐
+
+**Backend:**
+- 3 tabelas:
+  - `analytics_ml_connections` — token storage (refresh_token rotativo)
+  - `analytics_ml_anuncios` — cache de items pra cruzar listing_type_id
+  - `analytics_ml_pedidos` — 1 row por order_item, com **comissão + tarifa fixa + lucro_liquido como GENERATED STORED**
+- Cálculos automáticos:
+  - `comissao` = total_amount × {0.17 (gold_pro), 0.13 (gold_special), 0 (free)}
+  - `tarifa_fixa` = R$ 6,75/6,50/6,25 × qtd quando preço unit < R$ 79
+  - `lucro_liquido` = total - comissão - tarifa_fixa
+- Função SQL `ml_backfill_listing_type()` (RPC) reconcilia comissão depois do sync
+
+**Edge function `sync-ml-analytics`:**
+1. Lê `ml_connections` do banco; se token expirado → faz refresh OAuth ML
+2. **Salva NOVO refresh_token** (ML invalida o antigo a cada refresh — bug crítico evitado)
+3. Pagina `/orders/search` (50/page, max 3000)
+4. Filtra `status='paid'` + transforma cada item em row
+5. Coleta `mlbIds` únicos → `/items?ids=X,Y,Z` (max 20/batch) pra popular `analytics_ml_anuncios`
+6. UPSERT em `analytics_ml_pedidos` (id = `{order_id}-{idx}`)
+7. Loga em `analytics_sync_meta` (provider='ml')
+
+**Secrets ML:**
+- `ML_CLIENT_ID` = `1647614878601869`
+- `ML_CLIENT_SECRET` = `KZWeokw9ZZccIS7Zqvg0LFx7HZCArt5m`
+- `ML_REFRESH_TOKEN` = (rotativo, salvo em `analytics_ml_connections` após primeiro refresh)
+- `ML_USER_ID` = `2130400423` (DANA_JALECOS)
+
+**Sync inicial 90 dias:**
+- 497 pedidos puxados → 439 pagos inseridos
+- 121 anúncios únicos cacheados
+- **R$ 117.100,80 bruto · R$ 96.727,79 líquido · 82.6% margem**
+- Mês recordista: Abril/2026 com **R$ 51.803,57 bruto** (198 pedidos)
+
+**Frontend (Painel Integrado → Analytics):**
+- Bloco "🛒 Mercado Livre" com:
+  - 4 KPIs (Bruto / Líquido / Margem / Pedidos) com comparação vs período anterior
+  - Gráfico mensal: bruto (cinza) + líquido (verde)
+  - **Top Produtos com Curva ABC**: top 10 por receita, classes A/B/C com cores (verde/amber/vermelho)
+  - **Por tipo de anúncio**: gold_pro vs gold_special vs free, com margem de cada
+- Botão "🔄 Atualizar agora" agora roda Google + ML em paralelo + chama `ml_backfill_listing_type()` RPC
+
+### 58.6 Documentação fonte
+
+Guia standalone em `Itens Projeto/INTEGRACAO_ML_E_ANALYTICS.md` com:
+- Credenciais (App ID, refresh_token rotativo, ml_user_id)
+- Schema SQL completo
+- Cálculo de comissão (Brasil 2026): gold_pro 17%, gold_special 13%, free 0%
+- Tarifa fixa: R$ 6,25-6,75 por unidade quando preço < R$ 79
+- Curva ABC (80/20)
+- Resiliência (429 retry, 401 refresh)
+- Troubleshooting
+
+---
+
+## 59. CICLO 05/05/2026 — BACKLOG: URLs reais (HTML5 History API + Vercel rewrites)
+
+**Status:** PLANEJADO — não implementado. Pronto pra retomar depois.
+
+### 59.1 Problema atual
+
+O DMS é um SPA single-file (`index.html`, ~24k linhas, 1.4 MB). Toda navegação acontece via função `go(this, 'briefingvisual')` que esconde/mostra `<div class="view" id="view-X">` — **sem alterar a URL**. Resultado:
+
+- URL fica sempre `https://danamarketing.vercel.app/` independente da seção
+- ❌ Não dá pra compartilhar link direto pra uma seção (`/briefing-visual/briefings-salvos`)
+- ❌ Botão voltar/avançar do navegador não funciona corretamente
+- ❌ F5 sempre volta pra Home (perde contexto)
+- ❌ SEO ruim — Google só vê uma página
+- ❌ Bookmarks são inúteis
+
+### 59.2 Por que NÃO criar arquivos HTML separados
+
+User levantou a ideia de criar um arquivo HTML por seção (ex: `/briefing-visual/index.html`). **Não vai funcionar** porque:
+
+1. **Cada navegação perde estado em memória:**
+   - Sessão Supabase precisa re-autenticar a cada click
+   - Realtime subscriptions (Prospecção, tarefas, alertas) caem
+   - Caches: `_prspCache`, `_estState`, `_anFiltros`, ML lookup, produto_catalogo_site cache, etc — todos perdidos
+   - Estado de filtros (Ex: filtro de status na Prospecção) reseta
+2. **Manutenção insustentável:**
+   - 50+ views × 1.4 MB = ~70 MB total se cada arquivo for cópia
+   - Mudou um JS global? Tem que atualizar em 50 arquivos
+   - Versão do schema mudou? Idem
+3. **Performance pior:**
+   - Cache do navegador menos eficiente (1 file de 1.4MB vs 50 files menores ainda perde por re-parsing)
+   - Realtime: cada page load reabre WebSocket
+
+### 59.3 Solução correta: HTML5 History API + Vercel rewrites
+
+Mantém SPA single-file, mas adiciona URLs reais que **funcionam de verdade** (refresh, share, bookmark, back/forward).
+
+**Como funciona:**
+
+```
+1. Usuário clica "Briefing Visual"
+   → JS chama go(this, 'briefingvisual')
+   → go() agora também chama history.pushState({}, '', '/briefing-visual')
+   → URL muda na barra (sem reload da página!)
+   → View renderizada normalmente
+
+2. Usuário cola URL ou dá F5 em /briefing-visual/briefings-salvos
+   → Vercel rewrite manda pro index.html (mesmo HTML de sempre)
+   → JS lê window.location.pathname no boot
+   → Chama o equivalente a go(null, 'briefingvisual') + ativa sub-tab "briefings-salvos"
+
+3. Botão voltar/avançar do navegador
+   → Event 'popstate' dispara
+   → JS lê novo pathname e troca a view
+```
+
+### 59.4 O que precisa ser feito
+
+#### A) Vercel rewrites (`vercel.json`)
+
+Atualizar arquivo na raiz do repo:
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": null,
+  "outputDirectory": ".",
+  "framework": null,
+  "headers": [...],
+  "rewrites": [
+    { "source": "/((?!.*\\..*|api/).*)", "destination": "/index.html" }
+  ]
+}
+```
+
+A regex exclui requests com extensão (`.png`, `.css`, etc) e a pasta `/api/`.
+
+#### B) Mapping URL ↔ View (no JS do `index.html`)
+
+Adicionar um objeto `URL_TO_VIEW` que mapeia paths pra view + tab:
+
+```javascript
+const URL_TO_VIEW = {
+  '/': { view: 'home' },
+  '/analytics': { view: 'analytics' },
+  '/relatorio': { view: 'relatorio' },
+  '/ecommerce': { view: 'ecommerce' },
+  '/loja-fisica': { view: 'lojafisica' },
+  '/marketplaces': { view: 'marketplaces' },
+  '/canais-vendas': { view: 'canaisvendas' },
+  '/cliente-360': { view: 'cliente360' },
+  '/prospeccao': { view: 'prospeccao' },
+  '/financeiro': { view: 'financeiro' },
+  '/projecoes': { view: 'projecoes' },
+  '/roi': { view: 'roi' },
+  '/canais-aquisicao': { view: 'canaisaquisicao' },
+  '/campanhas': { view: 'campanhas' },
+  '/campanhas-internas': { view: 'campanhas-internas' },
+  '/construtor': { view: 'construtor' },
+  '/criativos': { view: 'criativos' },
+  '/briefing-visual': { view: 'briefingvisual' },
+  '/briefing-visual/briefings-salvos': { view: 'briefingvisual', tab: 'salvos' },
+  '/briefing-visual/materiais': { view: 'briefingvisual', tab: 'materiais' },
+  '/estudio-ia': { view: 'estudio' },
+  '/influenciadores': { view: 'influenciadores' },
+  '/influenciadores/calendario': { view: 'influenciadores', tab: 'calendario' },
+  '/influenciadores/referencias': { view: 'influenciadores', tab: 'referencias' },
+  '/prova-social': { view: 'provasocial' },
+  '/personas': { view: 'personas' },
+  '/keywords': { view: 'keywords' },
+  '/mercado': { view: 'mercado' },
+  '/referencias': { view: 'referencias' },
+  '/performance': { view: 'performance' },
+  '/tarefas': { view: 'tarefas' },
+  '/calendario': { view: 'calendario' },
+  '/admin': { view: 'admin' },
+};
+
+// Inversa: pra cada view → URL canônica
+const VIEW_TO_URL = Object.fromEntries(
+  Object.entries(URL_TO_VIEW)
+    .filter(([url, cfg]) => !cfg.tab)
+    .map(([url, cfg]) => [cfg.view, url])
+);
+```
+
+#### C) Atualizar função `go()` (em `index.html` ~linha 9786)
+
+Adicionar `history.pushState` quando o usuário clica:
+
+```javascript
+function go(el, viewKey, opts = {}) {
+  // ... código atual de switch view ...
+
+  // CICLO 59: atualiza URL sem reload
+  if (!opts.fromHistory) {
+    const url = VIEW_TO_URL[viewKey] || ('/' + viewKey);
+    if (window.location.pathname !== url) {
+      history.pushState({ view: viewKey }, '', url);
+    }
+  }
+}
+```
+
+#### D) Listener `popstate` (back/forward do navegador)
+
+```javascript
+window.addEventListener('popstate', (e) => {
+  const path = window.location.pathname;
+  const cfg = URL_TO_VIEW[path] || URL_TO_VIEW['/'];
+  go(null, cfg.view, { fromHistory: true });
+  if (cfg.tab) {
+    // Ativar sub-tab depois de a view carregar
+    setTimeout(() => activateSubTab(cfg.view, cfg.tab), 100);
+  }
+});
+```
+
+#### E) Boot (router inicial)
+
+No início do app, ler `window.location.pathname` e abrir a view certa:
+
+```javascript
+// Já tem checkAuth() no boot — adicionar depois disso:
+async function bootRouter() {
+  const path = window.location.pathname;
+  const cfg = URL_TO_VIEW[path] || URL_TO_VIEW['/'];
+  go(null, cfg.view, { fromHistory: true });
+  if (cfg.tab) {
+    setTimeout(() => activateSubTab(cfg.view, cfg.tab), 200);
+  }
+}
+```
+
+#### F) Helper `activateSubTab` (sub-tabs como "briefings-salvos", "calendario")
+
+Cada view com sub-tabs tem padrão diferente. Helpers já existentes (renomear/expor):
+
+| View | Função sub-tab existente | URL pattern |
+|---|---|---|
+| Prospecção | `prospSwitchTab(el, 'lista'/'kanban')` | `/prospeccao/lista`, `/prospeccao/kanban` |
+| Influenciadores | `switchInfluTab(el, 'lista'/'referencias')` | `/influenciadores`, `/influenciadores/referencias` |
+| Briefing Visual | (existente, achar o nome) | `/briefing-visual/briefings-salvos`, `/briefing-visual/materiais` |
+| Analytics | (não tem sub-tab atualmente — sem URL extra) | `/analytics` |
+| Estúdio IA | `switchEstTab(el, '...')` | `/estudio-ia/...` |
+| Admin | (várias sub-seções) | `/admin/usuarios`, `/admin/permissoes`, etc |
+
+Função `activateSubTab(viewKey, tabKey)` recebe view + tab e dispara o handler correto:
+```javascript
+function activateSubTab(view, tab) {
+  const handlers = {
+    'briefingvisual': (t) => brfSwitchTab(t),
+    'influenciadores': (t) => switchInfluTab(document.querySelector(`#view-influenciadores .tab[data-tab="${t}"]`), t),
+    'prospeccao': (t) => prospSwitchTab(document.querySelector(`#view-prospeccao .tab[data-tab="${t}"]`), t),
+    // ... outros
+  };
+  handlers[view]?.(tab);
+}
+```
+
+### 59.5 Casos especiais
+
+- **Hash do user agent**: alguns links antigos podem ter `/#/algo`. Adicionar fallback que detecta `location.hash` e redireciona pra path equivalente.
+- **Modais não devem mudar URL**: modais (Novo Cliente, Editar Tarefa, etc) **não precisam** de URL própria — eles são overlays sobre a view. Se quiser, futuramente: `?modal=novo-cliente`. Por ora, pular.
+- **Auth redirect**: depois de logar, se URL inicial era `/admin`, abrir admin direto (não Home).
+
+### 59.6 Tempo estimado
+
+| Etapa | Tempo |
+|---|---|
+| `vercel.json` rewrites + deploy | 5 min |
+| Mapping `URL_TO_VIEW` (60 itens das 30+ views + sub-tabs) | 20 min |
+| Atualizar `go()` com `pushState` | 10 min |
+| `popstate` listener | 5 min |
+| `bootRouter()` no init | 5 min |
+| `activateSubTab()` helper + integração com cada view com tabs | 30 min |
+| Testes (refresh em cada URL, back/forward, cold reload, share link) | 20 min |
+| Documentação ciclo 60 | 15 min |
+| **Total** | **~1h50min** |
+
+### 59.7 Riscos
+
+| Risco | Mitigação |
+|---|---|
+| Vercel rewrites quebrarem rotas de assets (PNG, CSS) | Regex exclui paths com extensão. Testar antes do deploy. |
+| `popstate` disparar duplo (do `pushState` + click) | Usar flag `opts.fromHistory` na função `go()` |
+| Sub-tabs com nome diferente entre views | `activateSubTab()` switch por viewKey |
+| URLs antigas com `#` em emails/comunicação | Fallback no boot que lê `location.hash` se path for `/` |
+| Auth redirect quebrar | Salvar URL inicial em `sessionStorage` antes do redirect e voltar pra ela após login |
+| F5 numa URL profunda + lentidão Supabase boot | Mostrar loader genérico antes da view aparecer |
+
+### 59.8 Reversibilidade
+
+- Frontend: `git revert` no commit do ciclo 59 → URL volta a ser `/` em tudo
+- Vercel: remover `rewrites` do vercel.json + deploy
+- Sem mudança de schema, sem dados afetados, zero risco de regressão
+
+### 59.9 Próximos passos pós-/clear
+
+Quando o user retomar a conversa, o prompt sugerido:
+
+> "leia DOCUMENTACAO-COMPLETA-DMS.md seção 59 e implementa URLs reais com HTML5 History API"
+
+Ou mais específico:
+
+> "implementa o ciclo 59 (URLs reais) seguindo o plano da seção 59 da DOCUMENTACAO-COMPLETA-DMS.md"
+
+### 59.10 Critical files
+
+| Arquivo | Mudanças |
+|---|---|
+| `vercel.json` (raiz do repo `_staging-dana-marketing/`) | Adicionar `rewrites` |
+| `_staging-dana-marketing/index.html` | `URL_TO_VIEW`, `VIEW_TO_URL`, `go()` ajustada, `popstate`, `bootRouter`, `activateSubTab` |
+| `.claude/worktrees/vibrant-davinci/index.html` | Mesmas mudanças (mantém sync) |
+
+### 59.11 Funções existentes a reusar
+
+| Componente | Onde | Como reusa |
+|---|---|---|
+| `go(el, key)` | ~linha 9786 | Estender com `history.pushState` |
+| `prospSwitchTab` | ~linha 18648 | Mapear pra `/prospeccao/{tab}` |
+| `switchInfluTab` | ~linha 16648 | Mapear pra `/influenciadores/{tab}` |
+| `switchEstTab` | (achar via grep) | Mapear pra `/estudio-ia/{tab}` |
+| `brfSwitchTab` | (achar via grep) | Mapear pra `/briefing-visual/{tab}` |
+| `checkAuth` | boot | Encadear `bootRouter()` depois |
 ---
 
 ## 60. CICLO 59 EXECUTADO — URLs reais (HTML5 History API + Vercel rewrites)
@@ -4237,4 +6062,372 @@ Pra desativar futuramente: `SELECT cron.alter_job(25, active := false);` (ou `26
 
 ---
 
-**Fim da documentação · Atualizado em 06/05/2026 — ciclo 59 + auto-sync Analytics · v6.2**
+## 61. CICLO ANALYTICS IA — EXECUTADO COMPLETO (06/05/2026)
+
+Resposta ao pedido literal da Manu: *"no DMS, na parte de analise de trafego. Os dados nao estao claros sabe? Tinha que ficar mais intuitivo, gerar insights, pontos de acao e ver oque esta performando e o pq"*
+
+5 fases entregues numa sessão. Aproveitou 90% da infra de IA já operante no Cliente 360 (`cliente360-insight`, `cliente_insights_config`, parser de seções, cascade Groq→Gemini, kill-switch).
+
+### 61.1 Fase 0 — UX foundation (sem IA)
+
+Pré-requisito visual antes de plumbar IA. 4 melhorias na seção `/analytics`:
+
+- **Skeleton shimmer** nos 12 KPI cards durante load (substituiu "Sem dados" piscando)
+- **Pílula de contexto** no topo: `📅 Últimos 30 dias · vs período anterior (06-30 abr → 06-30 mai)` com datas explícitas
+- **Mini-sparkline SVG** abaixo de cada KPI value (12 sparklines):
+  - GA4: sessions/users/page_views/conversions
+  - Ads: cost/clicks/conversions/cpa (CPA dia-a-dia)
+  - ML: agrega pedidos por date_closed → bruto/líquido/margem/pedidos
+  - Cor por tendência: up=verde, dn=vermelho, flat=cinza (média segunda metade vs primeira metade dos pontos, tolerância 5%)
+- **Reorder** dos 3 cards (GA4/Ads/ML): KPIs → tabelas top-N → gráfico no fim
+
+Helpers novos: `_anRenderSparkline`, `_anSetSkeleton`, `_anUpdateContextPilula`.
+CSS novo: `.kpi-spark`, `.skeleton-shimmer` com keyframes `an-shimmer`, `.an-context-pilula`.
+
+Commits: `5f42987` DanaComercial, `b48c724` DanaJalecos.
+
+### 61.2 Fase 1 — Schema + edge function `analytics-insight`
+
+Schema novo (`sql-scripts/sql-analytics-insights.sql`):
+- `analytics_insights_config` (singleton id=1) com kill-switch + quotas por cargo (gerente=10, trafego=10, producao=5) + limite mensal R$ 30
+- `analytics_insights` (logging) com escopo (painel_geral/drill_canal/drill_pagina/drill_campanha/sistema), periodo, contexto JSON snapshot, insight, modelo, provider, custo, user_id, cargo_autor
+- RPCs `analytics_insights_count_hoje(uid)` e `analytics_insights_gasto_mes()` timezone São Paulo
+- RLS: 5 cargos com SELECT, INSERT só via service_role, realtime ativado
+
+Edge function `analytics-insight` v1 ACTIVE:
+- Auth JWT + 5 cargos (admin + gerente_marketing + gerente_comercial + trafego_pago + producao_conteudo)
+- Bypass via `X-System-Cron: true`
+- Body: `{ escopo, periodo_dias, data_ini, data_fim, contexto: {ga4, ads, ml, top_canais, top_paginas, top_campanhas} }`
+- Sanitização: trunca strings >120 chars, limite 8KB JSON
+- Cascade Groq Llama 3.3 → Gemini 2.5 Flash fallback
+- System prompt 4 seções fixas: RESUMO EXECUTIVO / PONTOS DE AÇÃO (🔴🟡🟢) / O QUE FUNCIONOU / O QUE PIOROU
+- Regras anti-alucinação: "Use SOMENTE números do contexto JSON"
+
+Smoke test passou: 401 sem JWT, 200 + insight real via cron com contexto fake. Provider=groq (R$0).
+
+Commits: `f1b38e9` DanaComercial, `035b804` DanaJalecos.
+
+### 61.3 Fase 2 — UI Insight card no topo do painel
+
+Bloco `<div id="an-insight-card">` entre pílula e card GA4:
+- Header com badge quota (3/10 hoje colorido, ∞ ADMIN roxo) + botões Histórico + Gerar agora
+- Body: 4 seções stacked com cores semânticas (Resumo cinza / Ações azul 🔴🟡🟢 / Funcionou verde / Piorou vermelho)
+- Footer: "Gerado em DD/MM HH:mm · Llama 3.3 (Groq) · gratuito"
+- Banner amarelo "♻ Esse insight foi gerado em outro período" se trocar select
+
+Helpers JS novos: `parseAnalyticsInsightSecoes`, `_anMarkInsightHTML`, `_anRenderInsightCard`, `_anRenderInsightSkeleton`, `analyticsLoadInsightQuota`, `analyticsApplyInsightVisibility`, `analyticsLoadLastInsight`, `analyticsGenerateInsight`.
+
+Plumbagem em `loadAnalytics`: monta `window._anLastContexto` com KPIs (atual/anterior/delta_pct) + top-N enxutos. Trunca strings de nomes a 60 chars (evita 8KB cap).
+
+Commits: `4864509` DanaComercial, `a41c5cc` DanaJalecos.
+
+### 61.4 Fase 4 — Cron diário + drawer histórico
+
+Cron `cron-analytics-insight-diario` (jobid 27):
+- Schedule: `30 9 * * *` (06:30 BRT, depois do `sync-analytics-diario` 06:07 BRT)
+- Header X-System-Cron pra bypass de auth + quota (mantém kill-switch mensal R$30)
+- cargo_autor='sistema', user_id=NULL no log
+- Período fixo: últimos 7 dias
+- Custo: ~R$ 0,60/mês (Gemini) ou R$0 (Groq)
+
+SQL idempotente em `sql-scripts/sql-cron-analytics-insight.sql`.
+
+Drawer histórico: botão "📜 Histórico" abre drawer 540px com slide-in. 4 abas filtro (Todos / Painel / 🤖 Cron diário / Drill-downs). Lista últimos 30 insights agrupados por dia. Click no item carrega no card do topo.
+
+Total crons ativos: 27.
+
+Commits: `993086d` DanaComercial, `8e064b0` DanaJalecos.
+
+### 61.5 Fase 3 — Drill-down causal "POR QUÊ?" + bug fixes
+
+Click em qualquer KPI (12 cards) ou linha de tabela top-N (canais/páginas/campanhas/produtos ML) abre drawer lateral 720px com:
+- KPI grande: valor atual + delta colorido + valor anterior
+- Mini-chart SVG sobreposto: série diária atual (linha sólida + fill 12%) vs série anterior (tracejada cinza)
+- Top contribuidores clicáveis (drill recursivo)
+- Sub-insight IA contextual (escopo drill_*) — renderiza só RESUMO EXECUTIVO
+
+Helpers novos: `_AN_DRILL_CONFIG`, `_anDrillCalcular`, `_anDrillSerieDiaria`, `_anDrillRenderChart`, `_anDrillRenderContribuidores`, `_anDrillGenerateSubInsight`, `analyticsAbrirDrill`/`analyticsFecharDrill`.
+
+Cache local 1h (`window._anDrillCache` Map) + debounce 500ms + quota compartilhada com insight geral.
+
+Cache de dados raw (`window._anLastDados`) populado em loadAnalytics: ga4 (diaAtual/diaAnt/canais/canaisAnt/devices/paginas/paginasAnt), ads (diaAtual/diaAnt/campanhas/campanhasAnt), ml (pedAtual/pedAnt/diaAgg/produtos/porTipo).
+
+Commits: `edb71cd` DanaComercial, `43ad568` DanaJalecos.
+
+### 61.6 Bug fixes pós-deploy do drill
+
+**Bug 1 — Barras dos charts invisíveis** (commits `8cbfe70` / `1c3b4fb`):
+- Causa: `height:100%` inline no `.bar-wrap` resolvia pra zero porque pai `.bar-group` tem altura auto
+- Fix: remover height:100% inline, deixar class default `.bar-wrap { height:128px }` aplicar
+
+**Bug 2 — Tooltip preto vazio ao hover** (commits `5f857da` / `2fe1a69`):
+- Causa: CSS `.bar:hover::after` lê `attr(data-val)`, template não setava
+- Fix: setar `data-val` em cada `.bar` com data + valor formatado (BRL pra cost/bruto/líquido)
+
+**Bug 3 — Drill secundário sem série temporal e período anterior=0** (commits `b9c1de2` / `51b58fb`):
+- Causa A: SELECTs de `analytics_ga4_canais/paginas` e `analytics_ads_campanhas` não incluíam `data` → série diária zerada
+- Causa B: `ant = []` hardcoded pros sub-drills (TODO esquecido)
+- Causa C: branch ML produto não setava serieAtual
+- Fix: incluir `data` nos selects + 3 queries do período anterior (canaisAnt/paginasAnt/campanhasAnt) + ML produto agrega pedAtual+pedAnt filtrados por mlb_id por dia
+
+### 61.7 Estado final do ciclo Analytics IA
+
+| Componente | Estado |
+|---|---|
+| UX foundation | ✅ |
+| Schema + RPCs + RLS | ✅ |
+| Edge function `analytics-insight` v1 ACTIVE | ✅ |
+| UI Insight card | ✅ |
+| Drawer histórico | ✅ |
+| Cron diário 06:30 BRT (jobid 27) | ✅ |
+| Drill-down causal | ✅ |
+
+Custo mensal estimado: R$ 0–0,60 (cron) + on-demand limitado a R$ 30/mês via kill-switch. Total worst case ~R$ 30,60/mês.
+
+Cargos: admin (∞) + gerente_marketing (10/dia) + gerente_comercial (10/dia) + trafego_pago (10/dia) + producao_conteudo (5/dia). Vendedor não vê.
+
+---
+
+## 62. PRÓXIMOS PASSOS PRIORITÁRIOS — IMPLEMENTAR APÓS /COMPACT
+
+Baseado em análise exaustiva dos docs RD Station (`Ideias Projeto/RD Station/`) confrontada com o estado atual do DMS. Excluindo email + WhatsApp (Manu disse que não quer agora), sobram **3 features de Alta Prioridade**.
+
+Manu confirmou ordem de execução: 1 → 2 → 3.
+
+### 62.1 ⏰ Feature #1 — Motivos de Perda (1h, ganho rápido)
+
+**Por que primeiro**: simples, rápido, ganho imediato, base pra relatório futuro.
+
+**Onde aparece**:
+- **Prospecção**: ao arrastar lead pra coluna "Descartado" no Kanban → modal "Por quê?" com opções pré-definidas + texto livre
+- **Cliente 360 detalhe** (Acompanhamento Comercial): mesmo modal quando muda status pra "Perdido"
+- **Performance** (seção): card novo "🎯 Top motivos de perda do mês" com barra horizontal por % do total
+
+**SQL** (`sql-scripts/sql-motivos-perda.sql` — criar):
+```sql
+ALTER TABLE prospects          ADD COLUMN motivo_perda TEXT, ADD COLUMN motivo_perda_detalhe TEXT;
+ALTER TABLE cliente_metadata   ADD COLUMN motivo_perda TEXT, ADD COLUMN motivo_perda_detalhe TEXT;
+ALTER TABLE clientes_manuais   ADD COLUMN motivo_perda TEXT, ADD COLUMN motivo_perda_detalhe TEXT;
+```
+
+**Opções pré-definidas**:
+- `sem_orcamento` — Sem orçamento
+- `comprou_concorrente` — Comprou de concorrente
+- `nao_responde` — Não responde
+- `nao_era_icp` — Não era ICP (perfil errado)
+- `preco_alto` — Preço alto
+- `prazo_longo` — Prazo de entrega muito longo
+- `sem_interesse` — Não tem interesse no momento
+- `outro` — Outro (texto livre obrigatório)
+
+**Frontend**:
+- `index.html`: nova função `prospAbrirModalMotivoPerda(prospectId)` que abre modal com select + textarea
+- Hook em `prospMudarStatus` quando novo status = `descartado`: abrir modal antes de UPDATE
+- Hook em `prospKanbanDrop` quando coluna destino = `descartado`: idem
+- `cliente-360-boot.js`: hook em mudança de `status_relacionamento` no Acompanhamento Comercial pra `perdido`/`sem_interesse`
+- View `view-performance`: card novo agregando `prospects.motivo_perda` + `cliente_metadata.motivo_perda` (último mês), barra horizontal ordenada por contagem
+
+**Arquivos a tocar**:
+- `index.html` (markup do modal + JS dos hooks + card no Performance)
+- `cliente-360-boot.js` (hook no Acompanhamento Comercial)
+- `sql-scripts/sql-motivos-perda.sql` (criar)
+
+**Tempo estimado**: 1h.
+
+### 62.2 🔗 Feature #2 — UTM Parser (2-3h, depende de pré-requisito)
+
+**Por que segundo**: leve, ganho real ("vendi quanto vindo do Insta?"), mas pré-requisito externo: Magazord precisa estar enviando UTM nos pedidos pro Bling.
+
+**Pré-requisito a verificar antes de começar**:
+```sql
+SELECT id, observacoes, observacoes_internas, dados_extras
+FROM pedidos
+WHERE observacoes ILIKE '%utm_%' OR observacoes_internas ILIKE '%utm_%'
+LIMIT 10;
+```
+Se vazio: pedir pra Dana ativar passagem de UTM no Magazord (Configurações → Integrações → Bling → Mapping de campos custom). É config, não código.
+
+**Onde aparece**:
+- **Cliente 360 detalhe** (header): nova linha `🔗 Origem: Instagram · campanha primavera25 · primeiro toque há 14 dias` (do PRIMEIRO pedido cronologicamente)
+- **Analytics** (após card ML): card novo `📊 Vendas por UTM` — top fontes por R$ vendido (não só sessões como GA4)
+- **Cliente 360 lista**: filtro novo "Origem UTM" no topbar (Instagram / Facebook / Google / Direto / Email / Outro)
+
+**SQL** (`sql-scripts/sql-utm-pedidos.sql` — criar):
+```sql
+ALTER TABLE pedidos ADD COLUMN utm_source TEXT, ADD COLUMN utm_medium TEXT,
+                    ADD COLUMN utm_campaign TEXT, ADD COLUMN utm_content TEXT, ADD COLUMN utm_term TEXT;
+CREATE INDEX idx_pedidos_utm_source   ON pedidos(utm_source)   WHERE utm_source IS NOT NULL;
+CREATE INDEX idx_pedidos_utm_campaign ON pedidos(utm_campaign) WHERE utm_campaign IS NOT NULL;
+
+CREATE OR REPLACE VIEW vendas_por_utm AS
+SELECT empresa, utm_source, utm_campaign,
+       COUNT(*) AS pedidos,
+       SUM(COALESCE(total, total_produtos, 0)) AS faturamento,
+       AVG(COALESCE(total, total_produtos, 0)) AS ticket_medio
+FROM pedidos
+WHERE utm_source IS NOT NULL
+GROUP BY empresa, utm_source, utm_campaign;
+```
+
+**Edge function** (modificar `sync-pedidos.ts` + `sync-pedidos-bc.ts`): regex que extrai UTMs de `observacoes` ou `dados_extras`:
+```ts
+const utmRegex = /utm_(source|medium|campaign|content|term)=([^&\s]+)/g;
+const matches = pedido.observacoes?.matchAll(utmRegex) || [];
+const utms = {};
+for (const m of matches) utms[`utm_${m[1]}`] = decodeURIComponent(m[2]);
+```
+
+**Frontend**:
+- `cliente-360-boot.js`: header do detalhe ganha linha de origem (busca primeiro pedido do cliente)
+- `index.html` Analytics: novo card lendo da view `vendas_por_utm`
+- Filtro UTM no topbar do Cliente 360 lista
+
+**Arquivos a tocar**:
+- `sql-scripts/sql-utm-pedidos.sql` (criar)
+- `edge-functions/sync-pedidos.ts` + `sync-pedidos-bc.ts` (parser UTM no upsert)
+- `index.html` Analytics (card novo)
+- `cliente-360-boot.js` (header + filtro)
+
+**Tempo estimado**: 2-3h (depende se Magazord já passa UTM).
+
+### 62.3 🔍 Feature #3 — Lead Tracking script .js (6-8h, mais valiosa)
+
+**Por que terceiro**: mais cara mas é a que mais agrega — captura visitantes anônimos do site Dana e amarra retroativamente quando viram cliente. Coração do Lead Tracking do RD.
+
+**Onde aparece**:
+- **Cliente 360 detalhe** (Timeline existente): eventos novos `👁 Viu /jaleco-feminino-chloe (3x)`, `🛒 Adicionou ao carrinho`, etc
+- **Cliente 360 detalhe** (aba nova "🔍 Comportamento"): páginas mais vistas, sessão média, dias entre 1ª visita e 1ª compra, gráfico de jornada
+- **Analytics** (futuro card): visitantes anônimos online agora
+
+**Arquitetura**:
+```
+Magazord site (com <script src="/dms-tracker.js?id=XXX">)
+  ↓ pageview/click ping
+Edge function dms-tracker-ingest (recebe eventos)
+  ↓ INSERT
+analytics_lead_events (tabela nova, série temporal)
+  ↑ resolve identidade
+sync-pedidos (existente — quando vira cliente, faz match retroativo via cookie_id ou email)
+```
+
+**SQL** (`sql-scripts/sql-lead-tracking.sql` — criar):
+```sql
+CREATE TABLE analytics_lead_events (
+  id BIGSERIAL PRIMARY KEY,
+  cookie_id UUID NOT NULL,
+  contato_id BIGINT,
+  contato_nome TEXT,
+  empresa TEXT,
+  evento_tipo TEXT NOT NULL,    -- pageview|click|form_view|add_cart|checkout_start|purchase
+  url TEXT, referrer TEXT,
+  utm_source TEXT, utm_medium TEXT, utm_campaign TEXT,
+  device TEXT,                  -- mobile|desktop|tablet
+  user_agent TEXT,
+  ip_anon TEXT,                 -- /24 mascarado pra LGPD
+  metadata JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_lle_cookie  ON analytics_lead_events(cookie_id, created_at DESC);
+CREATE INDEX idx_lle_contato ON analytics_lead_events(contato_nome, created_at DESC);
+CREATE INDEX idx_lle_created ON analytics_lead_events(created_at DESC);
+
+CREATE TABLE analytics_lead_identity (
+  cookie_id UUID PRIMARY KEY,
+  contato_nome TEXT,
+  email_hash TEXT,              -- LGPD friendly
+  primeiro_evento TIMESTAMPTZ,
+  resolvido_em TIMESTAMPTZ
+);
+
+CREATE OR REPLACE VIEW analytics_jornada_cliente AS
+SELECT contato_nome, empresa,
+       COUNT(*) FILTER (WHERE evento_tipo='pageview') AS pageviews,
+       COUNT(DISTINCT DATE(created_at)) AS dias_visitando,
+       MIN(created_at) AS primeiro_toque, MAX(created_at) AS ultimo_toque,
+       array_agg(DISTINCT url ORDER BY url) FILTER (WHERE evento_tipo='pageview') AS paginas_unicas,
+       array_agg(DISTINCT utm_source) FILTER (WHERE utm_source IS NOT NULL) AS canais
+FROM analytics_lead_events
+WHERE contato_nome IS NOT NULL
+GROUP BY contato_nome, empresa;
+```
+
+**Arquivo público `public/dms-tracker.js`** (criar — vai pra `_staging-dana-marketing/` na raiz pra Vercel servir):
+- Cookie first-party `dms_visitor_id`
+- Pageview no load + popstate (SPA)
+- `navigator.sendBeacon` ou `fetch keepalive`
+- Captura UTM da URL atual
+
+**Edge function `dms-tracker-ingest`** (criar):
+- POST público sem JWT
+- Rate limit por IP
+- Validação body
+- INSERT em `analytics_lead_events`
+- Se evento for `purchase`/`form_submit` com email/contato_nome → atualiza `analytics_lead_identity` + UPDATE retroativo em todos os eventos do cookie
+
+**Frontend Cliente 360 boot**:
+- Aba nova "🔍 Comportamento" no detalhe do cliente
+- Lê `analytics_jornada_cliente`
+- KPIs: pageviews totais, dias visitando, primeiro toque há X dias
+- Lista páginas únicas + canais (UTM sources)
+- Mini timeline: linha do tempo dos primeiros 20 eventos
+- Adicionar eventos de `analytics_lead_events` na Timeline existente (UNION ALL na view `cliente_eventos_timeline`)
+
+**Magazord setup** (Manu/Juan ativam manual):
+1. Magazord → Configurações → Snippets → adicionar no `<head>`:
+   ```html
+   <script async src="https://danadash.netlify.app/dms-tracker.js"></script>
+   ```
+2. Pronto.
+
+**LGPD**: cookie first-party (mesmo domínio), `ip_anon` mascara último octeto. Banner de consentimento opcional.
+
+**Arquivos a tocar**:
+- `sql-scripts/sql-lead-tracking.sql` (criar)
+- `edge-functions/dms-tracker-ingest.ts` (criar)
+- `_staging-dana-marketing/dms-tracker.js` (criar — Vercel serve da raiz)
+- `cliente-360-boot.js` (aba "Comportamento" + integração na Timeline)
+
+**Tempo estimado**: 6-8h.
+
+---
+
+## 63. PROMPT PARA RETOMAR APÓS /COMPACT
+
+Use exatamente esse prompt no próximo chat:
+
+```
+Estou continuando o desenvolvimento do DMS (Dana Marketing System) da Dana Jalecos.
+
+Por favor leia antes de tudo:
+C:\Users\Juan - Dana Jalecos\Documents\Sistema Marketing\DOCUMENTACAO-COMPLETA-DMS.md
+
+ATENÇÃO Sections 61, 62 e 63 — Section 62 tem os 3 PRÓXIMOS PASSOS PRIORITÁRIOS pra
+implementar AGORA, na ordem:
+  1) Motivos de Perda (1h)
+  2) UTM Parser (2-3h, requer Magazord configurado)
+  3) Lead Tracking script .js (6-8h)
+
+Estado atual (06/05/2026 noite):
+- Ciclo Analytics IA executado COMPLETO (Fases 0+1+2+3+4 em uma sessão)
+- 27 crons rodando, edge function analytics-insight v1 ACTIVE
+- Drill-down causal funcionando (KPIs + tabelas top-N)
+- Bug fixes: bar-wrap height, tooltip data-val, drill secundário com dados reais
+
+Repos:
+- DanaComercial: github.com/DanaComercial/dana-marketing (espelho/GH Pages)
+- DanaJalecos: github.com/DanaJalecos/dana-marketing (Vercel oficial)
+- Worktree: .claude/worktrees/vibrant-davinci (edita aqui, push pra ambos)
+- Staging: _staging-dana-marketing (cópia espelho do DanaJalecos)
+
+Workflow de deploy a cada fase:
+1. Edita worktree
+2. Sync: cp index.html → _staging-dana-marketing/
+3. git commit + push origin HEAD:main (DanaComercial)
+4. cd staging + git commit + push origin main (DanaJalecos)
+
+Vamos começar pelo passo #1 (Motivos de Perda).
+```
+
+---
+
+**Fim da documentação · Atualizado em 06/05/2026 noite — ciclo Analytics IA completo + próximos passos · v7.0**
