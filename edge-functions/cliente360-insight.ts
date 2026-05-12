@@ -16,7 +16,7 @@ const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY')!
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')!
 
 const GROQ_MODEL = 'llama-3.3-70b-versatile'
-const GEMINI_MODEL = 'gemini-2.5-flash'
+const GEMINI_MODEL = 'gemini-2.5-pro'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -60,16 +60,29 @@ REGRAS:
 7. Se o cliente for "Consumidor Final" ou razão social genérica, note isso na análise.
 8. Use **negrito** em dados-chave (números, nomes de canais, categorias). Não use headers Markdown.
 
+CANAL PREFERIDO — USE LITERALMENTE O QUE ESTIVER NO CONTEXTO:
+Os dados fornecem o campo "Canal preferido". Use EXATAMENTE esse texto. Exemplos:
+- Se contexto diz "Loja/WhatsApp Piçarras" → escreva "Loja/WhatsApp Piçarras". NÃO escreva "Site".
+- Se contexto diz "Mercado Livre" → escreva "Mercado Livre". NÃO escreva "marketplace" genérico.
+NUNCA infira canal preferido a partir de outras frases — só do campo explícito.
+
+REGRAS DE AÇÃO COMERCIAL POR SEGMENTO (CRÍTICO — siga rigorosamente):
+- **VIP**: NUNCA ofereça desconto monetário. VIPs já compram bastante e oferecer desconto desvaloriza a relação. Sugira BRINDE PERSONALIZADO (broche bordado com nome, bolsa porta-jaleco, chaveiro com a marca, caneta) ou CONDIÇÃO ESPECIAL (frete grátis, brinde na próxima compra, kit exclusivo de lançamento, acesso antecipado a coleções novas).
+- **Frequente**: pode oferecer desconto pequeno (5-8%) OU brinde, depende do contexto. Use desconto se o objetivo for fechar venda agora; brinde se for fidelizar.
+- **Ocasional**: desconto promocional médio (10-15%) pra incentivar nova compra.
+- **Em Risco**: desconto agressivo (15-20%) + contato direto pelo WhatsApp pra reativar.
+- **Inativo**: desconto forte (20-25%) + benefício adicional (frete grátis, brinde) + ligação/WhatsApp pessoal.
+
 FORMATO OBRIGATÓRIO (exatamente 3 seções, nesse formato, com os rótulos em CAIXA ALTA seguidos de dois-pontos):
 
 ANÁLISE DO COMPORTAMENTO ATUAL:
-(parágrafo único descrevendo o perfil de compra: frequência, ticket, canal preferido, categorias, tempo ativo, segmento RFM)
+(parágrafo único descrevendo o perfil de compra: frequência, ticket, canal preferido [LITERAL do contexto], categorias, tempo ativo, segmento RFM)
 
 RISCO OU OPORTUNIDADE PRINCIPAL:
 (parágrafo único sobre O principal risco OU oportunidade — escolha o mais relevante e seja específico com números e datas)
 
 AÇÃO COMERCIAL RECOMENDADA:
-(parágrafo único com 1-2 ações concretas: o que oferecer, quando contatar, qual canal usar, com que tom)`
+(parágrafo único com 1-2 ações concretas que SEGUEM A REGRA DE AÇÃO POR SEGMENTO acima: o que oferecer [brinde vs desconto conforme segmento], quando contatar, qual canal usar [literal do contexto], com que tom)`
 
 async function callGroq(messages: any[]) {
   const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -221,7 +234,7 @@ Deno.serve(async (req) => {
       .eq('empresa', empresa)
       .eq('contato_nome', contato_nome)
       .order('data', { ascending: false })
-      .limit(30)
+      .limit(100)
     const pids = (pedidos || []).map((p: any) => p.id)
     const { data: itens } = pids.length
       ? await admin.from('pedidos_itens').select('pedido_id, descricao, quantidade, valor_total').in('pedido_id', pids)
@@ -281,7 +294,8 @@ Métricas agregadas:
 - Última compra: ${cs.ultima_compra || '—'} (${cs.dias_sem_compra} dias atrás)
 - Meses ativos: ${cs.meses_ativos}
 
-Canais de compra (frequência):
+Canal preferido: ${topCanal[0]?.[0] || '—'}
+Canais de compra (frequência, últimos 100 pedidos):
 ${topCanal.length ? topCanal.map(([k, v]) => `- ${k}: ${v} pedido(s)`).join('\n') : '- (sem dados)'}
 
 Categorias preferidas (por quantidade de itens):
