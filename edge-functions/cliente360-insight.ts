@@ -138,6 +138,17 @@ REGRAS DE AÇÃO COMERCIAL POR SEGMENTO (CRÍTICO — siga rigorosamente):
 - **Em Risco**: desconto agressivo (15-20%) + contato direto pelo WhatsApp pra reativar.
 - **Inativo**: desconto forte (20-25%) + benefício adicional (frete grátis, brinde) + ligação/WhatsApp pessoal.
 
+REGRA DE INADIMPLÊNCIA (PRIORIDADE MÁXIMA — sobrepõe TODAS as outras):
+Se o contexto traz "Inadimplência: ⚠ DEVENDO..." (cliente em atraso):
+- NÃO ofereça novos descontos, produtos, brindes ou novidades. ZERO oferta nova.
+- A AÇÃO deve ser EXCLUSIVAMENTE lembrar do pagamento atrasado, de forma cordial mas firme.
+- A MENSAGEM WHATSAPP deve mencionar o valor pendente e perguntar se o cliente quer parcelar/regularizar.
+- Tom: respeitoso, sem julgar — "Notamos uma conta em aberto..." / "Quer combinar uma forma de quitar?"
+- ZERO senso de urgência comercial — só cobrança humanizada.
+- ZERO emoji exceto talvez 1 (😊 ou 🙂).
+- NUNCA termine sugerindo nova compra. Só após resolver a pendência.
+Essa regra vale pra QUALQUER segmento (até VIP). Pagamento atrasado tem prioridade sobre relacionamento.
+
 FORMATO OBRIGATÓRIO (exatamente 4 seções, nesse formato, com os rótulos em CAIXA ALTA seguidos de dois-pontos):
 
 ANÁLISE DO COMPORTAMENTO ATUAL:
@@ -339,6 +350,14 @@ Deno.serve(async (req) => {
       return `- ${dataStr} · ${lojaNome(p.loja_id)} · ${fmtBRL(valor)} · ${qtdItens} item(ns)`
     }).join('\n')
 
+    // 7b. FASE 2: inadimplência do cliente (view cliente_inadimplencia)
+    let inadInfo: any = null
+    try {
+      inadInfo = await supaSingle(
+        `cliente_inadimplencia?empresa=eq.${empresa}&contato_nome=eq.${enc(contato_nome)}&select=total_atrasado,max_dias_atraso,qtd_contas_atrasadas,pedidos_origem&limit=1`
+      )
+    } catch (_e) { /* sem inadimplência se view não existe ou erro silencioso */ }
+
     const empresaLabel = empresa === 'matriz' ? 'Matriz (Piçarras)' : 'Balneário Camboriú (BC)'
     const tipoPessoa = cs.tipo_pessoa === 'J' ? 'Pessoa Jurídica' : cs.tipo_pessoa === 'F' ? 'Pessoa Física' : 'N/D'
     const fone = cs.celular || cs.telefone || '—'
@@ -368,6 +387,11 @@ ${topCat.length ? topCat.map(([k, v]) => `- ${k}: ${v} peça(s)`).join('\n') : '
 
 Últimas 5 compras:
 ${ultimasCompras || '- (sem compras registradas)'}
+
+Inadimplência (contas em atraso):
+${inadInfo && Number(inadInfo.total_atrasado) > 0
+  ? `⚠ DEVENDO: ${fmtBRL(inadInfo.total_atrasado)} (${inadInfo.qtd_contas_atrasadas} conta(s), ${inadInfo.max_dias_atraso}d de atraso${inadInfo.pedidos_origem ? ', pedidos '+inadInfo.pedidos_origem : ''})`
+  : '- (em dia)'}
 
 ---
 
