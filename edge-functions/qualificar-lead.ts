@@ -308,19 +308,16 @@ Deno.serve(async (req) => {
     if (fonteOrigem === 'cliente_bling' && contatoNome) {
       const empresaFiltro = empresaIn || 'matriz'
       // Colunas reais de cliente_scoring_full (view): score, segmento, total_pedidos,
-      // total_gasto, ticket_medio, ultima_compra, dias_sem_compra, meses_ativos
+      // total_gasto, ticket_medio, ultima_compra, dias_sem_compra, meses_ativos, contato_id
       const rfm = await supaSingle(
-        `cliente_scoring_full?contato_nome=eq.${enc(contatoNome)}&empresa=eq.${empresaFiltro}&select=score,segmento,total_pedidos,total_gasto,ticket_medio,ultima_compra,dias_sem_compra,meses_ativos&limit=1`
+        `cliente_scoring_full?contato_nome=eq.${enc(contatoNome)}&empresa=eq.${empresaFiltro}&select=score,segmento,total_pedidos,total_gasto,ticket_medio,ultima_compra,dias_sem_compra,meses_ativos,contato_id&limit=1`
       )
       if (rfm) {
         contextoLead.rfm_scoring = rfm
         qtdPedidosBling = Number(rfm.total_pedidos) || 0
       }
-      // Acompanhamento comercial
-      const pedSample = await supaGet(
-        `pedidos?contato_nome=ilike.${enc(contatoNome)}&empresa=eq.${empresaFiltro}&select=contato_id&limit=1`
-      )
-      const cid = pedSample?.[0]?.contato_id
+      // Acompanhamento comercial — pega contato_id direto do RFM (pedidos não tem contato_id)
+      const cid = rfm?.contato_id
       if (cid) {
         const meta = await supaSingle(
           `cliente_metadata?contato_id=eq.${cid}&empresa=eq.${empresaFiltro}&select=status_relacionamento,observacao_rapida,motivo_perda,motivo_perda_detalhe&limit=1`
