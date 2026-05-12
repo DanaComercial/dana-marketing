@@ -138,7 +138,7 @@ REGRAS DE AÇÃO COMERCIAL POR SEGMENTO (CRÍTICO — siga rigorosamente):
 - **Em Risco**: desconto agressivo (15-20%) + contato direto pelo WhatsApp pra reativar.
 - **Inativo**: desconto forte (20-25%) + benefício adicional (frete grátis, brinde) + ligação/WhatsApp pessoal.
 
-FORMATO OBRIGATÓRIO (exatamente 3 seções, nesse formato, com os rótulos em CAIXA ALTA seguidos de dois-pontos):
+FORMATO OBRIGATÓRIO (exatamente 4 seções, nesse formato, com os rótulos em CAIXA ALTA seguidos de dois-pontos):
 
 ANÁLISE DO COMPORTAMENTO ATUAL:
 (parágrafo único descrevendo o perfil de compra: frequência, ticket, canal preferido [LITERAL do contexto], categorias, tempo ativo, segmento RFM)
@@ -147,7 +147,22 @@ RISCO OU OPORTUNIDADE PRINCIPAL:
 (parágrafo único sobre O principal risco OU oportunidade — escolha o mais relevante e seja específico com números e datas)
 
 AÇÃO COMERCIAL RECOMENDADA:
-(parágrafo único com 1-2 ações concretas que SEGUEM A REGRA DE AÇÃO POR SEGMENTO acima: o que oferecer [brinde vs desconto conforme segmento], quando contatar, qual canal usar [literal do contexto], com que tom)`
+(parágrafo único com 1-2 ações concretas que SEGUEM A REGRA DE AÇÃO POR SEGMENTO acima: o que oferecer [brinde vs desconto conforme segmento], quando contatar, qual canal usar [literal do contexto], com que tom)
+
+MENSAGEM WHATSAPP PRONTA:
+(texto curto e direto pra vendedora COPIAR e enviar via WhatsApp ao cliente — 2 a 4 linhas no máximo)
+
+REGRAS DA MENSAGEM WHATSAPP (CRÍTICO):
+- Tom: cordial mas direto, em primeira pessoa do plural ("queremos te oferecer", "preparamos pra você")
+- DEVE refletir a AÇÃO COMERCIAL RECOMENDADA da seção anterior — siga as REGRAS POR SEGMENTO rigorosamente:
+  · Se cliente VIP: NUNCA mencione desconto. Ofereça BRINDE (broche bordado, kit exclusivo, frete grátis, acesso antecipado a coleção nova). Use frases como "preparamos um brinde exclusivo" ou "selecionamos uma cortesia".
+  · Se Frequente: pode mencionar desconto pequeno (5-8%) OU brinde, alinhado com a ação.
+  · Se Ocasional / Em Risco / Inativo: pode mencionar desconto (no patamar % das regras acima).
+- Cite o nome do cliente literalmente no começo ("Olá, [nome]!")
+- Se o contexto traz **categoria preferida** (Jalecos/Scrubs/etc), mencione ela na oferta
+- Finalize SEMPRE com algo tipo "— Equipe Dana Jalecos" ou "Abraços, Dana Jalecos"
+- NUNCA mencione concorrentes nem prazos vagos. Sem hashtags. Sem emojis em excesso (max 1-2).
+- NUNCA invente promoções específicas com datas — fale em termos gerais ("essa semana", "preparamos pra você")`
 
 async function callGroq(messages: any[]) {
   const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
