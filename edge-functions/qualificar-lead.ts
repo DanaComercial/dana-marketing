@@ -307,8 +307,10 @@ Deno.serve(async (req) => {
     let qtdPedidosBling = 0
     if (fonteOrigem === 'cliente_bling' && contatoNome) {
       const empresaFiltro = empresaIn || 'matriz'
+      // Colunas reais de cliente_scoring_full (view): score, segmento, total_pedidos,
+      // total_gasto, ticket_medio, ultima_compra, dias_sem_compra, meses_ativos
       const rfm = await supaSingle(
-        `cliente_scoring_full?contato_nome=eq.${enc(contatoNome)}&empresa=eq.${empresaFiltro}&select=score_rfm,segmento_rfm,score_recompra,total_pedidos,total_gasto,ticket_medio,ultima_compra,categoria_preferida,canal_preferido_label,recencia_dias&limit=1`
+        `cliente_scoring_full?contato_nome=eq.${enc(contatoNome)}&empresa=eq.${empresaFiltro}&select=score,segmento,total_pedidos,total_gasto,ticket_medio,ultima_compra,dias_sem_compra,meses_ativos&limit=1`
       )
       if (rfm) {
         contextoLead.rfm_scoring = rfm
